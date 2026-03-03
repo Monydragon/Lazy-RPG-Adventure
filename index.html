@@ -51,6 +51,11 @@
           <div id="city-buttons" class="button-row wrap"></div>
         </div>
 
+        <div>
+          <p>Difficulty</p>
+          <div id="difficulty-buttons" class="button-row"></div>
+        </div>
+
         <label>
           World Seed
           <div class="seed-row">
@@ -76,6 +81,14 @@
         <label class="toggle">
           <input id="option-controller-vibe" type="checkbox" checked />
           Gamepad polling enabled
+        </label>
+        <label class="toggle">
+          <input id="option-sfx" type="checkbox" checked />
+          Sound effects enabled
+        </label>
+        <label class="toggle">
+          <input id="option-music" type="checkbox" checked />
+          Background music enabled
         </label>
       </div>
       <div class="button-row">
@@ -106,10 +119,13 @@
       <div class="button-row world-controls">
         <button id="world-inventory">Inventory</button>
         <button id="world-equipment">Equipment</button>
+        <button id="world-talk">Talk</button>
+        <button id="world-story">Story</button>
+        <button id="world-achievements">Achievements</button>
         <button id="world-save">Save Game</button>
         <button id="world-menu">Main Menu</button>
       </div>
-      <p class="hint">Move: Arrow Keys / WASD / Left Stick. Inventory: I or Y. Equipment: E or X. Save: P or Start.</p>
+      <p class="hint">Move: Arrow Keys / WASD / Left Stick. Talk: T. Inventory: I. Equipment: E. Story: O. Achievements: H. Save: P.</p>
     </section>
 
     <section id="screen-combat" class="screen">
@@ -121,7 +137,9 @@
 
         <main class="panel">
           <h3 id="combat-title">Combat</h3>
-          <ul id="combat-log" class="log-list"></ul>
+          <div class="combat-log-box">
+            <ul id="combat-log" class="log-list combat-log-list"></ul>
+          </div>
           <div id="combat-actions" class="button-list tight">
             <button class="focusable combat-action" data-action="attack">Attack</button>
             <button class="focusable combat-action" data-action="skill">Skill</button>

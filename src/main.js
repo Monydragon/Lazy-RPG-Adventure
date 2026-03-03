@@ -164,6 +164,142 @@ const ELEMENTAL_SKILLS = [
   { level: 13, name: "Fire Strike", die: 12 },
 ];
 
+const DIFFICULTY_PRESETS = {
+  Easy: {
+    enemyHp: 0.82,
+    enemyAttack: 0.84,
+    enemyDefense: 0.88,
+    playerDamage: 1.12,
+    xp: 1.2,
+    loot: 1.2,
+    bossBoost: 1.55,
+  },
+  Normal: {
+    enemyHp: 1,
+    enemyAttack: 1,
+    enemyDefense: 1,
+    playerDamage: 1,
+    xp: 1,
+    loot: 1,
+    bossBoost: 1.75,
+  },
+  Hard: {
+    enemyHp: 1.2,
+    enemyAttack: 1.18,
+    enemyDefense: 1.12,
+    playerDamage: 0.94,
+    xp: 1.12,
+    loot: 1.15,
+    bossBoost: 1.95,
+  },
+  Legendary: {
+    enemyHp: 1.42,
+    enemyAttack: 1.35,
+    enemyDefense: 1.2,
+    playerDamage: 0.88,
+    xp: 1.25,
+    loot: 1.3,
+    bossBoost: 2.2,
+  },
+};
+
+const WEAPON_ABILITY_SETS = {
+  Melee: [
+    { level: 1, name: "Sweeping Slash", damageDice: [6], hitBonus: 1, attackScale: 0.62, defenseScale: 0.28, critBonus: 2 },
+    { level: 5, name: "Shieldbreaker", damageDice: [8], hitBonus: 2, attackScale: 0.68, defenseScale: 0.2, critBonus: 3 },
+    { level: 12, name: "Earthsplitter", damageDice: [10, 4], hitBonus: 2, attackScale: 0.72, defenseScale: 0.15, critBonus: 5 },
+  ],
+  Ranged: [
+    { level: 1, name: "Quick Volley", damageDice: [4, 4], hitBonus: 3, attackScale: 0.55, defenseScale: 0.26, critBonus: 6 },
+    { level: 5, name: "Piercing Shot", damageDice: [8], hitBonus: 4, attackScale: 0.58, defenseScale: 0.2, critBonus: 10 },
+    { level: 12, name: "Rain of Arrows", damageDice: [6, 6], hitBonus: 4, attackScale: 0.62, defenseScale: 0.18, critBonus: 12 },
+  ],
+  Magic: [
+    { level: 1, name: "Air Strike", damageDice: [6], hitBonus: 2, attackScale: 0.62, defenseScale: 0.25, critBonus: 2 },
+    { level: 5, name: "Water Strike", damageDice: [8], hitBonus: 2, attackScale: 0.66, defenseScale: 0.2, critBonus: 3 },
+    { level: 9, name: "Earth Strike", damageDice: [10], hitBonus: 2, attackScale: 0.68, defenseScale: 0.2, critBonus: 4 },
+    { level: 13, name: "Fire Strike", damageDice: [12], hitBonus: 3, attackScale: 0.72, defenseScale: 0.15, critBonus: 5 },
+    { level: 20, name: "Elemental Burst", damageDice: [10, 8], hitBonus: 3, attackScale: 0.75, defenseScale: 0.12, critBonus: 8 },
+  ],
+};
+
+const RARITY_DATA = {
+  Common: { weight: 58, modScale: 1, color: "#c8d2e6" },
+  Uncommon: { weight: 24, modScale: 1.2, color: "#79c784" },
+  Rare: { weight: 11, modScale: 1.45, color: "#65a8ff" },
+  Epic: { weight: 5, modScale: 1.8, color: "#c37af5" },
+  Legendary: { weight: 2, modScale: 2.2, color: "#ffbf5d" },
+};
+
+const CONSUMABLE_DEFS = {
+  minor_potion: { id: "minor_potion", name: "Minor Potion", description: "Recover 24 Health.", heal: 24, rarity: "Common" },
+  greater_potion: { id: "greater_potion", name: "Greater Potion", description: "Recover 56 Health.", heal: 56, rarity: "Uncommon" },
+  mega_potion: { id: "mega_potion", name: "Mega Potion", description: "Recover 120 Health.", heal: 120, rarity: "Rare" },
+  smoke_bomb: { id: "smoke_bomb", name: "Smoke Bomb", description: "Escape from battle instantly.", flee: true, rarity: "Uncommon" },
+  fire_bomb: { id: "fire_bomb", name: "Fire Bomb", description: "Deal 40 + 1d12 fire damage.", damage: 40, die: 12, rarity: "Rare" },
+  focus_tonic: { id: "focus_tonic", name: "Focus Tonic", description: "Gain +8 Critical Chance for 3 turns.", critBuff: 8, buffTurns: 3, rarity: "Rare" },
+};
+
+const MATERIAL_DEFS = {
+  slime_gel: { id: "slime_gel", name: "Slime Gel", description: "Sticky material from basic monsters." },
+  iron_scrap: { id: "iron_scrap", name: "Iron Scrap", description: "Useful for improvised upgrades." },
+  arcane_dust: { id: "arcane_dust", name: "Arcane Dust", description: "Shimmering residue from magic foes." },
+  beast_fang: { id: "beast_fang", name: "Beast Fang", description: "Sharp and probably still warm." },
+};
+
+const TREASURE_DEFS = {
+  old_coin: { id: "old_coin", name: "Old Coin", description: "A relic worth selling." },
+  royal_seal: { id: "royal_seal", name: "Royal Seal", description: "Collectors pay good gold for this." },
+  dragon_lacquer: { id: "dragon_lacquer", name: "Dragon Lacquer", description: "Rare luxury crafting fluid." },
+};
+
+const BOSS_TITLES = [
+  "Overdue Ogre",
+  "The Tax Dragon",
+  "Moss Tyrant",
+  "The Bureau Lich",
+  "Clockwork Minotaur",
+  "Titan of Naps",
+  "Abyssal Bookkeeper",
+];
+
+const NPC_DIALOG = {
+  city: [
+    "A guard squints and asks if you are licensed for heroism.",
+    "A bard sings your name with suspicious confidence.",
+    "A merchant whispers: 'Buy low, sell high, avoid ogres.'",
+  ],
+  town: [
+    "A villager points at a dungeon and says, 'Please go bother that instead of us.'",
+    "A blacksmith offers advice: 'Hit first, apologize later.'",
+    "A child asks if your sword can cut homework in half.",
+  ],
+  wild: [
+    "A traveling cleric blesses your backpack and leaves before questions.",
+    "A ranger warns: 'If the bushes hiss, run.'",
+    "A wandering cook hands you stew and refuses to explain what was in it.",
+  ],
+};
+
+const STORY_CHAPTERS = [
+  { title: "Chapter 1 - Clerical Error", text: "The realm mistakenly designates you as Champion. Nobody has fixed the paperwork yet." },
+  { title: "Chapter 2 - Rumors in the Streets", text: "Locals begin to recognize your face and your increasingly expensive repairs." },
+  { title: "Chapter 3 - First Boss Falls", text: "News spreads: the dungeons are not safe from you anymore." },
+  { title: "Chapter 4 - Hunter of Tyrants", text: "You become known as a breaker of lairs and paperwork alike." },
+  { title: "Chapter 5 - Legend of the Lazy Hero", text: "Your saga is told in taverns, often with dramatic exaggeration and fewer pants." },
+];
+
+const ACHIEVEMENT_DEFS = [
+  { id: "first_blood", name: "First Blood", description: "Win your first encounter." },
+  { id: "boss_hunter", name: "Boss Hunter", description: "Defeat your first dungeon boss." },
+  { id: "boss_breaker", name: "Boss Breaker", description: "Defeat 5 dungeon bosses." },
+  { id: "socialite", name: "Socialite", description: "Talk to NPCs 10 times." },
+  { id: "pack_rat", name: "Pack Rat", description: "Carry at least 20 item stacks." },
+  { id: "apprentice", name: "Apprentice", description: "Reach level 10." },
+  { id: "veteran", name: "Veteran", description: "Reach level 25." },
+  { id: "legend", name: "Legend", description: "Reach level 50." },
+];
+
 const els = {
   screens: {
     menu: document.getElementById("screen-menu"),
@@ -180,12 +316,15 @@ const els = {
   nameInput: document.getElementById("name-input"),
   styleButtons: document.getElementById("style-buttons"),
   cityButtons: document.getElementById("city-buttons"),
+  difficultyButtons: document.getElementById("difficulty-buttons"),
   seedInput: document.getElementById("seed-input"),
   seedRandom: document.getElementById("seed-random"),
   createStart: document.getElementById("create-start"),
   createBack: document.getElementById("create-back"),
   optionCombatLog: document.getElementById("option-combat-log"),
   optionControllerVibe: document.getElementById("option-controller-vibe"),
+  optionSfx: document.getElementById("option-sfx"),
+  optionMusic: document.getElementById("option-music"),
   optionsBack: document.getElementById("options-back"),
   mapCanvas: document.getElementById("map-canvas"),
   playerSummary: document.getElementById("player-summary"),
@@ -194,6 +333,9 @@ const els = {
   worldLog: document.getElementById("world-log"),
   worldInventory: document.getElementById("world-inventory"),
   worldEquipment: document.getElementById("world-equipment"),
+  worldTalk: document.getElementById("world-talk"),
+  worldStory: document.getElementById("world-story"),
+  worldAchievements: document.getElementById("world-achievements"),
   worldSave: document.getElementById("world-save"),
   worldMenu: document.getElementById("world-menu"),
   combatPlayer: document.getElementById("combat-player"),
@@ -213,14 +355,22 @@ const ctx = els.mapCanvas.getContext("2d");
 const state = {
   screen: "menu",
   introIndex: 0,
-  creation: { name: "Sir Placeholder", style: "Melee", cityId: MAJOR_CITIES[0].id, seed: randomSeed() },
-  options: { verboseCombatLog: true, gamepadEnabled: true },
+  creation: { name: "Sir Placeholder", style: "Melee", cityId: MAJOR_CITIES[0].id, difficulty: "Normal", seed: randomSeed() },
+  options: { verboseCombatLog: true, gamepadEnabled: true, sfxEnabled: true, musicEnabled: true },
   game: null,
   combat: null,
   modal: null,
+  modalData: null,
   focusables: [],
   focusIndex: 0,
   gamepad: { previousButtons: [], axisXReadyAt: 0, axisYReadyAt: 0 },
+  audio: {
+    context: null,
+    master: null,
+    music: null,
+    started: false,
+    intervalId: null,
+  },
 };
 
 initialize();
@@ -259,6 +409,13 @@ function bindEvents() {
     renderCreationSelectors();
   });
 
+  els.difficultyButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-difficulty]");
+    if (!button) return;
+    state.creation.difficulty = button.dataset.difficulty;
+    renderCreationSelectors();
+  });
+
   els.seedRandom.addEventListener("click", () => {
     const seed = randomSeed();
     state.creation.seed = seed;
@@ -275,9 +432,20 @@ function bindEvents() {
   els.optionControllerVibe.addEventListener("change", () => {
     state.options.gamepadEnabled = !!els.optionControllerVibe.checked;
   });
+  els.optionSfx.addEventListener("change", () => {
+    state.options.sfxEnabled = !!els.optionSfx.checked;
+  });
+  els.optionMusic.addEventListener("change", () => {
+    state.options.musicEnabled = !!els.optionMusic.checked;
+    if (state.options.musicEnabled) startMusicLoop();
+    else stopMusicLoop();
+  });
 
   els.worldInventory.addEventListener("click", () => openModal("inventory"));
   els.worldEquipment.addEventListener("click", () => openModal("equipment"));
+  els.worldTalk.addEventListener("click", talkToNpc);
+  els.worldStory.addEventListener("click", () => openModal("story"));
+  els.worldAchievements.addEventListener("click", () => openModal("achievements"));
   els.worldSave.addEventListener("click", saveGame);
   els.worldMenu.addEventListener("click", () => showScreen("menu"));
 
@@ -295,9 +463,12 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("pointerdown", ensureAudioStarted, { once: true });
+  document.addEventListener("click", () => playSfx("click"));
 }
 
 function onKeyDown(event) {
+  ensureAudioStarted();
   const key = event.key;
   const lower = key.toLowerCase();
 
@@ -369,6 +540,15 @@ function onKeyDown(event) {
   } else if (lower === "e") {
     openModal("equipment");
     event.preventDefault();
+  } else if (lower === "t") {
+    talkToNpc();
+    event.preventDefault();
+  } else if (lower === "o") {
+    openModal("story");
+    event.preventDefault();
+  } else if (lower === "h") {
+    openModal("achievements");
+    event.preventDefault();
   } else if (lower === "p" && !typingInInput) {
     saveGame();
     event.preventDefault();
@@ -397,6 +577,8 @@ function handleMenuAction(action) {
   if (action === "options") {
     els.optionCombatLog.checked = state.options.verboseCombatLog;
     els.optionControllerVibe.checked = state.options.gamepadEnabled;
+    els.optionSfx.checked = state.options.sfxEnabled;
+    els.optionMusic.checked = state.options.musicEnabled;
     showScreen("options");
     return;
   }
@@ -436,6 +618,11 @@ function renderCreationSelectors() {
     return `<button class="focusable ${selected}" data-city-id="${city.id}">${city.name}</button>`;
   }).join("");
 
+  els.difficultyButtons.innerHTML = Object.keys(DIFFICULTY_PRESETS).map((difficulty) => {
+    const selected = state.creation.difficulty === difficulty ? "selected" : "";
+    return `<button class="focusable ${selected}" data-difficulty="${difficulty}">${difficulty}</button>`;
+  }).join("");
+
   updateFocusables();
 }
 
@@ -459,11 +646,23 @@ function beginAdventure() {
 
   state.game = {
     seed: state.creation.seed,
+    difficulty: state.creation.difficulty,
     world,
     player,
     stepCount: 0,
     startingCityId: spawnCity.id,
+    storyIndex: 0,
     worldLog: [],
+    achievements: [],
+    meta: {
+      wins: 0,
+      losses: 0,
+      bossesDefeated: 0,
+      npcsTalked: 0,
+      potionsUsed: 0,
+      tilesDiscovered: countDiscoveredTiles(world),
+      totalGoldFound: 0,
+    },
     runtimeRng: createRng(hashString(`${state.creation.seed}|runtime`)),
   };
 
@@ -471,9 +670,11 @@ function beginAdventure() {
   recalculatePlayerStats(player, true);
   player.currentHealth = player.derivedStats.Health;
   addWorldLog(`Welcome, ${player.name}. ${spawnCity.name} pretends this is a normal day.`);
+  addWorldLog(`Difficulty: ${state.game.difficulty}. Enemies scale to your level.`);
   addWorldLog("Leave a city to trigger encounters. Use the map to find dungeons and loot.");
   renderWorld();
   showScreen("world");
+  if (state.options.musicEnabled) startMusicLoop();
 }
 
 function createPlayer(name, style) {
@@ -483,9 +684,11 @@ function createPlayer(name, style) {
     style,
     level: 1,
     xp: 0,
+    gold: 0,
     baseStats: copyStats(styleData.baseStats),
     derivedStats: createZeroStats(),
     currentHealth: styleData.baseStats.Health,
+    activeEffects: [],
     position: { x: 0, y: 0 },
     equipment: { Weapon: null, Head: null, Chest: null, Hands: null, Legs: null, Accessory1: null, Accessory2: null },
     bag: [],
@@ -495,15 +698,10 @@ function createPlayer(name, style) {
 }
 
 function addStartingItems(player) {
-  addItemToBag(player, {
-    uid: createItemUid(),
-    kind: "consumable",
-    id: "minor_potion",
-    name: "Minor Potion",
-    quantity: 3,
-    heal: 24,
-    description: "Recover 24 Health.",
-  });
+  addConsumableToBag(player, "minor_potion", 4);
+  addConsumableToBag(player, "smoke_bomb", 1);
+  addConsumableToBag(player, "fire_bomb", 1);
+  player.gold = 50;
 }
 
 function showScreen(screen) {
@@ -534,8 +732,11 @@ function renderPlayerPanel() {
   const nextXp = xpToNextLevel(player.level);
   els.playerSummary.innerHTML = `
     <p><strong>${escapeHtml(player.name)}</strong> (${player.style})</p>
+    <p>Difficulty ${state.game.difficulty}</p>
     <p>Level ${player.level} | XP ${player.xp}/${nextXp}</p>
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
+    <p>Gold ${player.gold}</p>
+    <p>${STORY_CHAPTERS[state.game.storyIndex].title}</p>
     <p>Position ${player.position.x}, ${player.position.y}</p>
     <p>Seed <code>${escapeHtml(state.game.seed)}</code></p>
   `;
@@ -557,7 +758,12 @@ function renderWorldContext() {
     ? 0
     : getEncounterChancePercent(tile.biome, player.level);
   if (feature) {
-    els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Encounter chance: ${encounterChance.toFixed(1)}%`;
+    if (feature.type === "dungeon") {
+      const bossState = feature.bossDefeated ? "Boss Defeated" : `Boss: ${feature.bossName}`;
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). ${bossState}. Encounter chance: ${encounterChance.toFixed(1)}%`;
+    } else {
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Encounter chance: ${encounterChance.toFixed(1)}%`;
+    }
   } else {
     els.worldContext.textContent = `${biomeLabel}. Encounter chance: ${encounterChance.toFixed(1)}%`;
   }
@@ -640,10 +846,15 @@ function movePlayer(dx, dy) {
   player.position.y = ny;
   state.game.stepCount += 1;
   revealAround(world, nx, ny, 2);
+  state.game.meta.tilesDiscovered = countDiscoveredTiles(world);
+  playSfx("move");
   const feature = getFeatureAt(world, nx, ny);
   if (feature?.type === "city" || feature?.type === "town") addWorldLog(`Arrived at ${feature.name}. This is a safe location.`);
   if (feature?.type === "dungeon") addWorldLog(`You stand at ${feature.name}. It smells like treasure and regret.`);
-  tryTriggerEncounter(feature);
+  if (!maybeTriggerDungeonBoss(feature)) {
+    tryTriggerEncounter(feature);
+  }
+  checkAchievements();
   renderWorld();
   return true;
 }
@@ -666,11 +877,26 @@ function tryTriggerEncounter(feature) {
   if (safeZone) return;
   let chance = getEncounterChancePercent(tile.biome, player.level);
   if (feature?.type === "dungeon") chance += 6;
+  if (state.game.difficulty === "Easy") chance -= 1;
+  if (state.game.difficulty === "Legendary") chance += 2;
   chance = clamp(chance, 2, 35);
   if (runtimeRng.next() * 100 < chance) {
     const enemy = generateEnemy(tile.biome, player.level, runtimeRng);
     startCombat(enemy, tile.biome);
   }
+}
+
+function maybeTriggerDungeonBoss(feature) {
+  if (!state.game || !feature || feature.type !== "dungeon" || feature.bossDefeated || state.combat) return false;
+  const tile = state.game.world.tiles[state.game.player.position.y][state.game.player.position.x];
+  const enemy = generateEnemy(tile.biome, state.game.player.level, state.game.runtimeRng, {
+    boss: true,
+    name: feature.bossName || state.game.runtimeRng.pick(BOSS_TITLES),
+    featureId: feature.id,
+  });
+  startCombat(enemy, tile.biome);
+  addWorldLog(`Boss encounter: ${enemy.name} rises from ${feature.name}.`);
+  return true;
 }
 
 function getEncounterChancePercent(biome, level) {
@@ -682,11 +908,13 @@ function startCombat(enemy, biome) {
     enemy,
     biome,
     phase: "player",
-    log: [`A ${enemy.name} (Lv ${enemy.level}) appears from the ${BIOME_DATA[biome].label}!`],
+    log: [`A ${enemy.isBoss ? "BOSS " : ""}${enemy.name} (Lv ${enemy.level}) appears from the ${BIOME_DATA[biome].label}!`],
     result: null,
     playerDefending: false,
+    turn: 1,
   };
   addWorldLog(`Encounter: ${enemy.name} ambushes you.`);
+  playSfx(enemy.isBoss ? "boss" : "encounter");
   showScreen("combat");
 }
 
@@ -694,10 +922,15 @@ function renderCombat() {
   if (!state.combat || !state.game) return;
   const { player } = state.game;
   const { enemy } = state.combat;
-  els.combatTitle.textContent = `Combat - ${enemy.name}`;
+  const effectText = player.activeEffects.length
+    ? player.activeEffects.map((effect) => `${effect.name} (${effect.turns}t)`).join(", ")
+    : "None";
+  els.combatTitle.textContent = `Combat - ${enemy.name}${enemy.isBoss ? " [Boss]" : ""}`;
   els.combatPlayer.innerHTML = `
     <p><strong>${escapeHtml(player.name)}</strong> (Lv ${player.level})</p>
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
+    <p>Difficulty ${state.game.difficulty}</p>
+    <p>Effects ${escapeHtml(effectText)}</p>
     <p>Style ${player.style}</p>
     <p>Weapon ${escapeHtml(player.equipment.Weapon ? player.equipment.Weapon.name : "None")}</p>
   `;
@@ -706,10 +939,12 @@ function renderCombat() {
     <p>HP ${enemy.currentHealth}/${enemy.stats.Health}</p>
     <p>Attack ${enemy.attackType}</p>
     <p>Damage 1d${enemy.damageDie}</p>
+    <p>Type ${enemy.isBoss ? "Boss" : "Normal"}</p>
   `;
 
   const lines = state.combat.log.slice(-COMBAT_LOG_LIMIT);
   els.combatLog.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  els.combatLog.scrollTop = els.combatLog.scrollHeight;
 
   const canAct = state.combat.phase === "player";
   [...els.combatActions.querySelectorAll("button[data-action]")].forEach((button) => {
@@ -729,7 +964,7 @@ function playerCombatAction(action) {
   if (!state.combat || !state.game || state.combat.phase !== "player") return;
   if (action === "attack") return resolvePlayerAttack({ kind: "attack" });
   if (action === "skill") return resolvePlayerAttack({ kind: "skill" });
-  if (action === "item") return usePotionInCombat();
+  if (action === "item") return useCombatItem();
   if (action === "defend") {
     state.combat.playerDefending = true;
     pushCombatLog("You brace for impact. Dramatically.");
@@ -753,6 +988,7 @@ function playerCombatAction(action) {
 function resolvePlayerAttack({ kind }) {
   const player = state.game.player;
   const enemy = state.combat.enemy;
+  const difficulty = getDifficulty();
   const profile = getPlayerAttackProfile(kind);
   const attackStats = ATTACK_TO_STATS[profile.attackType];
   const attackValue = player.derivedStats[attackStats.attack];
@@ -772,9 +1008,10 @@ function resolvePlayerAttack({ kind }) {
   });
   damage += Math.floor(attackValue * profile.attackScale);
   damage -= Math.floor(defenseValue * profile.defenseScale);
+  damage = Math.floor(damage * difficulty.playerDamage);
   damage = Math.max(1, damage);
 
-  const critThreshold = Math.max(1, Math.floor((player.derivedStats.CriticalChance + profile.critBonus) / 5));
+  const critThreshold = Math.max(1, Math.floor((player.derivedStats.CriticalChance + profile.critBonus + getPlayerEffectCritBonus(player)) / 5));
   const critRoll = rollDie(state.game.runtimeRng, 20);
   const critical = critRoll <= critThreshold;
   if (critical) damage = Math.max(1, Math.floor(damage * 1.5));
@@ -785,6 +1022,7 @@ function resolvePlayerAttack({ kind }) {
   } else {
     pushCombatLog(`${profile.label} hits for ${damage}${critical ? " (critical)" : ""}.`);
   }
+  playSfx(critical ? "crit" : "hit");
   if (enemy.currentHealth <= 0) finalizeCombat("won");
   else queueEnemyTurn();
 }
@@ -792,7 +1030,7 @@ function resolvePlayerAttack({ kind }) {
 function getPlayerAttackProfile(kind) {
   const player = state.game.player;
   const weapon = player.equipment.Weapon;
-  const attackType = weapon ? weapon.attackType : player.style;
+  const attackType = getActiveAttackStyle(player);
   const weaponDie = weapon ? weapon.damageDie : 4;
   if (kind === "attack") {
     return {
@@ -805,14 +1043,19 @@ function getPlayerAttackProfile(kind) {
       critBonus: 0,
     };
   }
-  if (player.style === "Magic") {
-    const spell = getBestSpellForLevel(player.level);
-    return { label: spell.name, attackType: "Magic", damageDice: [spell.die, 4], hitBonus: 2, attackScale: 0.65, defenseScale: 0.3, critBonus: 2 };
-  }
-  if (player.style === "Ranged") {
-    return { label: "Aimed Shot", attackType: "Ranged", damageDice: [weaponDie, 4], hitBonus: 4, attackScale: 0.56, defenseScale: 0.35, critBonus: 10 };
-  }
-  return { label: "Loud Cleave", attackType: "Melee", damageDice: [weaponDie, 4], hitBonus: 1, attackScale: 0.62, defenseScale: 0.35, critBonus: 4 };
+  const abilities = getUnlockedAbilitiesForStyle(player, attackType);
+  const chosen = abilities[abilities.length - 1];
+  const abilityDice = [...chosen.damageDice];
+  abilityDice[0] = Math.max(abilityDice[0], weaponDie);
+  return {
+    label: chosen.name,
+    attackType,
+    damageDice: abilityDice,
+    hitBonus: chosen.hitBonus,
+    attackScale: chosen.attackScale,
+    defenseScale: chosen.defenseScale,
+    critBonus: chosen.critBonus,
+  };
 }
 
 function getBestSpellForLevel(level) {
@@ -823,16 +1066,74 @@ function getBestSpellForLevel(level) {
   return spell;
 }
 
-function usePotionInCombat() {
+function getActiveAttackStyle(player) {
+  if (player.equipment.Weapon && player.equipment.Weapon.attackType) return player.equipment.Weapon.attackType;
+  return player.style;
+}
+
+function getUnlockedAbilitiesForStyle(player, style) {
+  const abilities = WEAPON_ABILITY_SETS[style] || WEAPON_ABILITY_SETS[player.style] || WEAPON_ABILITY_SETS.Melee;
+  const unlocked = abilities.filter((ability) => player.level >= ability.level);
+  if (unlocked.length > 0) return unlocked;
+  return [abilities[0]];
+}
+
+function useCombatItem() {
   const player = state.game.player;
-  const potion = findPotionStack(player);
-  if (!potion || potion.quantity <= 0) return pushCombatLog("No potions available.");
-  if (player.currentHealth >= player.derivedStats.Health) return pushCombatLog("Health already full.");
-  const healAmount = potion.heal + rollDie(state.game.runtimeRng, 8);
-  player.currentHealth = clamp(player.currentHealth + healAmount, 0, player.derivedStats.Health);
-  consumePotion(player);
-  pushCombatLog(`You drink a potion and recover ${healAmount} Health.`);
-  queueEnemyTurn();
+  const deficit = player.derivedStats.Health - player.currentHealth;
+  const chosen = chooseBestCombatConsumable(player, deficit);
+  if (!chosen) return pushCombatLog("No usable combat items available.");
+
+  const definition = CONSUMABLE_DEFS[chosen.id];
+  if (!definition) return pushCombatLog("Item fizzles awkwardly.");
+
+  if (definition.heal) {
+    if (deficit <= 0) return pushCombatLog("Health already full.");
+    const healAmount = definition.heal + rollDie(state.game.runtimeRng, 8);
+    player.currentHealth = clamp(player.currentHealth + healAmount, 0, player.derivedStats.Health);
+    consumeStack(player, chosen.uid);
+    pushCombatLog(`You use ${definition.name} and recover ${healAmount} Health.`);
+    state.game.meta.potionsUsed += 1;
+    playSfx("potion");
+    queueEnemyTurn();
+    return;
+  }
+
+  if (definition.damage) {
+    const bonus = rollDie(state.game.runtimeRng, definition.die || 6);
+    const damage = definition.damage + bonus;
+    state.combat.enemy.currentHealth = clamp(state.combat.enemy.currentHealth - damage, 0, state.combat.enemy.stats.Health);
+    consumeStack(player, chosen.uid);
+    pushCombatLog(`You throw ${definition.name} for ${damage} damage.`);
+    playSfx("bomb");
+    if (state.combat.enemy.currentHealth <= 0) finalizeCombat("won");
+    else queueEnemyTurn();
+    return;
+  }
+
+  if (definition.flee) {
+    consumeStack(player, chosen.uid);
+    pushCombatLog(`${definition.name} erupts. You escape cleanly.`);
+    playSfx("flee");
+    finalizeCombat("fled");
+    return;
+  }
+
+  if (definition.critBuff) {
+    consumeStack(player, chosen.uid);
+    applyPlayerEffect(player, {
+      id: "focus_tonic",
+      name: "Focused",
+      critBonus: definition.critBuff,
+      turns: definition.buffTurns || 3,
+    });
+    pushCombatLog(`${definition.name} sharpens your senses.`);
+    playSfx("buff");
+    queueEnemyTurn();
+    return;
+  }
+
+  pushCombatLog("That item cannot be used right now.");
 }
 
 function queueEnemyTurn() {
@@ -848,6 +1149,7 @@ function queueEnemyTurn() {
 function resolveEnemyTurn() {
   const player = state.game.player;
   const enemy = state.combat.enemy;
+  const difficulty = getDifficulty();
   const attackStats = ATTACK_TO_STATS[enemy.attackType];
   const attackValue = enemy.stats[attackStats.attack];
   const defenseValue = player.derivedStats[attackStats.defense];
@@ -856,12 +1158,14 @@ function resolveEnemyTurn() {
   if (hitRoll < target) {
     pushCombatLog(`${enemy.name} misses (${hitRoll} vs ${target}).`);
     state.combat.playerDefending = false;
+    tickPlayerEffects(player);
+    state.combat.turn += 1;
     state.combat.phase = "player";
     return renderCombat();
   }
 
   let damage = rollDie(state.game.runtimeRng, enemy.damageDie);
-  damage += Math.floor(attackValue * 0.5);
+  damage += Math.floor(attackValue * 0.5 * difficulty.enemyAttack);
   damage -= Math.floor(defenseValue * 0.35);
   damage = Math.max(1, damage);
   const critRoll = rollDie(state.game.runtimeRng, 20);
@@ -871,7 +1175,10 @@ function resolveEnemyTurn() {
 
   player.currentHealth = clamp(player.currentHealth - damage, 0, player.derivedStats.Health);
   pushCombatLog(`${enemy.name} hits for ${damage}.`);
+  playSfx(critRoll <= critThreshold ? "crit" : "hit");
   state.combat.playerDefending = false;
+  tickPlayerEffects(player);
+  state.combat.turn += 1;
 
   if (player.currentHealth <= 0) return finalizeCombat("lost");
   state.combat.phase = "player";
@@ -892,14 +1199,25 @@ function finalizeCombat(result) {
 
   if (result === "won") {
     const enemy = state.combat.enemy;
-    const xpGain = 20 + enemy.level * 8;
+    const xpGain = Math.floor((20 + enemy.level * 8 + (enemy.isBoss ? 90 : 0)) * getDifficulty().xp);
     gainXp(state.game.player, xpGain);
     addWorldLog(`Victory over ${enemy.name}. Gained ${xpGain} XP.`);
     pushCombatLog(`Victory. You gain ${xpGain} XP.`);
-    maybeDropLoot();
+    state.game.meta.wins += 1;
+    if (enemy.isBoss) {
+      state.game.meta.bossesDefeated += 1;
+      markBossDefeated(enemy.featureId);
+      advanceStoryIfNeeded("boss");
+      addWorldLog(`Boss defeated: ${enemy.name}.`);
+      playSfx("bossWin");
+    } else {
+      playSfx("victory");
+    }
+    maybeDropLoot(enemy);
   } else if (result === "fled") {
     addWorldLog("You escaped combat.");
     pushCombatLog("You fled from battle.");
+    playSfx("flee");
   } else if (result === "lost") {
     const player = state.game.player;
     const spawn = state.game.world.majorCityById[state.game.startingCityId] || state.game.world.majorCities[0];
@@ -908,41 +1226,61 @@ function finalizeCombat(result) {
     player.currentHealth = Math.floor(player.derivedStats.Health * 0.7);
     addWorldLog(`Defeat. You wake up in ${spawn.name} with bruised pride.`);
     pushCombatLog("Defeat. You are dragged back to a city.");
+    state.game.meta.losses += 1;
+    playSfx("defeat");
   }
+  checkAchievements();
   renderCombat();
 }
 
-function maybeDropLoot() {
+function maybeDropLoot(enemy) {
   const player = state.game.player;
   const rng = state.game.runtimeRng;
-  const equipmentDropChance = 25 + player.derivedStats.Luck * 0.3;
+  const difficulty = getDifficulty();
+  const lootLines = [];
+
+  const goldGain = Math.floor((8 + enemy.level * 3 + rng.int(0, 14)) * (enemy.isBoss ? 2.2 : 1) * difficulty.loot);
+  player.gold += goldGain;
+  state.game.meta.totalGoldFound += goldGain;
+  lootLines.push(`${goldGain} gold`);
+
+  const equipmentDropChance = clamp(24 + player.derivedStats.Luck * 0.45 + (enemy.isBoss ? 42 : 0), 10, 95);
   if (rng.next() * 100 < equipmentDropChance) {
-    const item = generateEquipmentDrop(player.level, rng);
+    const item = generateEquipmentDrop(player.level, rng, { boss: enemy.isBoss });
     addItemToBag(player, item);
-    pushCombatLog(`Loot found: ${item.name}.`);
-    addWorldLog(`Loot: ${item.name} added to inventory.`);
-    return;
+    lootLines.push(item.name);
   }
-  if (rng.next() * 100 < 55) {
-    addItemToBag(player, {
-      uid: createItemUid(),
-      kind: "consumable",
-      id: "minor_potion",
-      name: "Minor Potion",
-      quantity: 1,
-      heal: 24,
-      description: "Recover 24 Health.",
-    });
-    pushCombatLog("Loot found: Minor Potion.");
-    addWorldLog("Loot: Minor Potion added to inventory.");
+
+  const consumableDrops = enemy.isBoss ? 3 : rng.int(0, 2);
+  for (let i = 0; i < consumableDrops; i += 1) {
+    const dropId = rollConsumableDrop(rng, enemy.isBoss);
+    addConsumableToBag(player, dropId, 1);
+    lootLines.push(CONSUMABLE_DEFS[dropId].name);
   }
+
+  if (rng.next() * 100 < (enemy.isBoss ? 90 : 45)) {
+    const materialId = rng.pick(Object.keys(MATERIAL_DEFS));
+    addStackableLoot(player, "material", MATERIAL_DEFS[materialId], rng.int(1, enemy.isBoss ? 4 : 2));
+    lootLines.push(MATERIAL_DEFS[materialId].name);
+  }
+
+  if (enemy.isBoss || rng.next() * 100 < 14) {
+    const treasureId = rng.pick(Object.keys(TREASURE_DEFS));
+    addStackableLoot(player, "treasure", TREASURE_DEFS[treasureId], 1);
+    lootLines.push(TREASURE_DEFS[treasureId].name);
+  }
+
+  pushCombatLog(`Loot: ${lootLines.join(", ")}.`);
+  addWorldLog(`Loot acquired: ${lootLines.join(", ")}.`);
 }
 
-function generateEquipmentDrop(playerLevel, rng) {
+function generateEquipmentDrop(playerLevel, rng, options = {}) {
   const tier = tierForLevel(playerLevel);
   const slot = rng.pick(EQUIPMENT_SLOTS);
   const slotLabel = slot.replace("Accessory1", "Accessory").replace("Accessory2", "Accessory");
   const prefixes = ["Bent", "Dusty", "Nimble", "Sharp", "Odd", "Lucky", "Stubborn", "Ancient", "Heroic", "Divine"];
+  const rarity = rollEquipmentRarity(playerLevel, rng, options.boss);
+  const rarityScale = RARITY_DATA[rarity].modScale;
   const item = {
     uid: createItemUid(),
     kind: "equipment",
@@ -950,19 +1288,20 @@ function generateEquipmentDrop(playerLevel, rng) {
     attackType: slot === "Weapon" ? rng.pick(["Melee", "Ranged", "Magic"]) : null,
     damageDie: slot === "Weapon" ? rng.pick([4, 6, 8, 10, 12]) : 0,
     tier,
+    rarity,
     levelReq: (tier - 1) * 10 + 1,
-    name: `${prefixes[clamp(tier - 1, 0, prefixes.length - 1)]} ${slotLabel} (${TIER_NAMES[tier - 1]})`,
+    name: `${rarity} ${prefixes[clamp(tier - 1, 0, prefixes.length - 1)]} ${slotLabel} (${TIER_NAMES[tier - 1]})`,
     modifiers: createZeroStats(),
   };
-  item.modifiers.Health = rng.int(0, 5 + tier * 3);
-  item.modifiers.MeleeAttack = rng.int(0, 1 + tier);
-  item.modifiers.MeleeDefense = rng.int(0, 1 + tier);
-  item.modifiers.RangedAttack = rng.int(0, 1 + tier);
-  item.modifiers.RangedDefense = rng.int(0, 1 + tier);
-  item.modifiers.MagicAttack = rng.int(0, 1 + tier);
-  item.modifiers.MagicDefense = rng.int(0, 1 + tier);
-  item.modifiers.CriticalChance = rng.int(0, 1 + Math.ceil(tier / 2));
-  item.modifiers.Luck = rng.int(0, 1 + Math.ceil(tier / 2));
+  item.modifiers.Health = Math.floor(rng.int(0, 5 + tier * 3) * rarityScale);
+  item.modifiers.MeleeAttack = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.MeleeDefense = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.RangedAttack = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.RangedDefense = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.MagicAttack = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.MagicDefense = Math.floor(rng.int(0, 1 + tier) * rarityScale);
+  item.modifiers.CriticalChance = Math.floor(rng.int(0, 1 + Math.ceil(tier / 2)) * rarityScale);
+  item.modifiers.Luck = Math.floor(rng.int(0, 1 + Math.ceil(tier / 2)) * rarityScale);
   return item;
 }
 
@@ -986,6 +1325,8 @@ function gainXp(player, amount) {
     recalculatePlayerStats(player, true);
     player.currentHealth = player.derivedStats.Health;
     addWorldLog(`Level up. ${player.name} is now level ${player.level}.`);
+    advanceStoryIfNeeded("level");
+    checkAchievements();
   }
 }
 
@@ -1015,6 +1356,7 @@ function xpToNextLevel(level) {
 function openModal(type) {
   if (!state.game || state.combat) return;
   state.modal = type;
+  state.modalData = null;
   els.modalBackdrop.classList.remove("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "false");
   renderModal();
@@ -1022,6 +1364,7 @@ function openModal(type) {
 
 function closeModal() {
   state.modal = null;
+  state.modalData = null;
   els.modalBackdrop.classList.add("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "true");
   updateFocusables();
@@ -1035,6 +1378,8 @@ function renderModal() {
     els.modalTitle.textContent = "Inventory";
     const consumables = player.bag.filter((item) => item.kind === "consumable");
     const equipment = player.bag.filter((item) => item.kind === "equipment");
+    const materials = player.bag.filter((item) => item.kind === "material");
+    const treasures = player.bag.filter((item) => item.kind === "treasure");
 
     const consumableRows = consumables.length
       ? consumables
@@ -1056,7 +1401,7 @@ function renderModal() {
           <div class="item-row">
             <div>
               <strong>${escapeHtml(item.name)}</strong>
-              <p>${escapeHtml(item.slot)} | ${summarizeModifiers(item.modifiers)}${item.slot === "Weapon" ? ` | 1d${item.damageDie} ${item.attackType}` : ""}</p>
+              <p>${escapeHtml(item.rarity || "Common")} | ${escapeHtml(item.slot)} | ${summarizeModifiers(item.modifiers)}${item.slot === "Weapon" ? ` | 1d${item.damageDie} ${item.attackType}` : ""}</p>
             </div>
             <button class="focusable" data-modal-action="equip-item" data-item-id="${item.uid}">Equip</button>
           </div>
@@ -1064,13 +1409,25 @@ function renderModal() {
         .join("")
       : "<p>No equipment in bag.</p>";
 
+    const materialRows = materials.length
+      ? materials.map((item) => `<div class="item-row"><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)} (x${item.quantity})</p></div><span>Material</span></div>`).join("")
+      : "<p>No materials.</p>";
+
+    const treasureRows = treasures.length
+      ? treasures.map((item) => `<div class="item-row"><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)} (x${item.quantity})</p></div><span>Treasure</span></div>`).join("")
+      : "<p>No treasure items.</p>";
+
     els.modalContent.innerHTML = `
       <h4>Consumables</h4>
       <div class="modal-list">${consumableRows}</div>
       <h4>Bag Equipment</h4>
       <div class="modal-list">${equipmentRows}</div>
+      <h4>Materials</h4>
+      <div class="modal-list">${materialRows}</div>
+      <h4>Treasures</h4>
+      <div class="modal-list">${treasureRows}</div>
     `;
-  } else {
+  } else if (state.modal === "equipment") {
     els.modalTitle.textContent = "Equipment";
     const equippedRows = EQUIPMENT_SLOTS.map((slot) => {
       const item = player.equipment[slot];
@@ -1081,13 +1438,47 @@ function renderModal() {
         <div class="item-row">
           <div>
             <strong>${slot}</strong>
-            <p>${escapeHtml(item.name)} | ${summarizeModifiers(item.modifiers)}${slot === "Weapon" ? ` | 1d${item.damageDie} ${item.attackType}` : ""}</p>
+            <p>${escapeHtml(item.rarity || "Common")} | ${escapeHtml(item.name)} | ${summarizeModifiers(item.modifiers)}${slot === "Weapon" ? ` | 1d${item.damageDie} ${item.attackType}` : ""}</p>
           </div>
           <button class="focusable" data-modal-action="unequip-slot" data-slot="${slot}">Unequip</button>
         </div>
       `;
     }).join("");
     els.modalContent.innerHTML = `<h4>Equipped Gear</h4><div class="modal-list">${equippedRows}</div>`;
+  } else if (state.modal === "story") {
+    els.modalTitle.textContent = "Story Journal";
+    const current = STORY_CHAPTERS[state.game.storyIndex];
+    els.modalContent.innerHTML = `
+      <div class="item-row">
+        <div>
+          <strong>${escapeHtml(current.title)}</strong>
+          <p>${escapeHtml(current.text)}</p>
+        </div>
+      </div>
+      <p>Bosses defeated: ${state.game.meta.bossesDefeated}</p>
+      <p>NPC talks: ${state.game.meta.npcsTalked}</p>
+    `;
+  } else if (state.modal === "achievements") {
+    els.modalTitle.textContent = "Achievements";
+    const unlockedSet = new Set(state.game.achievements);
+    const rows = ACHIEVEMENT_DEFS.map((entry) => {
+      const unlocked = unlockedSet.has(entry.id);
+      return `
+        <div class="item-row">
+          <div>
+            <strong>${unlocked ? "[Unlocked]" : "[Locked]"} ${escapeHtml(entry.name)}</strong>
+            <p>${escapeHtml(entry.description)}</p>
+          </div>
+          <span>${unlocked ? "Done" : "-"}</span>
+        </div>
+      `;
+    }).join("");
+    els.modalContent.innerHTML = `<div class="modal-list">${rows}</div>`;
+  } else if (state.modal === "npc") {
+    els.modalTitle.textContent = "Town Gossip";
+    const data = state.modalData || { text: "Nobody is around." };
+    const rewardText = data.reward ? `<p><strong>Reward:</strong> ${escapeHtml(data.reward)}</p>` : "";
+    els.modalContent.innerHTML = `<p>${escapeHtml(data.text)}</p>${rewardText}`;
   }
 
   updateFocusables();
@@ -1103,13 +1494,24 @@ function onModalAction(event) {
     const uid = button.dataset.itemId;
     const item = player.bag.find((entry) => entry.uid === uid && entry.kind === "consumable");
     if (!item) return;
-    if (item.id === "minor_potion") {
+    const definition = CONSUMABLE_DEFS[item.id];
+    if (!definition) return;
+    if (definition.heal) {
       if (player.currentHealth >= player.derivedStats.Health) addWorldLog("Health already full.");
       else {
-        player.currentHealth = clamp(player.currentHealth + item.heal, 0, player.derivedStats.Health);
-        consumePotion(player, uid);
-        addWorldLog("Minor Potion used.");
+        player.currentHealth = clamp(player.currentHealth + definition.heal, 0, player.derivedStats.Health);
+        consumeStack(player, uid);
+        state.game.meta.potionsUsed += 1;
+        addWorldLog(`${definition.name} used.`);
+        playSfx("potion");
       }
+    } else if (definition.critBuff) {
+      applyPlayerEffect(player, { id: definition.id, name: "Focused", critBonus: definition.critBuff, turns: definition.buffTurns || 3 });
+      consumeStack(player, uid);
+      addWorldLog(`${definition.name} consumed. Focus increased.`);
+      playSfx("buff");
+    } else {
+      addWorldLog(`${definition.name} can only be used in combat.`);
     }
     renderWorld();
     renderModal();
@@ -1157,8 +1559,8 @@ function equipFromBag(player, uid) {
 }
 
 function addItemToBag(player, item) {
-  if (item.kind === "consumable") {
-    const existing = player.bag.find((entry) => entry.kind === "consumable" && entry.id === item.id);
+  if (item.kind === "consumable" || item.kind === "material" || item.kind === "treasure") {
+    const existing = player.bag.find((entry) => entry.kind === item.kind && entry.id === item.id);
     if (existing) {
       existing.quantity += item.quantity;
       return;
@@ -1167,22 +1569,46 @@ function addItemToBag(player, item) {
   player.bag.push(item);
 }
 
-function consumePotion(player, specificUid = null) {
-  if (specificUid) {
-    const index = player.bag.findIndex((entry) => entry.uid === specificUid);
-    if (index < 0) return;
-    player.bag[index].quantity -= 1;
-    if (player.bag[index].quantity <= 0) player.bag.splice(index, 1);
-    return;
-  }
-  const potion = findPotionStack(player);
-  if (!potion) return;
-  potion.quantity -= 1;
-  if (potion.quantity <= 0) player.bag.splice(player.bag.indexOf(potion), 1);
+function consumeStack(player, uid) {
+  const index = player.bag.findIndex((entry) => entry.uid === uid);
+  if (index < 0) return;
+  player.bag[index].quantity -= 1;
+  if (player.bag[index].quantity <= 0) player.bag.splice(index, 1);
 }
 
-function findPotionStack(player) {
-  return player.bag.find((item) => item.kind === "consumable" && item.id === "minor_potion");
+function findConsumableStack(player, id) {
+  return player.bag.find((item) => item.kind === "consumable" && item.id === id);
+}
+
+function addConsumableToBag(player, id, quantity = 1) {
+  const definition = CONSUMABLE_DEFS[id];
+  if (!definition) return;
+  addItemToBag(player, {
+    uid: createItemUid(),
+    kind: "consumable",
+    id: definition.id,
+    name: definition.name,
+    quantity,
+    description: definition.description,
+    heal: definition.heal || 0,
+    rarity: definition.rarity || "Common",
+    flee: !!definition.flee,
+    damage: definition.damage || 0,
+    die: definition.die || 0,
+    critBuff: definition.critBuff || 0,
+    buffTurns: definition.buffTurns || 0,
+  });
+}
+
+function addStackableLoot(player, kind, definition, quantity) {
+  addItemToBag(player, {
+    uid: createItemUid(),
+    kind,
+    id: definition.id,
+    name: definition.name,
+    description: definition.description,
+    quantity,
+  });
 }
 
 function recalculatePlayerStats(player, keepHealthRatio = false) {
@@ -1251,6 +1677,7 @@ function createStarterWeapon(template) {
     attackType: template.attackType,
     damageDie: template.damageDie,
     tier: 1,
+    rarity: "Common",
     levelReq: 1,
     name: template.name,
     modifiers,
@@ -1312,7 +1739,15 @@ function generateWorld(seedText) {
   for (let i = 0; i < dungeonCount; i += 1) {
     const spot = findPlacementSpot(rng, occupied, tiles, true);
     const dungeonName = `${rng.pick(DUNGEON_NAMES)} ${i + 1}`;
-    features.push({ id: `dungeon_${i}`, name: dungeonName, type: "dungeon", x: spot.x, y: spot.y });
+    features.push({
+      id: `dungeon_${i}`,
+      name: dungeonName,
+      type: "dungeon",
+      x: spot.x,
+      y: spot.y,
+      bossName: rng.pick(BOSS_TITLES),
+      bossDefeated: false,
+    });
     occupied.add(featureKey(spot.x, spot.y));
   }
 
@@ -1425,24 +1860,80 @@ function addWorldLog(message) {
   renderWorldLog();
 }
 
-function generateEnemy(biome, playerLevel, rng) {
+function talkToNpc() {
+  if (!state.game || state.combat) return;
+  const { world, player, runtimeRng } = state.game;
+  const feature = getFeatureAt(world, player.position.x, player.position.y);
+  const zone = feature?.type === "city" ? "city" : feature?.type === "town" ? "town" : "wild";
+  const text = runtimeRng.pick(NPC_DIALOG[zone]);
+
+  let rewardLine = "";
+  const rewardRoll = runtimeRng.next();
+  if (rewardRoll < 0.25) {
+    const gold = runtimeRng.int(8, 30);
+    player.gold += gold;
+    state.game.meta.totalGoldFound += gold;
+    rewardLine = `${gold} gold`;
+  } else if (rewardRoll < 0.5) {
+    const drop = runtimeRng.pick(["minor_potion", "greater_potion", "focus_tonic"]);
+    addConsumableToBag(player, drop, 1);
+    rewardLine = CONSUMABLE_DEFS[drop].name;
+  } else if (rewardRoll < 0.57) {
+    player.currentHealth = clamp(player.currentHealth + 20, 0, player.derivedStats.Health);
+    rewardLine = "20 Health restored";
+  }
+
+  state.game.meta.npcsTalked += 1;
+  state.modal = "npc";
+  state.modalData = {
+    text,
+    reward: rewardLine || "No reward this time.",
+  };
+  addWorldLog(`NPC: ${text}${rewardLine ? ` Reward: ${rewardLine}.` : ""}`);
+  playSfx("talk");
+  advanceStoryIfNeeded("talk");
+  checkAchievements();
+  renderWorld();
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+}
+
+function markBossDefeated(featureId) {
+  if (!state.game || !featureId) return;
+  const feature = state.game.world.features.find((entry) => entry.id === featureId);
+  if (feature) feature.bossDefeated = true;
+}
+
+function generateEnemy(biome, playerLevel, rng, options = {}) {
   const template = rng.pick(ENEMY_POOLS[biome] || ENEMY_POOLS.plains);
-  const level = clamp(playerLevel + rng.int(-1, 2), 1, MAX_LEVEL);
+  const difficulty = getDifficulty();
+  const level = clamp(playerLevel, 1, MAX_LEVEL);
   const base = 8 + level;
+  const bossMult = options.boss ? difficulty.bossBoost : 1;
   const stats = createZeroStats();
-  stats.Health = 16 + level * 4 + rng.int(0, 8);
-  stats.MeleeAttack = base;
-  stats.MeleeDefense = base;
-  stats.RangedAttack = base;
-  stats.RangedDefense = base;
-  stats.MagicAttack = base;
-  stats.MagicDefense = base;
-  stats.CriticalChance = template.crit + Math.floor(level / 12);
+  stats.Health = Math.floor((16 + level * 4 + rng.int(0, 8)) * difficulty.enemyHp * bossMult);
+  stats.MeleeAttack = Math.floor(base * difficulty.enemyAttack * bossMult);
+  stats.MeleeDefense = Math.floor(base * difficulty.enemyDefense * bossMult);
+  stats.RangedAttack = Math.floor(base * difficulty.enemyAttack * bossMult);
+  stats.RangedDefense = Math.floor(base * difficulty.enemyDefense * bossMult);
+  stats.MagicAttack = Math.floor(base * difficulty.enemyAttack * bossMult);
+  stats.MagicDefense = Math.floor(base * difficulty.enemyDefense * bossMult);
+  stats.CriticalChance = Math.floor((template.crit + Math.floor(level / 12)) * (options.boss ? 1.15 : 1));
   stats.Luck = 4 + Math.floor(level / 10);
   if (template.attackType === "Melee") stats.MeleeAttack += Math.floor(level * 0.7);
   if (template.attackType === "Ranged") stats.RangedAttack += Math.floor(level * 0.7);
   if (template.attackType === "Magic") stats.MagicAttack += Math.floor(level * 0.7);
-  return { name: template.name, level, attackType: template.attackType, damageDie: template.damageDie, stats, currentHealth: stats.Health };
+  return {
+    name: options.name || template.name,
+    level,
+    attackType: template.attackType,
+    damageDie: template.damageDie,
+    isBoss: !!options.boss,
+    featureId: options.featureId || null,
+    stats,
+    currentHealth: stats.Health,
+  };
 }
 
 function saveGame() {
@@ -1470,35 +1961,51 @@ function loadGame() {
   state.options = { ...state.options, ...(parsed.options || {}) };
   els.optionCombatLog.checked = state.options.verboseCombatLog;
   els.optionControllerVibe.checked = state.options.gamepadEnabled;
+  els.optionSfx.checked = state.options.sfxEnabled;
+  els.optionMusic.checked = state.options.musicEnabled;
   state.game = hydrateGame(parsed.game);
   state.combat = null;
   closeModal();
   renderWorld();
   showScreen("world");
   addWorldLog(`Loaded save from ${parsed.savedAt || "unknown time"}.`);
+  checkAchievements();
+  if (state.options.musicEnabled) startMusicLoop();
   return true;
 }
 
 function serializeGame(game) {
   return {
     seed: game.seed,
+    difficulty: game.difficulty,
     world: { ...game.world, featureLookup: undefined, majorCityById: undefined },
     player: game.player,
     stepCount: game.stepCount,
     startingCityId: game.startingCityId,
+    storyIndex: game.storyIndex,
     worldLog: game.worldLog,
+    achievements: game.achievements,
+    meta: game.meta,
     runtimeRngState: game.runtimeRng.getState(),
   };
 }
 
 function hydrateGame(saved) {
   const world = saved.world;
+  (world.features || []).forEach((feature, index) => {
+    if (feature.type === "dungeon") {
+      feature.bossName = feature.bossName || BOSS_TITLES[index % BOSS_TITLES.length];
+      feature.bossDefeated = !!feature.bossDefeated;
+    }
+  });
   world.featureLookup = buildFeatureLookup(world.features || []);
   world.majorCityById = {};
   (world.majorCities || []).forEach((city) => { world.majorCityById[city.id] = city; });
   const player = saved.player;
   player.baseStats = copyStats(player.baseStats);
   player.derivedStats = copyStats(player.derivedStats || player.baseStats);
+  player.activeEffects = player.activeEffects || [];
+  player.gold = Number.isFinite(player.gold) ? player.gold : 0;
   EQUIPMENT_SLOTS.forEach((slot) => {
     if (player.equipment[slot]) player.equipment[slot].modifiers = copyStats(player.equipment[slot].modifiers || {});
   });
@@ -1508,11 +2015,23 @@ function hydrateGame(saved) {
   recalculatePlayerStats(player, true);
   return {
     seed: saved.seed,
+    difficulty: saved.difficulty || "Normal",
     world,
     player,
     stepCount: saved.stepCount || 0,
     startingCityId: saved.startingCityId || MAJOR_CITIES[0].id,
+    storyIndex: saved.storyIndex || 0,
     worldLog: saved.worldLog || [],
+    achievements: saved.achievements || [],
+    meta: {
+      wins: saved.meta?.wins || 0,
+      losses: saved.meta?.losses || 0,
+      bossesDefeated: saved.meta?.bossesDefeated || 0,
+      npcsTalked: saved.meta?.npcsTalked || 0,
+      potionsUsed: saved.meta?.potionsUsed || 0,
+      tilesDiscovered: saved.meta?.tilesDiscovered || countDiscoveredTiles(world),
+      totalGoldFound: saved.meta?.totalGoldFound || 0,
+    },
     runtimeRng: createRng(saved.runtimeRngState || hashString(`${saved.seed}|runtime`)),
   };
 }
@@ -1593,6 +2112,8 @@ function pollGamepad(now) {
   const axisX = pad.axes[0] || 0;
   const axisY = pad.axes[1] || 0;
 
+  if (!state.audio.started && pressed.some(Boolean)) ensureAudioStarted();
+
   if (usesFocusNavigation()) {
     if (edge(12) || (axisY < -0.55 && now >= state.gamepad.axisYReadyAt)) {
       moveFocus(-1);
@@ -1629,10 +2150,150 @@ function pollGamepad(now) {
     }
     if (edge(3)) openModal("inventory");
     if (edge(2)) openModal("equipment");
+    if (edge(4)) openModal("story");
+    if (edge(5)) openModal("achievements");
+    if (edge(0)) talkToNpc();
     if (edge(9)) saveGame();
     if (edge(1)) showScreen("menu");
   }
   state.gamepad.previousButtons = pressed;
+}
+
+function getDifficulty() {
+  const key = state.game?.difficulty || state.creation.difficulty || "Normal";
+  return DIFFICULTY_PRESETS[key] || DIFFICULTY_PRESETS.Normal;
+}
+
+function rollEquipmentRarity(level, rng, isBoss = false) {
+  const entries = Object.entries(RARITY_DATA).map(([name, data]) => ({ name, weight: data.weight }));
+  const levelBonus = Math.floor(level / 12);
+  entries.forEach((entry) => {
+    if (entry.name === "Rare") entry.weight += levelBonus;
+    if (entry.name === "Epic") entry.weight += Math.floor(levelBonus / 2);
+    if (entry.name === "Legendary") entry.weight += Math.floor(levelBonus / 3);
+  });
+  if (isBoss) {
+    entries.forEach((entry) => {
+      if (entry.name === "Epic") entry.weight += 4;
+      if (entry.name === "Legendary") entry.weight += 2;
+    });
+  }
+  return weightedPick(entries, rng);
+}
+
+function rollConsumableDrop(rng, isBoss = false) {
+  const table = [
+    { id: "minor_potion", weight: 45 },
+    { id: "greater_potion", weight: 26 },
+    { id: "smoke_bomb", weight: 12 },
+    { id: "focus_tonic", weight: 10 },
+    { id: "mega_potion", weight: isBoss ? 14 : 5 },
+    { id: "fire_bomb", weight: isBoss ? 12 : 4 },
+  ];
+  return weightedPick(table, rng, "id");
+}
+
+function weightedPick(entries, rng, valueKey = "name") {
+  let total = 0;
+  entries.forEach((entry) => {
+    total += entry.weight;
+  });
+  let roll = rng.next() * total;
+  for (const entry of entries) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry[valueKey];
+  }
+  return entries[entries.length - 1][valueKey];
+}
+
+function chooseBestCombatConsumable(player, hpDeficit) {
+  const consumables = player.bag.filter((item) => item.kind === "consumable" && item.quantity > 0);
+  if (consumables.length === 0) return null;
+  const healthPct = player.currentHealth / player.derivedStats.Health;
+  if (healthPct < 0.28) {
+    return findConsumableStack(player, "mega_potion")
+      || findConsumableStack(player, "greater_potion")
+      || findConsumableStack(player, "minor_potion")
+      || findConsumableStack(player, "smoke_bomb")
+      || consumables[0];
+  }
+  if (hpDeficit > 36) {
+    return findConsumableStack(player, "greater_potion")
+      || findConsumableStack(player, "minor_potion")
+      || findConsumableStack(player, "focus_tonic")
+      || consumables[0];
+  }
+  if (findConsumableStack(player, "focus_tonic")) return findConsumableStack(player, "focus_tonic");
+  if (findConsumableStack(player, "fire_bomb")) return findConsumableStack(player, "fire_bomb");
+  return findConsumableStack(player, "minor_potion") || consumables[0];
+}
+
+function applyPlayerEffect(player, effect) {
+  const existing = player.activeEffects.find((entry) => entry.id === effect.id);
+  if (existing) {
+    existing.turns = Math.max(existing.turns, effect.turns);
+    return;
+  }
+  player.activeEffects.push({ ...effect });
+}
+
+function tickPlayerEffects(player) {
+  if (!player.activeEffects.length) return;
+  player.activeEffects.forEach((effect) => {
+    effect.turns -= 1;
+  });
+  player.activeEffects = player.activeEffects.filter((effect) => effect.turns > 0);
+}
+
+function getPlayerEffectCritBonus(player) {
+  return player.activeEffects.reduce((sum, effect) => sum + (effect.critBonus || 0), 0);
+}
+
+function advanceStoryIfNeeded(reason) {
+  if (!state.game) return;
+  const game = state.game;
+  let target = game.storyIndex;
+  if (reason === "talk" && game.meta.npcsTalked >= 2) target = Math.max(target, 1);
+  if (reason === "boss" && game.meta.bossesDefeated >= 1) target = Math.max(target, 2);
+  if ((reason === "boss" || reason === "level") && game.meta.bossesDefeated >= 3) target = Math.max(target, 3);
+  if ((reason === "boss" || reason === "level") && game.meta.bossesDefeated >= 5 && game.player.level >= 18) target = Math.max(target, 4);
+  if (target !== game.storyIndex) {
+    game.storyIndex = target;
+    addWorldLog(`Story advanced: ${STORY_CHAPTERS[game.storyIndex].title}.`);
+  }
+}
+
+function checkAchievements() {
+  if (!state.game) return;
+  const game = state.game;
+  const unlocked = new Set(game.achievements);
+  const attemptUnlock = (id) => {
+    if (unlocked.has(id)) return;
+    unlocked.add(id);
+    game.achievements.push(id);
+    const definition = ACHIEVEMENT_DEFS.find((entry) => entry.id === id);
+    addWorldLog(`Achievement unlocked: ${definition ? definition.name : id}.`);
+    playSfx("achievement");
+  };
+
+  if (game.meta.wins >= 1) attemptUnlock("first_blood");
+  if (game.meta.bossesDefeated >= 1) attemptUnlock("boss_hunter");
+  if (game.meta.bossesDefeated >= 5) attemptUnlock("boss_breaker");
+  if (game.meta.npcsTalked >= 10) attemptUnlock("socialite");
+  if (game.player.bag.length >= 20) attemptUnlock("pack_rat");
+  if (game.player.level >= 10) attemptUnlock("apprentice");
+  if (game.player.level >= 25) attemptUnlock("veteran");
+  if (game.player.level >= 50) attemptUnlock("legend");
+}
+
+function countDiscoveredTiles(world) {
+  let total = 0;
+  for (let y = 0; y < world.height; y += 1) {
+    for (let x = 0; x < world.width; x += 1) {
+      if (world.discovered[y][x]) total += 1;
+    }
+  }
+  return total;
 }
 
 function randomSeed() {
@@ -1700,4 +2361,92 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function ensureAudioStarted() {
+  if (state.audio.started) return;
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor) return;
+  const context = new AudioCtor();
+  const master = context.createGain();
+  master.gain.value = 0.18;
+  master.connect(context.destination);
+  state.audio.context = context;
+  state.audio.master = master;
+  state.audio.started = true;
+  if (state.options.musicEnabled) startMusicLoop();
+}
+
+function playSfx(type) {
+  if (!state.options.sfxEnabled || !state.audio.started || !state.audio.context || !state.audio.master) return;
+  const ctxAudio = state.audio.context;
+  const now = ctxAudio.currentTime;
+  const pulse = (freq, duration, gain, shape = "triangle", delay = 0) => {
+    const oscillator = ctxAudio.createOscillator();
+    const node = ctxAudio.createGain();
+    oscillator.type = shape;
+    oscillator.frequency.setValueAtTime(freq, now + delay);
+    node.gain.setValueAtTime(0, now + delay);
+    node.gain.linearRampToValueAtTime(gain, now + delay + 0.01);
+    node.gain.exponentialRampToValueAtTime(0.001, now + delay + duration);
+    oscillator.connect(node);
+    node.connect(state.audio.master);
+    oscillator.start(now + delay);
+    oscillator.stop(now + delay + duration + 0.03);
+  };
+
+  if (type === "click") pulse(440, 0.08, 0.05, "square");
+  else if (type === "move") pulse(220, 0.05, 0.04, "triangle");
+  else if (type === "encounter") { pulse(160, 0.25, 0.08, "sawtooth"); pulse(220, 0.25, 0.05, "square", 0.1); }
+  else if (type === "boss") { pulse(120, 0.4, 0.1, "sawtooth"); pulse(90, 0.45, 0.08, "triangle", 0.1); }
+  else if (type === "hit") pulse(280, 0.08, 0.07, "square");
+  else if (type === "crit") { pulse(520, 0.12, 0.09, "sawtooth"); pulse(740, 0.1, 0.06, "triangle", 0.05); }
+  else if (type === "potion") { pulse(500, 0.12, 0.06, "triangle"); pulse(700, 0.12, 0.05, "triangle", 0.08); }
+  else if (type === "bomb") { pulse(140, 0.2, 0.09, "square"); pulse(100, 0.25, 0.07, "sawtooth", 0.1); }
+  else if (type === "buff") { pulse(650, 0.15, 0.06, "sine"); pulse(870, 0.14, 0.05, "sine", 0.08); }
+  else if (type === "flee") { pulse(340, 0.08, 0.05, "triangle"); pulse(290, 0.08, 0.04, "triangle", 0.08); }
+  else if (type === "victory") { pulse(440, 0.12, 0.07, "triangle"); pulse(550, 0.12, 0.07, "triangle", 0.1); pulse(660, 0.16, 0.08, "triangle", 0.2); }
+  else if (type === "bossWin") { pulse(392, 0.16, 0.08, "triangle"); pulse(523, 0.16, 0.08, "triangle", 0.14); pulse(659, 0.2, 0.09, "triangle", 0.3); }
+  else if (type === "defeat") { pulse(220, 0.2, 0.08, "sawtooth"); pulse(175, 0.25, 0.07, "sawtooth", 0.15); }
+  else if (type === "achievement") { pulse(780, 0.15, 0.08, "sine"); pulse(1040, 0.2, 0.07, "sine", 0.08); }
+  else if (type === "talk") { pulse(360, 0.06, 0.05, "triangle"); pulse(420, 0.06, 0.04, "triangle", 0.05); }
+}
+
+function startMusicLoop() {
+  if (!state.audio.started || !state.audio.context || !state.audio.master) return;
+  if (state.audio.intervalId) return;
+  const ctxAudio = state.audio.context;
+  let step = 0;
+  const progression = [
+    [196, 247, 294],
+    [220, 277, 330],
+    [174, 220, 262],
+    [196, 247, 330],
+  ];
+
+  state.audio.intervalId = window.setInterval(() => {
+    if (!state.options.musicEnabled || !state.audio.started || !state.audio.context || !state.audio.master) return;
+    const now = ctxAudio.currentTime;
+    const chord = progression[step % progression.length];
+    chord.forEach((freq, idx) => {
+      const osc = ctxAudio.createOscillator();
+      const gain = ctxAudio.createGain();
+      osc.type = idx === 0 ? "triangle" : "sine";
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.025 - idx * 0.005, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+      osc.connect(gain);
+      gain.connect(state.audio.master);
+      osc.start(now);
+      osc.stop(now + 1.25);
+    });
+    step += 1;
+  }, 900);
+}
+
+function stopMusicLoop() {
+  if (!state.audio.intervalId) return;
+  window.clearInterval(state.audio.intervalId);
+  state.audio.intervalId = null;
 }

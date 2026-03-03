@@ -200,6 +200,16 @@ button:disabled {
   align-items: stretch;
 }
 
+.combat-layout .panel {
+  min-height: 460px;
+}
+
+.combat-layout .panel:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .map-panel {
   display: flex;
   flex-direction: column;
@@ -218,6 +228,10 @@ button:disabled {
   margin-top: 0.8rem;
 }
 
+.world-controls button {
+  min-width: 108px;
+}
+
 .log-list {
   margin: 0;
   padding-left: 1rem;
@@ -225,6 +239,22 @@ button:disabled {
   gap: 0.35rem;
   max-height: 360px;
   overflow: auto;
+}
+
+.combat-log-box {
+  border: 1px solid #5a6e88;
+  border-radius: 10px;
+  background: #111a24;
+  padding: 0.45rem 0.55rem;
+  min-height: 230px;
+  max-height: 230px;
+}
+
+.combat-log-list {
+  max-height: 212px;
+  min-height: 212px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .toggle {
@@ -311,5 +341,10 @@ hr {
 
   .button-row {
     gap: 0.45rem;
+  }
+
+  .world-controls button {
+    flex: 1 1 calc(50% - 0.45rem);
+    min-width: 0;
   }
 }
