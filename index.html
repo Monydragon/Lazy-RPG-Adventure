@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lazy RPG Adventure - MVP Prototype</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <h1>Lazy RPG Adventure</h1>
+      <p>Dice-heavy turn-based RPG prototype (Keyboard + Controller)</p>
+    </header>
+
+    <section id="screen-menu" class="screen active">
+      <p class="flavor">A kingdom needed a hero. Paperwork needed a volunteer. You can guess which one won.</p>
+      <div class="button-list">
+        <button class="focusable menu-btn" data-menu-action="start">Start Game</button>
+        <button class="focusable menu-btn" data-menu-action="load">Load Game</button>
+        <button class="focusable menu-btn" data-menu-action="options">Options</button>
+        <button class="focusable menu-btn" data-menu-action="exit">Exit</button>
+      </div>
+      <p id="menu-message" class="hint"></p>
+    </section>
+
+    <section id="screen-intro" class="screen">
+      <h2>Prologue</h2>
+      <p id="intro-text" class="story"></p>
+      <div class="button-row">
+        <button id="intro-next" class="focusable">Continue</button>
+        <button id="intro-skip" class="focusable">Skip</button>
+      </div>
+    </section>
+
+    <section id="screen-create" class="screen">
+      <h2>Character Creation</h2>
+      <div class="create-grid">
+        <label>
+          Character Name
+          <input id="name-input" type="text" maxlength="24" value="Sir Placeholder" />
+        </label>
+
+        <div>
+          <p>Combat Style</p>
+          <div id="style-buttons" class="button-row"></div>
+        </div>
+
+        <div>
+          <p>Starting City</p>
+          <div id="city-buttons" class="button-row wrap"></div>
+        </div>
+
+        <label>
+          World Seed
+          <div class="seed-row">
+            <input id="seed-input" type="text" maxlength="32" />
+            <button id="seed-random" class="focusable">Random Seed</button>
+          </div>
+        </label>
+      </div>
+
+      <div class="button-row">
+        <button id="create-start" class="focusable">Begin Adventure</button>
+        <button id="create-back" class="focusable">Back</button>
+      </div>
+    </section>
+
+    <section id="screen-options" class="screen">
+      <h2>Options</h2>
+      <div class="panel simple">
+        <label class="toggle">
+          <input id="option-combat-log" type="checkbox" checked />
+          Verbose combat log
+        </label>
+        <label class="toggle">
+          <input id="option-controller-vibe" type="checkbox" checked />
+          Gamepad polling enabled
+        </label>
+      </div>
+      <div class="button-row">
+        <button id="options-back" class="focusable">Back</button>
+      </div>
+    </section>
+
+    <section id="screen-world" class="screen">
+      <div class="world-layout">
+        <aside class="panel">
+          <h3>Hero</h3>
+          <div id="player-summary"></div>
+          <hr />
+          <div id="player-stats"></div>
+        </aside>
+
+        <main class="panel map-panel">
+          <canvas id="map-canvas" width="672" height="432" aria-label="Overworld map"></canvas>
+          <p id="world-context" class="hint"></p>
+        </main>
+
+        <aside class="panel">
+          <h3>Adventure Log</h3>
+          <ul id="world-log" class="log-list"></ul>
+        </aside>
+      </div>
+
+      <div class="button-row world-controls">
+        <button id="world-inventory">Inventory</button>
+        <button id="world-equipment">Equipment</button>
+        <button id="world-save">Save Game</button>
+        <button id="world-menu">Main Menu</button>
+      </div>
+      <p class="hint">Move: Arrow Keys / WASD / Left Stick. Inventory: I or Y. Equipment: E or X. Save: P or Start.</p>
+    </section>
+
+    <section id="screen-combat" class="screen">
+      <div class="combat-layout">
+        <aside class="panel">
+          <h3>Hero Status</h3>
+          <div id="combat-player"></div>
+        </aside>
+
+        <main class="panel">
+          <h3 id="combat-title">Combat</h3>
+          <ul id="combat-log" class="log-list"></ul>
+          <div id="combat-actions" class="button-list tight">
+            <button class="focusable combat-action" data-action="attack">Attack</button>
+            <button class="focusable combat-action" data-action="skill">Skill</button>
+            <button class="focusable combat-action" data-action="item">Item</button>
+            <button class="focusable combat-action" data-action="defend">Defend</button>
+            <button class="focusable combat-action" data-action="flee">Flee</button>
+          </div>
+          <div class="button-row">
+            <button id="combat-return" class="focusable hidden">Return to Map</button>
+          </div>
+        </main>
+
+        <aside class="panel">
+          <h3>Enemy</h3>
+          <div id="combat-enemy"></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div id="modal-backdrop" class="hidden" aria-hidden="true">
+    <div id="modal-window" class="panel modal">
+      <h3 id="modal-title"></h3>
+      <div id="modal-content"></div>
+      <div class="button-row">
+        <button id="modal-close" class="focusable">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./src/main.js"></script>
+</body>
+</html>
