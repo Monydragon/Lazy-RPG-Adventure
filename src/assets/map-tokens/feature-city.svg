@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="City token">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="28%" r="72%">
+      <stop offset="0%" stop-color="#a6d5ff"/>
+      <stop offset="100%" stop-color="#2d5a9e"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bg)" stroke="#123560" stroke-width="3"/>
+  <rect x="16" y="34" width="32" height="14" rx="2" fill="#ecf3ff" stroke="#264971" stroke-width="1.5"/>
+  <rect x="20" y="22" width="8" height="12" fill="#dbe8fb" stroke="#2a486d" stroke-width="1.2"/>
+  <rect x="30" y="18" width="8" height="16" fill="#dbe8fb" stroke="#2a486d" stroke-width="1.2"/>
+  <rect x="40" y="24" width="8" height="10" fill="#dbe8fb" stroke="#2a486d" stroke-width="1.2"/>
+</svg>

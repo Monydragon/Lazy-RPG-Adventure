@@ -38,12 +38,18 @@
       <div class="create-grid">
         <label>
           Character Name
-          <input id="name-input" type="text" maxlength="24" value="Sir Placeholder" />
+          <input id="name-input" type="text" maxlength="24" value="" placeholder="Enter hero name" />
         </label>
 
         <div>
           <p>Combat Style</p>
           <div id="style-buttons" class="button-row"></div>
+        </div>
+
+        <div>
+          <p>Starting Weapon</p>
+          <div id="weapon-buttons" class="button-row wrap"></div>
+          <div id="weapon-info" class="weapon-info"></div>
         </div>
 
         <div>
@@ -117,15 +123,21 @@
       </div>
 
       <div class="button-row world-controls">
+        <button id="world-interact">Interact</button>
         <button id="world-inventory">Inventory</button>
         <button id="world-equipment">Equipment</button>
+        <button id="world-levelup">Level Up</button>
+        <button id="world-shop">Shop</button>
+        <button id="world-quests">Quests</button>
+        <button id="world-bestiary">Bestiary</button>
         <button id="world-talk">Talk</button>
         <button id="world-story">Story</button>
         <button id="world-achievements">Achievements</button>
         <button id="world-save">Save Game</button>
         <button id="world-menu">Main Menu</button>
       </div>
-      <p class="hint">Move: Arrow Keys / WASD / Left Stick. Talk: T. Inventory: I. Equipment: E. Story: O. Achievements: H. Save: P.</p>
+      <p class="hint">Keyboard: Move WASD/Arrows, Interact F, Talk T, Inventory I, Equipment E, Level Up U, Shop J, Quests Q, Bestiary K, Story O, Achievements H, Save P, Menu M.</p>
+      <p class="hint">Controller: Move D-pad/Left Stick, Interact RT, Talk A, Inventory Y, Equipment X, Shop LT, Quests RB, Story LB, Bestiary R3, Achievements View, Save Start, Menu B, Scroll Right Stick.</p>
     </section>
 
     <section id="screen-combat" class="screen">

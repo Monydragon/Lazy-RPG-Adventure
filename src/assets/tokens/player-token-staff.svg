@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Staff token">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="28%" r="72%">
+      <stop offset="0%" stop-color="#cfd6ff"/>
+      <stop offset="100%" stop-color="#34457a"/>
+    </radialGradient>
+    <radialGradient id="orb" cx="40%" cy="35%" r="68%">
+      <stop offset="0%" stop-color="#f4d5ff"/>
+      <stop offset="100%" stop-color="#8e53d4"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bg)" stroke="#202c4f" stroke-width="3"/>
+  <rect x="29" y="16" width="6" height="34" rx="3" fill="#8b5e37" stroke="#442b16" stroke-width="1.2"/>
+  <circle cx="32" cy="13" r="8" fill="url(#orb)" stroke="#4b2e78" stroke-width="1.5"/>
+  <path d="M24 13 C27 8, 37 8, 40 13" fill="none" stroke="#cda9ff" stroke-width="2"/>
+  <circle cx="32" cy="13" r="2.2" fill="#fff6ff"/>
+</svg>
