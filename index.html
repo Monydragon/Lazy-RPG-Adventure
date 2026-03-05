@@ -60,6 +60,7 @@
         <div>
           <p>Difficulty</p>
           <div id="difficulty-buttons" class="button-row"></div>
+          <div id="difficulty-info" class="weapon-info"></div>
         </div>
 
         <label>
@@ -96,6 +97,35 @@
           <input id="option-music" type="checkbox" checked />
           Background music enabled
         </label>
+        <label class="toggle">
+          <input id="option-auto-level" type="checkbox" />
+          Auto Level Up
+        </label>
+        <label class="toggle">
+          <input id="option-debug" type="checkbox" />
+          Debug Mode (quick testing hotkeys)
+        </label>
+        <label class="option-slider">
+          <span>Master Volume</span>
+          <div class="slider-row">
+            <input id="option-master-volume" type="range" min="0" max="100" step="1" value="80" />
+            <strong id="option-master-volume-value">80%</strong>
+          </div>
+        </label>
+        <label class="option-slider">
+          <span>Music Volume</span>
+          <div class="slider-row">
+            <input id="option-music-volume" type="range" min="0" max="100" step="1" value="90" />
+            <strong id="option-music-volume-value">90%</strong>
+          </div>
+        </label>
+        <label class="option-slider">
+          <span>SFX Volume</span>
+          <div class="slider-row">
+            <input id="option-sfx-volume" type="range" min="0" max="100" step="1" value="90" />
+            <strong id="option-sfx-volume-value">90%</strong>
+          </div>
+        </label>
       </div>
       <div class="button-row">
         <button id="options-back" class="focusable">Back</button>
@@ -124,20 +154,14 @@
 
       <div class="button-row world-controls">
         <button id="world-interact">Interact</button>
-        <button id="world-inventory">Inventory</button>
-        <button id="world-equipment">Equipment</button>
-        <button id="world-levelup">Level Up</button>
+        <button id="world-character">Character</button>
         <button id="world-shop">Shop</button>
-        <button id="world-quests">Quests</button>
-        <button id="world-bestiary">Bestiary</button>
         <button id="world-talk">Talk</button>
-        <button id="world-story">Story</button>
-        <button id="world-achievements">Achievements</button>
         <button id="world-save">Save Game</button>
         <button id="world-menu">Main Menu</button>
       </div>
-      <p class="hint">Keyboard: Move WASD/Arrows, Interact F, Talk T, Inventory I, Equipment E, Level Up U, Shop J, Quests Q, Bestiary K, Story O, Achievements H, Save P, Menu M.</p>
-      <p class="hint">Controller: Move D-pad/Left Stick, Interact RT, Talk A, Inventory Y, Equipment X, Shop LT, Quests RB, Story LB, Bestiary R3, Achievements View, Save Start, Menu B, Scroll Right Stick.</p>
+      <p id="world-controls-hint" class="hint"></p>
+      <p id="world-shortcuts-hint" class="hint"></p>
     </section>
 
     <section id="screen-combat" class="screen">

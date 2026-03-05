@@ -92,10 +92,11 @@ const FEATURE_TOKEN_PATHS = {
   npc: "./src/assets/map-tokens/feature-npc.svg",
   chest: "./src/assets/map-tokens/feature-chest.svg",
   transition: "./src/assets/map-tokens/feature-transition.svg",
+  grave: "./src/assets/map-tokens/feature-grave.svg",
   boss: "./src/assets/map-tokens/feature-boss.svg",
 };
 const BASE_START_STATS = {
-  Health: 10,
+  Health: 50,
   MeleeAttack: 1,
   MeleeDefense: 1,
   RangedAttack: 1,
@@ -408,40 +409,62 @@ const ENEMY_POOLS = {
 
 const DIFFICULTY_PRESETS = {
   Easy: {
-    enemyHp: 0.82,
-    enemyAttack: 0.84,
-    enemyDefense: 0.88,
-    playerDamage: 1.12,
+    enemyHp: 0.78,
+    enemyAttack: 0.78,
+    enemyDefense: 0.82,
+    playerDamage: 1.14,
     xp: 1.2,
     loot: 1.2,
-    bossBoost: 1.55,
+    bossBoost: 1.5,
+    summary: "Most forgiving combat tuning with strong rewards.",
+    deathRule: "On defeat: lose nothing and return at full HP.",
+    deathMode: "none",
+    deathRestoreRatio: 1,
   },
   Normal: {
-    enemyHp: 1,
-    enemyAttack: 1,
-    enemyDefense: 1,
-    playerDamage: 1,
+    enemyHp: 0.92,
+    enemyAttack: 0.92,
+    enemyDefense: 0.94,
+    playerDamage: 1.03,
     xp: 1,
     loot: 1,
-    bossBoost: 1.75,
+    bossBoost: 1.68,
+    summary: "Balanced baseline with moderate challenge and rewards.",
+    deathRule: "On defeat: lose a chunk of gold, then respawn in town.",
+    deathMode: "gold",
+    deathRestoreRatio: 0.7,
+    deathGoldLossRate: 0.2,
+    deathGoldLossFlat: 8,
+    deathGoldLossPerLevel: 3,
   },
   Hard: {
-    enemyHp: 1.2,
-    enemyAttack: 1.18,
-    enemyDefense: 1.12,
+    enemyHp: 1.08,
+    enemyAttack: 1.08,
+    enemyDefense: 1.04,
     playerDamage: 0.94,
     xp: 1.12,
     loot: 1.15,
-    bossBoost: 1.95,
+    bossBoost: 1.88,
+    summary: "Tighter fights and stronger bosses with better loot.",
+    deathRule: "On defeat: equipped gear drops on the map and must be recovered.",
+    deathMode: "gear",
+    deathRestoreRatio: 0.65,
   },
   Legendary: {
-    enemyHp: 1.42,
-    enemyAttack: 1.35,
-    enemyDefense: 1.2,
+    enemyHp: 1.28,
+    enemyAttack: 1.22,
+    enemyDefense: 1.12,
     playerDamage: 0.88,
     xp: 1.25,
     loot: 1.3,
-    bossBoost: 2.2,
+    bossBoost: 2.1,
+    summary: "Relentless combat pressure tuned for high-risk play.",
+    deathRule: "On defeat: lose gold and drop equipped gear for later recovery.",
+    deathMode: "gear_gold",
+    deathRestoreRatio: 0.6,
+    deathGoldLossRate: 0.26,
+    deathGoldLossFlat: 12,
+    deathGoldLossPerLevel: 4,
   },
 };
 
@@ -596,41 +619,213 @@ const ACHIEVEMENT_DEFS = [
 ];
 
 const MUSIC_THEMES = {
-  world: {
-    stepMs: 740,
-    bass: [98, 110, 87, 98, 98, 110, 87, 98],
+  menu: {
+    stepMs: 560,
+    bass: [110, 123, 98, 110, 131, 123, 110, 98],
     chords: [
-      [196, 247, 294],
-      [220, 277, 330],
-      [174, 220, 262],
-      [196, 247, 294],
-      [196, 247, 311],
-      [220, 277, 330],
-      [174, 220, 262],
-      [196, 247, 330],
+      [220, 277, 330, 440],
+      [246, 311, 369, 493],
+      [196, 247, 294, 392],
+      [220, 277, 330, 440],
+      [262, 330, 392, 523],
+      [246, 311, 369, 493],
+      [220, 277, 330, 440],
+      [196, 247, 294, 392],
     ],
-    melody: [392, 440, 494, 523, 494, 440, 392, 330],
+    melody: [440, 523, 587, 659, 740, 659, 587, 523],
+    counter: [330, 392, 440, 494, 523, 494, 440, 392],
     bassWave: "triangle",
     chordWave: "sine",
     melodyWave: "triangle",
+    counterWave: "sine",
+    bassGain: 0.1,
+    chordGain: 0.06,
+    melodyGain: 0.095,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.03,
   },
-  combat: {
-    stepMs: 520,
-    bass: [110, 104, 98, 92, 110, 104, 98, 87],
+  world: {
+    stepMs: 620,
+    bass: [98, 110, 87, 98, 98, 117, 87, 82],
     chords: [
-      [220, 262, 330],
-      [208, 247, 311],
-      [196, 233, 294],
-      [185, 220, 277],
-      [220, 262, 330],
-      [208, 247, 311],
-      [196, 233, 294],
-      [174, 220, 277],
+      [196, 247, 294, 392],
+      [220, 277, 330, 440],
+      [174, 220, 262, 349],
+      [196, 247, 294, 392],
+      [196, 247, 311, 392],
+      [233, 294, 349, 466],
+      [174, 220, 262, 349],
+      [164, 208, 247, 330],
     ],
-    melody: [440, 466, 494, 523, 554, 523, 494, 466],
+    melody: [392, 440, 494, 523, 587, 523, 494, 440],
+    counter: [294, 330, 349, 392, 440, 392, 349, 330],
+    bassWave: "sawtooth",
+    chordWave: "sine",
+    melodyWave: "triangle",
+    counterWave: "sine",
+    bassGain: 0.11,
+    chordGain: 0.06,
+    melodyGain: 0.09,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.035,
+  },
+  worldForest: {
+    stepMs: 650,
+    bass: [87, 92, 98, 104, 98, 92, 87, 82],
+    chords: [
+      [174, 220, 262, 349],
+      [185, 233, 277, 370],
+      [196, 247, 294, 392],
+      [208, 262, 311, 415],
+      [196, 247, 294, 392],
+      [185, 233, 277, 370],
+      [174, 220, 262, 349],
+      [165, 208, 247, 330],
+    ],
+    melody: [349, 392, 440, 466, 523, 466, 440, 392],
+    counter: [262, 294, 311, 349, 392, 349, 311, 294],
+    bassWave: "triangle",
+    chordWave: "triangle",
+    melodyWave: "sine",
+    counterWave: "sine",
+    bassGain: 0.1,
+    chordGain: 0.058,
+    melodyGain: 0.082,
+    counterGain: 0.046,
+    percussionPattern: ["kick", "none", "hat", "none", "kick", "hat", "none", "hat"],
+    percussionGain: 0.028,
+  },
+  worldSwamp: {
+    stepMs: 680,
+    bass: [73, 78, 82, 87, 82, 78, 73, 69],
+    chords: [
+      [146, 185, 220, 277],
+      [155, 196, 233, 294],
+      [164, 208, 247, 311],
+      [146, 185, 220, 277],
+      [138, 174, 208, 262],
+      [146, 185, 220, 277],
+      [155, 196, 233, 294],
+      [130, 164, 196, 247],
+    ],
+    melody: [294, 311, 349, 392, 415, 392, 349, 311],
+    counter: [220, 233, 262, 277, 311, 277, 262, 233],
     bassWave: "sawtooth",
     chordWave: "triangle",
     melodyWave: "square",
+    counterWave: "sine",
+    bassGain: 0.11,
+    chordGain: 0.06,
+    melodyGain: 0.082,
+    counterGain: 0.044,
+    percussionPattern: ["kick", "hat", "snare", "none", "kick", "hat", "none", "hat"],
+    percussionGain: 0.034,
+  },
+  worldBadlands: {
+    stepMs: 600,
+    bass: [82, 87, 98, 92, 82, 98, 92, 87],
+    chords: [
+      [164, 208, 247, 330],
+      [174, 220, 262, 349],
+      [196, 247, 294, 392],
+      [185, 233, 277, 370],
+      [174, 220, 262, 349],
+      [196, 247, 294, 392],
+      [185, 233, 277, 370],
+      [174, 220, 262, 349],
+    ],
+    melody: [392, 440, 466, 523, 587, 523, 466, 440],
+    counter: [294, 330, 349, 392, 440, 392, 349, 330],
+    bassWave: "sawtooth",
+    chordWave: "square",
+    melodyWave: "triangle",
+    counterWave: "triangle",
+    bassGain: 0.12,
+    chordGain: 0.064,
+    melodyGain: 0.1,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.042,
+  },
+  worldTown: {
+    stepMs: 640,
+    bass: [98, 104, 110, 117, 110, 104, 98, 92],
+    chords: [
+      [196, 247, 294, 392],
+      [208, 262, 311, 415],
+      [220, 277, 330, 440],
+      [233, 294, 349, 466],
+      [220, 277, 330, 440],
+      [208, 262, 311, 415],
+      [196, 247, 294, 392],
+      [185, 233, 277, 370],
+    ],
+    melody: [392, 440, 494, 523, 587, 523, 494, 440],
+    counter: [294, 330, 349, 392, 440, 392, 349, 330],
+    bassWave: "triangle",
+    chordWave: "sine",
+    melodyWave: "triangle",
+    counterWave: "sine",
+    bassGain: 0.1,
+    chordGain: 0.06,
+    melodyGain: 0.092,
+    counterGain: 0.048,
+    percussionPattern: ["kick", "none", "hat", "none", "kick", "hat", "none", "hat"],
+    percussionGain: 0.026,
+  },
+  worldDungeon: {
+    stepMs: 520,
+    bass: [73, 69, 65, 62, 73, 69, 65, 58],
+    chords: [
+      [146, 174, 220, 277],
+      [138, 165, 208, 262],
+      [130, 155, 196, 247],
+      [123, 146, 185, 233],
+      [146, 174, 220, 277],
+      [138, 165, 208, 262],
+      [130, 155, 196, 247],
+      [116, 146, 174, 220],
+    ],
+    melody: [330, 349, 392, 415, 466, 415, 392, 349],
+    counter: [247, 262, 294, 311, 349, 311, 294, 262],
+    bassWave: "sawtooth",
+    chordWave: "triangle",
+    melodyWave: "square",
+    counterWave: "triangle",
+    bassGain: 0.13,
+    chordGain: 0.068,
+    melodyGain: 0.104,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.046,
+  },
+  combat: {
+    stepMs: 410,
+    bass: [110, 98, 92, 87, 123, 110, 98, 92],
+    chords: [
+      [220, 262, 330, 392],
+      [196, 247, 311, 392],
+      [185, 233, 294, 370],
+      [174, 220, 277, 349],
+      [233, 277, 349, 466],
+      [220, 262, 330, 440],
+      [196, 247, 311, 392],
+      [185, 233, 294, 370],
+    ],
+    melody: [440, 523, 587, 659, 698, 659, 587, 523],
+    counter: [220, 247, 262, 294, 330, 294, 262, 247],
+    bassWave: "sawtooth",
+    chordWave: "square",
+    melodyWave: "square",
+    counterWave: "triangle",
+    bassGain: 0.13,
+    chordGain: 0.07,
+    melodyGain: 0.115,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.05,
   },
   victory: {
     stepMs: 260,
@@ -649,8 +844,39 @@ const MUSIC_THEMES = {
     bassWave: "triangle",
     chordWave: "sine",
     melodyWave: "triangle",
+    counter: [330, 370, 415, 494, 554, 494, 415, 370],
+    counterWave: "sine",
+    bassGain: 0.09,
+    chordGain: 0.06,
+    melodyGain: 0.09,
+    counterGain: 0.05,
+    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
+    percussionGain: 0.03,
   },
 };
+
+const CONTROL_PROMPTS = {
+  keyboard: {
+    interact: "Interact [F]",
+    character: "Character [C]",
+    shop: "Shop [J]",
+    talk: "Talk [T]",
+    save: "Save [P]",
+    menu: "Menu [M]",
+    hint: "Keyboard: Move WASD/Arrows. Character menu C. Quick open: I/E/U/Q/K/O/H.",
+  },
+  controller: {
+    interact: "Interact (RT)",
+    character: "Character (Y)",
+    shop: "Shop (LT)",
+    talk: "Talk (A)",
+    save: "Save (START)",
+    menu: "Menu (B)",
+    hint: "Controller: Move D-pad/Left Stick. Character menu Y. LB/RB switch character tabs. Scroll Right Stick.",
+  },
+};
+
+const CHARACTER_MODAL_TABS = ["character", "inventory", "equipment", "levelup", "quests", "bestiary", "story", "achievements"];
 
 const els = {
   screens: {
@@ -671,6 +897,7 @@ const els = {
   weaponInfo: document.getElementById("weapon-info"),
   cityButtons: document.getElementById("city-buttons"),
   difficultyButtons: document.getElementById("difficulty-buttons"),
+  difficultyInfo: document.getElementById("difficulty-info"),
   seedInput: document.getElementById("seed-input"),
   seedRandom: document.getElementById("seed-random"),
   createStart: document.getElementById("create-start"),
@@ -679,6 +906,14 @@ const els = {
   optionControllerVibe: document.getElementById("option-controller-vibe"),
   optionSfx: document.getElementById("option-sfx"),
   optionMusic: document.getElementById("option-music"),
+  optionAutoLevel: document.getElementById("option-auto-level"),
+  optionDebug: document.getElementById("option-debug"),
+  optionMasterVolume: document.getElementById("option-master-volume"),
+  optionMasterVolumeValue: document.getElementById("option-master-volume-value"),
+  optionMusicVolume: document.getElementById("option-music-volume"),
+  optionMusicVolumeValue: document.getElementById("option-music-volume-value"),
+  optionSfxVolume: document.getElementById("option-sfx-volume"),
+  optionSfxVolumeValue: document.getElementById("option-sfx-volume-value"),
   optionsBack: document.getElementById("options-back"),
   mapCanvas: document.getElementById("map-canvas"),
   playerSummary: document.getElementById("player-summary"),
@@ -686,17 +921,13 @@ const els = {
   worldContext: document.getElementById("world-context"),
   worldLog: document.getElementById("world-log"),
   worldInteract: document.getElementById("world-interact"),
-  worldInventory: document.getElementById("world-inventory"),
-  worldEquipment: document.getElementById("world-equipment"),
-  worldLevelup: document.getElementById("world-levelup"),
+  worldCharacter: document.getElementById("world-character"),
   worldShop: document.getElementById("world-shop"),
-  worldQuests: document.getElementById("world-quests"),
-  worldBestiary: document.getElementById("world-bestiary"),
   worldTalk: document.getElementById("world-talk"),
-  worldStory: document.getElementById("world-story"),
-  worldAchievements: document.getElementById("world-achievements"),
   worldSave: document.getElementById("world-save"),
   worldMenu: document.getElementById("world-menu"),
+  worldControlsHint: document.getElementById("world-controls-hint"),
+  worldShortcutsHint: document.getElementById("world-shortcuts-hint"),
   combatPlayer: document.getElementById("combat-player"),
   combatEnemy: document.getElementById("combat-enemy"),
   combatTitle: document.getElementById("combat-title"),
@@ -722,11 +953,22 @@ const state = {
     difficulty: "Normal",
     seed: randomSeed(),
   },
-  options: { verboseCombatLog: true, gamepadEnabled: true, sfxEnabled: true, musicEnabled: true },
+  options: {
+    verboseCombatLog: true,
+    gamepadEnabled: true,
+    sfxEnabled: true,
+    musicEnabled: true,
+    autoLevelUp: false,
+    debugMode: false,
+    masterVolume: 0.8,
+    musicVolume: 0.9,
+    sfxVolume: 0.9,
+  },
   game: null,
   combat: null,
   modal: null,
   modalData: null,
+  inputMode: "keyboard",
   focusables: [],
   focusIndex: 0,
   gamepad: { previousButtons: [], axisXReadyAt: 0, axisYReadyAt: 0, scrollReadyAt: 0 },
@@ -737,6 +979,8 @@ const state = {
   audio: {
     context: null,
     master: null,
+    musicBus: null,
+    sfxBus: null,
     started: false,
     mode: "world",
     step: 0,
@@ -751,6 +995,8 @@ function initialize() {
   loadPlayerTokenAssets();
   loadFeatureTokenAssets();
   bindEvents();
+  updateOptionsUi();
+  updateControlPromptUi();
   renderCreationSelectors();
   renderIntro();
   els.seedInput.value = state.creation.seed;
@@ -847,28 +1093,61 @@ function bindEvents() {
   });
   els.optionSfx.addEventListener("change", () => {
     state.options.sfxEnabled = !!els.optionSfx.checked;
+    applyAudioMixLevels();
   });
   els.optionMusic.addEventListener("change", () => {
     state.options.musicEnabled = !!els.optionMusic.checked;
+    applyAudioMixLevels();
     if (state.options.musicEnabled) {
       ensureAudioStarted();
-      startMusicLoop();
+      syncMusicForCurrentContext();
     } else {
       clearVictoryMusicTimer();
       stopMusicLoop();
     }
   });
+  els.optionAutoLevel.addEventListener("change", () => {
+    state.options.autoLevelUp = !!els.optionAutoLevel.checked;
+    updateControlPromptUi();
+    if (!state.options.autoLevelUp || !state.game?.player) return;
+    if ((state.game.player.unspentStatPoints || 0) <= 0) return;
+    const spent = autoAllocateStatPoints(state.game.player);
+    const summary = formatAllocationSummary(spent);
+    if (summary) addWorldLog(`Auto-level applied pending points: ${summary}.`);
+    renderWorld();
+    if (state.modal === "levelup") renderModal();
+  });
+  els.optionDebug.addEventListener("change", () => {
+    state.options.debugMode = !!els.optionDebug.checked;
+    updateControlPromptUi();
+    if (!state.game) return;
+    if (state.options.debugMode) {
+      addWorldLog("Debug mode enabled. Hotkeys: Ctrl+Shift+L level, G gold, H heal, X XP.");
+    } else {
+      addWorldLog("Debug mode disabled.");
+    }
+    renderWorldLog();
+  });
+  els.optionMasterVolume.addEventListener("input", () => {
+    state.options.masterVolume = clamp((Number(els.optionMasterVolume.value) || 0) / 100, 0, 1);
+    updateOptionsUi();
+    applyAudioMixLevels();
+  });
+  els.optionMusicVolume.addEventListener("input", () => {
+    state.options.musicVolume = clamp((Number(els.optionMusicVolume.value) || 0) / 100, 0, 1);
+    updateOptionsUi();
+    applyAudioMixLevels();
+  });
+  els.optionSfxVolume.addEventListener("input", () => {
+    state.options.sfxVolume = clamp((Number(els.optionSfxVolume.value) || 0) / 100, 0, 1);
+    updateOptionsUi();
+    applyAudioMixLevels();
+  });
 
-  els.worldInventory.addEventListener("click", () => openModal("inventory"));
-  els.worldEquipment.addEventListener("click", () => openModal("equipment"));
   els.worldInteract.addEventListener("click", handleWorldInteract);
+  els.worldCharacter.addEventListener("click", openCharacterMenu);
   els.worldShop.addEventListener("click", openCurrentShop);
-  els.worldLevelup.addEventListener("click", () => openLevelUpModal());
-  els.worldQuests.addEventListener("click", () => openModal("quests"));
-  els.worldBestiary.addEventListener("click", () => openModal("bestiary"));
   els.worldTalk.addEventListener("click", talkToNpc);
-  els.worldStory.addEventListener("click", () => openModal("story"));
-  els.worldAchievements.addEventListener("click", () => openModal("achievements"));
   els.worldSave.addEventListener("click", saveGame);
   els.worldMenu.addEventListener("click", requestMainMenuReturn);
 
@@ -894,6 +1173,9 @@ function onKeyDown(event) {
   ensureAudioStarted();
   const key = event.key;
   const lower = key.toLowerCase();
+  if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) {
+    setInputMode("keyboard");
+  }
 
   if (state.modal) {
     if (key === "Escape" || key === "Backspace") {
@@ -920,6 +1202,8 @@ function onKeyDown(event) {
 
   const activeTag = document.activeElement ? document.activeElement.tagName : "";
   const typingInInput = activeTag === "INPUT" || activeTag === "TEXTAREA";
+
+  if (handleDebugHotkeys(event, lower, typingInInput)) return;
 
   if (usesFocusNavigation() && !typingInInput) {
     if (key === "ArrowUp" || key === "ArrowLeft") {
@@ -957,7 +1241,10 @@ function onKeyDown(event) {
     return;
   }
 
-  if (lower === "i") {
+  if (lower === "c") {
+    openCharacterMenu();
+    event.preventDefault();
+  } else if (lower === "i") {
     openModal("inventory");
     event.preventDefault();
   } else if (lower === "f") {
@@ -999,6 +1286,44 @@ function onKeyDown(event) {
   }
 }
 
+function handleDebugHotkeys(event, lower, typingInInput) {
+  if (!state.options.debugMode) return false;
+  if (typingInInput) return false;
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return false;
+  if (!(event.ctrlKey && event.shiftKey)) return false;
+
+  const player = state.game.player;
+  if (lower === "l") {
+    gainXp(player, xpToNextLevel(player.level));
+    addWorldLog("Debug: granted enough XP for one level.");
+    renderWorld();
+    event.preventDefault();
+    return true;
+  }
+  if (lower === "x") {
+    gainXp(player, 2500);
+    addWorldLog("Debug: granted 2500 XP.");
+    renderWorld();
+    event.preventDefault();
+    return true;
+  }
+  if (lower === "g") {
+    player.gold += 500;
+    addWorldLog("Debug: added 500 gold.");
+    renderWorld();
+    event.preventDefault();
+    return true;
+  }
+  if (lower === "h") {
+    player.currentHealth = player.derivedStats.Health;
+    addWorldLog("Debug: HP fully restored.");
+    renderWorld();
+    event.preventDefault();
+    return true;
+  }
+  return false;
+}
+
 function handleMenuAction(action) {
   if (action === "start") {
     state.introIndex = 0;
@@ -1013,10 +1338,7 @@ function handleMenuAction(action) {
     return;
   }
   if (action === "options") {
-    els.optionCombatLog.checked = state.options.verboseCombatLog;
-    els.optionControllerVibe.checked = state.options.gamepadEnabled;
-    els.optionSfx.checked = state.options.sfxEnabled;
-    els.optionMusic.checked = state.options.musicEnabled;
+    updateOptionsUi();
     showScreen("options");
     return;
   }
@@ -1095,6 +1417,13 @@ function renderCreationSelectors() {
     const selected = state.creation.difficulty === difficulty ? "selected" : "";
     return `<button class="focusable ${selected}" data-difficulty="${difficulty}">${difficulty}</button>`;
   }).join("");
+  const selectedDifficulty = getDifficulty(state.creation.difficulty);
+  if (els.difficultyInfo) {
+    els.difficultyInfo.innerHTML = `
+      <p><strong>${escapeHtml(state.creation.difficulty)}</strong>: ${escapeHtml(selectedDifficulty.summary || "Balanced challenge.")}</p>
+      <p><strong>Defeat Rule:</strong> ${escapeHtml(selectedDifficulty.deathRule || "No special rule.")}</p>
+    `;
+  }
 
   updateFocusables();
 }
@@ -1158,14 +1487,15 @@ function beginAdventure() {
   addStartingItems(player);
   recalculatePlayerStats(player, true);
   player.currentHealth = player.derivedStats.Health;
+  const difficultyInfo = getDifficulty();
   addWorldLog(`Welcome, ${player.name}. ${spawnCity.name} pretends this is a normal day.`);
-  addWorldLog(`Difficulty: ${state.game.difficulty}. Enemies scale to your level.`);
+  addWorldLog(`Difficulty: ${state.game.difficulty}. ${difficultyInfo.summary}`);
+  addWorldLog(`Defeat Rule: ${difficultyInfo.deathRule}`);
   addWorldLog("Explore towns, dungeons, NPC camps, and chests. Use Interact on special locations.");
   addWorldLog(`Active quests posted: ${state.game.quests.filter((quest) => !quest.claimed).length}.`);
   renderWorld();
   showScreen("world");
-  setMusicMode("world");
-  if (state.options.musicEnabled) startMusicLoop();
+  syncMusicForCurrentContext();
 }
 
 function createPlayer(name, style, selectedWeapon = null) {
@@ -1204,16 +1534,16 @@ function showScreen(screen) {
     els.screens[key].classList.toggle("active", key === screen);
   });
   if (screen === "world") {
-    setMusicMode("world");
     renderWorld();
   }
   if (screen === "combat") {
-    setMusicMode("combat");
     renderCombat();
   }
+  syncMusicForCurrentContext();
   if (screen === "world" && state.game?.pendingLevelUp && (state.game.player.unspentStatPoints || 0) > 0 && !state.combat) {
     openLevelUpModal();
   }
+  updateControlPromptUi();
   updateFocusables();
 }
 
@@ -1228,6 +1558,7 @@ function renderWorld() {
   renderWorldLog();
   renderWorldContext();
   drawMap();
+  if (state.screen === "world" && !state.combat) syncMusicForCurrentContext();
 }
 
 function renderPlayerPanel() {
@@ -1239,9 +1570,11 @@ function renderPlayerPanel() {
   const activeSkill = unlocked[unlocked.length - 1];
   const nextSkill = getNextAbilityForStyle(player, activeStyle);
   const equippedWeaponSummary = player.equipment.Weapon ? summarizeWeaponForUi(player.equipment.Weapon) : "None";
+  const difficulty = getDifficulty();
   els.playerSummary.innerHTML = `
     <p><strong>${escapeHtml(player.name)}</strong> (${player.style})</p>
     <p>Difficulty ${state.game.difficulty}</p>
+    <p>${escapeHtml(difficulty.deathRule || "")}</p>
     <p>Level ${player.level} | XP ${player.xp}/${nextXp}</p>
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
     <p>Unspent Stat Points ${player.unspentStatPoints || 0}</p>
@@ -1284,7 +1617,10 @@ function renderWorldContext() {
       els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.role}). Press Talk or Interact to speak. Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
     } else if (feature.type === "city" || feature.type === "town") {
       const shopText = feature.hasShop ? "Shop available." : "No shop.";
-      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} Press Shop/Quests/Interact.`;
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} Press Shop, Character, or Interact.`;
+    } else if (feature.type === "grave") {
+      const count = Array.isArray(feature.items) ? feature.items.length : 0;
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name}. Dropped gear cache (${count} item${count === 1 ? "" : "s"}). Press Interact to recover equipment.`;
     } else {
       els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
     }
@@ -1403,6 +1739,14 @@ function drawFeatureSymbol(feature, sx, sy) {
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.lineWidth = 1;
+    return;
+  }
+  if (feature.type === "grave") {
+    ctx.fillStyle = "#b7a2c7";
+    ctx.fillRect(cx - radius * 0.85, cy - radius * 0.15, radius * 1.7, radius * 0.95);
+    ctx.fillStyle = "#eadffc";
+    ctx.fillRect(cx - radius * 0.38, cy - radius * 0.85, radius * 0.76, radius * 1.65);
+    return;
   }
 }
 
@@ -1424,6 +1768,7 @@ function movePlayer(dx, dy) {
   if (feature?.type === "chest" && !feature.opened) addWorldLog(`A chest waits here. Press Interact.`);
   if (feature?.type === "transition") addWorldLog(`${feature.name} hums softly. Press Interact to travel.`);
   if (feature?.type === "npc") addWorldLog(`${feature.name} (${feature.role}) is here.`);
+  if (feature?.type === "grave") addWorldLog("Your dropped gear cache is here. Press Interact to recover it.");
   if (feature?.type === "city" || feature?.type === "town" || feature?.type === "npc") {
     updateQuestProgress("visitFeature", { feature });
   }
@@ -1466,6 +1811,10 @@ function handleWorldInteract() {
   }
   if (feature.type === "npc") {
     talkToNpc();
+    return;
+  }
+  if (feature.type === "grave") {
+    recoverDroppedGear(feature);
     return;
   }
   if (feature.type === "city" || feature.type === "town") {
@@ -1601,7 +1950,7 @@ function tryTriggerEncounter(feature) {
   if (!state.game) return;
   const { world, player, runtimeRng } = state.game;
   const tile = world.tiles[player.position.y][player.position.x];
-  const safeZone = feature && (feature.type === "city" || feature.type === "town" || feature.type === "npc" || feature.type === "transition");
+  const safeZone = feature && (feature.type === "city" || feature.type === "town" || feature.type === "npc" || feature.type === "transition" || feature.type === "grave");
   if (safeZone) return;
   let chance = getEncounterChancePercent(tile.biome, player.level);
   if (feature?.type === "dungeon") chance += 6;
@@ -1648,7 +1997,6 @@ function startCombat(enemy, biome) {
   }
   addWorldLog(`Encounter: ${enemy.name} ambushes you.`);
   playSfx(enemy.isBoss ? "boss" : "encounter");
-  setMusicMode("combat");
   showScreen("combat");
 }
 
@@ -1961,6 +2309,39 @@ function allocateStatPoint(stat) {
   }
 }
 
+function autoAllocateStatPoints(player, budget = null) {
+  if (!player) return null;
+  const available = player.unspentStatPoints || 0;
+  const pointsToSpend = budget == null ? available : clamp(Math.floor(budget), 0, available);
+  if (pointsToSpend <= 0) return null;
+
+  const style = getActiveAttackStyle(player);
+  const primaryAttack = `${style}Attack`;
+  const primaryDefense = `${style}Defense`;
+  const cycle = [primaryAttack, "Health", primaryDefense];
+  const spent = {};
+
+  for (let index = 0; index < pointsToSpend; index += 1) {
+    let stat = cycle[index % cycle.length];
+    if (index % 5 === 4) stat = "CriticalChance";
+    const amount = STAT_POINT_INCREASES[stat] || 1;
+    player.baseStats[stat] += amount;
+    player.unspentStatPoints -= 1;
+    spent[stat] = (spent[stat] || 0) + amount;
+  }
+
+  recalculatePlayerStats(player, true);
+  if (state.game) state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0;
+  return spent;
+}
+
+function formatAllocationSummary(spent) {
+  if (!spent) return "";
+  const entries = Object.entries(spent);
+  if (!entries.length) return "";
+  return entries.map(([stat, value]) => `${stat} +${value}`).join(", ");
+}
+
 function openLevelUpModal() {
   if (!state.game || state.combat) return;
   const points = state.game.player.unspentStatPoints || 0;
@@ -1989,7 +2370,6 @@ function queueEnemyTurn() {
 function resolveEnemyTurn() {
   const player = state.game.player;
   const enemy = state.combat.enemy;
-  const difficulty = getDifficulty();
   const attackStats = ATTACK_TO_STATS[enemy.attackType];
   const attackValue = enemy.stats[attackStats.attack];
   const defenseValue = player.derivedStats[attackStats.defense];
@@ -2005,7 +2385,7 @@ function resolveEnemyTurn() {
   }
 
   let damage = rollDie(state.game.runtimeRng, enemy.damageDie);
-  damage += Math.floor(attackValue * 0.5 * difficulty.enemyAttack);
+  damage += Math.floor(attackValue * 0.36);
   damage -= Math.floor(defenseValue * 0.35);
   damage = Math.max(1, damage);
   const critRoll = rollDie(state.game.runtimeRng, 20);
@@ -2066,17 +2446,132 @@ function finalizeCombat(result) {
     playSfx("flee");
   } else if (result === "lost") {
     const player = state.game.player;
-    const spawn = state.game.world.majorCityById[state.game.startingCityId] || state.game.world.majorCities[0];
+    const world = state.game.world;
+    const difficulty = getDifficulty();
+    const defeatSpot = { x: player.position.x, y: player.position.y };
+    const penaltyLines = applyDeathPenalty(player, world, difficulty, defeatSpot.x, defeatSpot.y);
+    const spawn = world.majorCityById[state.game.startingCityId] || world.majorCities[0];
     player.position.x = spawn.x;
     player.position.y = spawn.y;
-    player.currentHealth = Math.floor(player.derivedStats.Health * 0.7);
+    const restoreRatio = Number.isFinite(difficulty.deathRestoreRatio) ? difficulty.deathRestoreRatio : 0.7;
+    player.currentHealth = clamp(Math.floor(player.derivedStats.Health * restoreRatio), 1, player.derivedStats.Health);
     addWorldLog(`Defeat. You wake up in ${spawn.name} with bruised pride.`);
+    penaltyLines.forEach((line) => addWorldLog(line));
     pushCombatLog("Defeat. You are dragged back to a city.");
+    if (penaltyLines.length) pushCombatLog(`Penalty: ${penaltyLines.join(" ")}`);
     state.game.meta.losses += 1;
     playSfx("defeat");
   }
   checkAchievements();
   renderCombat();
+}
+
+function applyDeathPenalty(player, world, difficulty, x, y) {
+  const lines = [];
+  if (!player || !world || !difficulty) return lines;
+
+  if (difficulty.deathMode === "gold" || difficulty.deathMode === "gear_gold") {
+    const goldLoss = calculateDeathGoldLoss(player, difficulty);
+    if (goldLoss > 0) {
+      player.gold = Math.max(0, player.gold - goldLoss);
+      lines.push(`You lost ${goldLoss} gold.`);
+    } else {
+      lines.push("You had no gold to lose.");
+    }
+  }
+
+  if (difficulty.deathMode === "gear" || difficulty.deathMode === "gear_gold") {
+    const dropResult = dropEquippedGearCache(player, world, x, y);
+    if (dropResult.count > 0) {
+      lines.push(`Dropped ${dropResult.count} equipped item${dropResult.count === 1 ? "" : "s"} at ${dropResult.x}, ${dropResult.y}.`);
+    } else {
+      lines.push("No equipped gear was dropped.");
+    }
+  }
+
+  if (difficulty.deathMode === "none") {
+    lines.push("No death penalty on this difficulty.");
+  }
+
+  return lines;
+}
+
+function calculateDeathGoldLoss(player, difficulty) {
+  if (!player || player.gold <= 0) return 0;
+  const lossRate = Number.isFinite(difficulty.deathGoldLossRate) ? difficulty.deathGoldLossRate : 0;
+  const flat = Number.isFinite(difficulty.deathGoldLossFlat) ? difficulty.deathGoldLossFlat : 0;
+  const levelScale = Number.isFinite(difficulty.deathGoldLossPerLevel) ? difficulty.deathGoldLossPerLevel : 0;
+  let loss = Math.floor(player.gold * lossRate + flat + player.level * levelScale);
+  loss = Math.max(loss, Math.min(player.gold, player.level + 4));
+  return clamp(loss, 0, player.gold);
+}
+
+function dropEquippedGearCache(player, world, x, y) {
+  if (!player || !world) return { count: 0, x, y };
+  const dropped = [];
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    if (!player.equipment[slot]) return;
+    dropped.push(player.equipment[slot]);
+    player.equipment[slot] = null;
+  });
+  if (!dropped.length) return { count: 0, x, y };
+  recalculatePlayerStats(player, true);
+
+  const dropSpot = findNearestOpenFeatureTile(world, x, y, state.game?.runtimeRng);
+  if (!dropSpot) {
+    dropped.forEach((item) => addItemToBag(player, item));
+    return { count: 0, x, y };
+  }
+
+  const key = featureKey(dropSpot.x, dropSpot.y);
+  const existing = world.featureLookup[key];
+  if (existing && existing.type === "grave") {
+    existing.items = Array.isArray(existing.items) ? existing.items.concat(dropped) : [...dropped];
+    revealAround(world, dropSpot.x, dropSpot.y, 1);
+    return { count: dropped.length, x: dropSpot.x, y: dropSpot.y };
+  }
+
+  const cache = {
+    id: `grave_${createItemUid()}`,
+    name: "Dropped Gear Cache",
+    type: "grave",
+    x: dropSpot.x,
+    y: dropSpot.y,
+    items: dropped,
+  };
+  world.features.push(cache);
+  world.featureLookup[key] = cache;
+  revealAround(world, dropSpot.x, dropSpot.y, 1);
+  return { count: dropped.length, x: dropSpot.x, y: dropSpot.y };
+}
+
+function findNearestOpenFeatureTile(world, x, y, rng) {
+  if (!world) return null;
+  const originX = clamp(x, 0, world.width - 1);
+  const originY = clamp(y, 0, world.height - 1);
+  if (!world.featureLookup[featureKey(originX, originY)]) return { x: originX, y: originY };
+
+  for (let radius = 1; radius <= 8; radius += 1) {
+    const candidates = [];
+    for (let oy = -radius; oy <= radius; oy += 1) {
+      for (let ox = -radius; ox <= radius; ox += 1) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== radius) continue;
+        const nx = originX + ox;
+        const ny = originY + oy;
+        if (nx < 0 || ny < 0 || nx >= world.width || ny >= world.height) continue;
+        if (world.featureLookup[featureKey(nx, ny)]) continue;
+        candidates.push({ x: nx, y: ny });
+      }
+    }
+    if (candidates.length) return rng ? rng.pick(candidates) : candidates[0];
+  }
+
+  for (let ny = 0; ny < world.height; ny += 1) {
+    for (let nx = 0; nx < world.width; nx += 1) {
+      if (!world.featureLookup[featureKey(nx, ny)]) return { x: nx, y: ny };
+    }
+  }
+  return null;
 }
 
 function maybeDropLoot(enemy) {
@@ -2184,7 +2679,6 @@ function endCombatAndReturnToWorld() {
   if (!state.combat || !state.combat.result) return;
   state.combat = null;
   clearVictoryMusicTimer();
-  setMusicMode("world");
   showScreen("world");
   if (state.game?.pendingLevelUp && (state.game.player.unspentStatPoints || 0) > 0) {
     openLevelUpModal();
@@ -2206,14 +2700,25 @@ function gainXp(player, amount) {
     recalculatePlayerStats(player, true);
     player.currentHealth = clamp(player.currentHealth + levelsGained * 2, 1, player.derivedStats.Health);
     addWorldLog(`Level up. ${player.name} is now level ${player.level}.`);
-    addWorldLog(`You gained ${levelsGained * 3} stat points. Open Level Up to assign them.`);
-    if (state.combat) pushCombatLog(`Level up! ${levelsGained * 3} stat points available.`);
-    state.game.pendingLevelUp = true;
+    const gainedPoints = levelsGained * 3;
+    if (state.options.autoLevelUp) {
+      const spent = autoAllocateStatPoints(player);
+      const summary = formatAllocationSummary(spent);
+      if (summary) {
+        addWorldLog(`Auto-level allocated: ${summary}.`);
+        if (state.combat) pushCombatLog(`Auto-level: ${summary}.`);
+      }
+      state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0;
+    } else {
+      addWorldLog(`You gained ${gainedPoints} stat points. Open Level Up to assign them.`);
+      if (state.combat) pushCombatLog(`Level up! ${gainedPoints} stat points available.`);
+      state.game.pendingLevelUp = true;
+    }
     announceAbilityUnlocks(levelBefore, player.level);
     updateQuestProgress("levelUp", { level: player.level });
     advanceStoryIfNeeded("level");
     checkAchievements();
-    if (!state.combat && state.screen === "world") openLevelUpModal();
+    if (!state.options.autoLevelUp && !state.combat && state.screen === "world") openLevelUpModal();
   }
 }
 
@@ -2224,6 +2729,15 @@ function levelUp(player) {
 
 function xpToNextLevel(level) {
   return 80 + level * 22;
+}
+
+function openCharacterMenu() {
+  if (!state.game || state.combat) return;
+  state.modal = "character";
+  state.modalData = null;
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
 }
 
 function openModal(type) {
@@ -2243,11 +2757,48 @@ function closeModal() {
   updateFocusables();
 }
 
+function cycleCharacterModalTab(direction) {
+  if (!state.modal || !state.game) return false;
+  const currentIndex = CHARACTER_MODAL_TABS.indexOf(state.modal);
+  if (currentIndex < 0) return false;
+  const nextIndex = (currentIndex + direction + CHARACTER_MODAL_TABS.length) % CHARACTER_MODAL_TABS.length;
+  state.modal = CHARACTER_MODAL_TABS[nextIndex];
+  state.modalData = null;
+  renderModal();
+  return true;
+}
+
 function renderModal() {
   if (!state.modal || !state.game) return;
   const player = state.game.player;
 
-  if (state.modal === "inventory") {
+  if (state.modal === "character") {
+    els.modalTitle.textContent = "Character Menu";
+    const chapter = getCurrentStoryChapter();
+    const detailsRows = [
+      `Level ${player.level} | XP ${player.xp}/${xpToNextLevel(player.level)}`,
+      `Gold ${player.gold} | HP ${player.currentHealth}/${player.derivedStats.Health}`,
+      `Battles Won ${state.game.meta.wins} | Losses ${state.game.meta.losses}`,
+      `Enemies Defeated ${state.game.meta.enemiesDefeated} | Bosses ${state.game.meta.bossesDefeated}`,
+      `Quests Completed ${state.game.meta.questsCompleted} | NPC Talks ${state.game.meta.npcsTalked}`,
+      `Chests Opened ${state.game.meta.chestsOpened} | Transitions ${state.game.meta.transitionsUsed}`,
+      `Tiles Discovered ${state.game.meta.tilesDiscovered} | Gold Found ${state.game.meta.totalGoldFound}`,
+      `Current Chapter: ${chapter.title}`,
+    ].map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+    els.modalContent.innerHTML = `
+      <div class="button-row">
+        <button class="focusable" data-modal-action="open-character-section" data-target="inventory">Inventory</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="equipment">Equipment</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="levelup">Level Up</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="quests">Quests</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="bestiary">Bestiary</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="story">Story</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="achievements">Achievements</button>
+      </div>
+      <h4>Journey Summary</h4>
+      <ul class="log-list">${detailsRows}</ul>
+    `;
+  } else if (state.modal === "inventory") {
     els.modalTitle.textContent = "Inventory";
     const consumables = player.bag.filter((item) => item.kind === "consumable");
     const equipment = player.bag.filter((item) => item.kind === "equipment");
@@ -2376,6 +2927,7 @@ function renderModal() {
     if (points <= 0) {
       els.modalContent.innerHTML = "<p>No unspent stat points.</p>";
     } else {
+      const autoState = state.options.autoLevelUp ? "ON" : "OFF";
       const rows = ALL_STATS.map((stat) => `
         <div class="item-row">
           <div>
@@ -2387,6 +2939,10 @@ function renderModal() {
       `).join("");
       els.modalContent.innerHTML = `
         <p><strong>Unspent Points:</strong> ${points}</p>
+        <p>Auto Level Up option: <strong>${autoState}</strong></p>
+        <div class="button-row">
+          <button class="focusable" data-modal-action="levelup-auto">Auto Allocate All</button>
+        </div>
         <div class="modal-list">${rows}</div>
       `;
     }
@@ -2526,6 +3082,25 @@ function onModalAction(event) {
   const player = state.game.player;
   const action = button.dataset.modalAction;
 
+  if (action === "open-character-section") {
+    const target = button.dataset.target;
+    if (!target) return;
+    if (target === "levelup") {
+      if ((player.unspentStatPoints || 0) <= 0) {
+        addWorldLog("No stat points available.");
+        return;
+      }
+      state.modal = "levelup";
+      state.modalData = null;
+      renderModal();
+      return;
+    }
+    state.modal = target;
+    state.modalData = null;
+    renderModal();
+    return;
+  }
+
   if (action === "use-item") {
     const uid = button.dataset.itemId;
     const item = player.bag.find((entry) => entry.uid === uid && entry.kind === "consumable");
@@ -2577,6 +3152,16 @@ function onModalAction(event) {
   if (action === "levelup-add-stat") {
     const stat = button.dataset.stat;
     allocateStatPoint(stat);
+    renderWorld();
+    renderModal();
+    return;
+  }
+
+  if (action === "levelup-auto") {
+    const spent = autoAllocateStatPoints(player);
+    const summary = formatAllocationSummary(spent);
+    if (!summary) addWorldLog("No stat points available.");
+    else addWorldLog(`Auto-level allocated: ${summary}.`);
     renderWorld();
     renderModal();
     return;
@@ -3180,6 +3765,39 @@ function sellMaterialsAndTreasure() {
   return total;
 }
 
+function recoverDroppedGear(feature) {
+  if (!state.game || !feature || feature.type !== "grave") return;
+  const player = state.game.player;
+  const cachedItems = Array.isArray(feature.items) ? feature.items : [];
+  const gear = cachedItems.filter((item) => item && item.kind === "equipment");
+  if (!gear.length) {
+    addWorldLog("The dropped gear cache is empty.");
+    removeWorldFeature(feature);
+    renderWorld();
+    return;
+  }
+
+  gear.forEach((item) => {
+    item.modifiers = copyStats(item.modifiers || {});
+    normalizeWeaponItem(item);
+    addItemToBag(player, item);
+  });
+  addWorldLog(`Recovered ${gear.length} dropped gear item${gear.length === 1 ? "" : "s"} into your inventory.`);
+  removeWorldFeature(feature);
+  playSfx("chest");
+  renderWorld();
+}
+
+function removeWorldFeature(feature) {
+  if (!state.game || !feature) return;
+  const world = state.game.world;
+  world.features = world.features.filter((entry) => entry.id !== feature.id);
+  const key = featureKey(feature.x, feature.y);
+  if (world.featureLookup[key] && world.featureLookup[key].id === feature.id) {
+    delete world.featureLookup[key];
+  }
+}
+
 function openChest(feature) {
   if (!state.game || !feature || feature.type !== "chest") return;
   if (feature.opened) {
@@ -3577,28 +4195,56 @@ function markBossDefeated(featureId) {
   if (feature) feature.bossDefeated = true;
 }
 
+function getEnemyScaleFromPlayer(level) {
+  const player = state.game?.player;
+  if (!player?.derivedStats) return { hp: 1, offense: 1, defense: 1 };
+
+  const { derivedStats } = player;
+  const attackAvg = (derivedStats.MeleeAttack + derivedStats.RangedAttack + derivedStats.MagicAttack) / 3;
+  const defenseAvg = (derivedStats.MeleeDefense + derivedStats.RangedDefense + derivedStats.MagicDefense) / 3;
+  const expectedAttack = 1.7 + level * 0.52;
+  const expectedDefense = 1.5 + level * 0.48;
+  const expectedHealth = 50 + level * 6;
+  const attackRatio = clamp(attackAvg / Math.max(1, expectedAttack), 0.65, 1.4);
+  const defenseRatio = clamp(defenseAvg / Math.max(1, expectedDefense), 0.65, 1.4);
+  const healthRatio = clamp(derivedStats.Health / Math.max(10, expectedHealth), 0.8, 1.3);
+
+  return {
+    hp: clamp(attackRatio * 0.45 + healthRatio * 0.55, 0.78, 1.28),
+    offense: clamp(attackRatio * 0.55 + defenseRatio * 0.45, 0.7, 1.3),
+    defense: clamp(attackRatio * 0.5 + defenseRatio * 0.5, 0.7, 1.3),
+  };
+}
+
 function generateEnemy(biome, playerLevel, rng, options = {}) {
   const template = rng.pick(ENEMY_POOLS[biome] || ENEMY_POOLS.plains);
   const difficulty = getDifficulty();
   const level = clamp(playerLevel, 1, MAX_LEVEL);
-  const base = 7 + level * 0.92;
+  const growth = Math.pow(level, 0.88);
+  const attackBase = 2.2 + growth * 0.66 + rng.next() * 0.8;
+  const defenseBase = 1.8 + growth * 0.62 + rng.next() * 0.7;
+  const healthBase = 9 + growth * 2.8 + rng.int(0, 5);
+  const playerScale = getEnemyScaleFromPlayer(level);
+  const lowLevelHpScale = clamp(0.82 + level * 0.035, 0.82, 1);
+  const lowLevelStatScale = clamp(0.74 + level * 0.05, 0.74, 1);
   const bossMult = options.boss ? difficulty.bossBoost : 1;
   const hpScale = template.hpScale || 1;
   const offenseScale = template.offenseScale || 1;
   const defenseScale = template.defenseScale || 1;
   const stats = createZeroStats();
-  stats.Health = Math.floor((20 + level * 4.4 + rng.int(0, 10)) * difficulty.enemyHp * bossMult * hpScale);
-  stats.MeleeAttack = Math.floor(base * difficulty.enemyAttack * bossMult * offenseScale);
-  stats.MeleeDefense = Math.floor(base * difficulty.enemyDefense * bossMult * defenseScale);
-  stats.RangedAttack = Math.floor(base * difficulty.enemyAttack * bossMult * offenseScale);
-  stats.RangedDefense = Math.floor(base * difficulty.enemyDefense * bossMult * defenseScale);
-  stats.MagicAttack = Math.floor(base * difficulty.enemyAttack * bossMult * offenseScale);
-  stats.MagicDefense = Math.floor(base * difficulty.enemyDefense * bossMult * defenseScale);
+  stats.Health = Math.max(5, Math.floor(healthBase * difficulty.enemyHp * bossMult * hpScale * playerScale.hp * lowLevelHpScale));
+  stats.MeleeAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.MeleeDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
+  stats.RangedAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.RangedDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
+  stats.MagicAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.MagicDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
   stats.CriticalChance = Math.floor((template.crit + Math.floor(level / 12)) * (options.boss ? 1.15 : 1));
   stats.Luck = 4 + Math.floor(level / 10);
-  if (template.attackType === "Melee") stats.MeleeAttack += Math.floor(level * 0.7);
-  if (template.attackType === "Ranged") stats.RangedAttack += Math.floor(level * 0.7);
-  if (template.attackType === "Magic") stats.MagicAttack += Math.floor(level * 0.7);
+  const specialistBonus = Math.max(1, Math.floor(level * 0.26));
+  if (template.attackType === "Melee") stats.MeleeAttack += specialistBonus;
+  if (template.attackType === "Ranged") stats.RangedAttack += specialistBonus;
+  if (template.attackType === "Magic") stats.MagicAttack += specialistBonus;
   const defaultKind = defaultDamageKindForAttackType(template.attackType);
   return {
     speciesId: template.id || toId(template.name),
@@ -3639,11 +4285,9 @@ function loadGame() {
     return false;
   }
   if (!parsed || !parsed.game) return false;
-  state.options = { ...state.options, ...(parsed.options || {}) };
-  els.optionCombatLog.checked = state.options.verboseCombatLog;
-  els.optionControllerVibe.checked = state.options.gamepadEnabled;
-  els.optionSfx.checked = state.options.sfxEnabled;
-  els.optionMusic.checked = state.options.musicEnabled;
+  state.options = normalizeOptions({ ...state.options, ...(parsed.options || {}) });
+  updateOptionsUi();
+  applyAudioMixLevels();
   state.game = hydrateGame(parsed.game);
   state.combat = null;
   closeModal();
@@ -3651,11 +4295,8 @@ function loadGame() {
   showScreen("world");
   addWorldLog(`Loaded save from ${parsed.savedAt || "unknown time"}.`);
   checkAchievements();
-  setMusicMode("world");
-  if (state.options.musicEnabled) {
-    ensureAudioStarted();
-    startMusicLoop();
-  }
+  if (state.options.musicEnabled) ensureAudioStarted();
+  syncMusicForCurrentContext();
   return true;
 }
 
@@ -3698,6 +4339,15 @@ function hydrateGame(saved) {
       feature.shopTier = feature.shopTier || 1;
       feature.shopStock = feature.shopStock || [];
       feature.lastRestockStep = Number.isFinite(feature.lastRestockStep) ? feature.lastRestockStep : 0;
+    } else if (feature.type === "grave") {
+      feature.items = Array.isArray(feature.items) ? feature.items : [];
+      feature.items = feature.items
+        .filter((item) => item && item.kind === "equipment")
+        .map((item) => {
+          item.modifiers = copyStats(item.modifiers || {});
+          normalizeWeaponItem(item);
+          return item;
+        });
     }
   });
   world.featureLookup = buildFeatureLookup(world.features || []);
@@ -3831,11 +4481,21 @@ function pollGamepad(now) {
   const axisX = pad.axes[0] || 0;
   const axisY = pad.axes[1] || 0;
   const rightAxisY = pad.axes[3] || 0;
+  const controllerActive = pressed.some(Boolean) || Math.abs(axisX) > 0.35 || Math.abs(axisY) > 0.35 || Math.abs(rightAxisY) > 0.35;
 
-  if (!state.audio.started && pressed.some(Boolean)) ensureAudioStarted();
+  if (controllerActive) setInputMode("controller");
+  if (!state.audio.started && controllerActive) ensureAudioStarted();
   handleGamepadScroll(rightAxisY, now);
 
   if (usesFocusNavigation()) {
+    if (state.modal && edge(4) && cycleCharacterModalTab(-1)) {
+      state.gamepad.previousButtons = pressed;
+      return;
+    }
+    if (state.modal && edge(5) && cycleCharacterModalTab(1)) {
+      state.gamepad.previousButtons = pressed;
+      return;
+    }
     if (edge(12) || (axisY < -0.55 && now >= state.gamepad.axisYReadyAt)) {
       moveFocus(-1);
       state.gamepad.axisYReadyAt = now + 180;
@@ -3869,14 +4529,9 @@ function pollGamepad(now) {
       movePlayer(1, 0);
       state.gamepad.axisXReadyAt = now + 140;
     }
-    if (edge(3)) openModal("inventory");
-    if (edge(2)) openModal("equipment");
+    if (edge(3)) openCharacterMenu();
     if (edge(7)) handleWorldInteract();
     if (edge(6)) openCurrentShop();
-    if (edge(5)) openModal("quests");
-    if (edge(11)) openModal("bestiary");
-    if (edge(4)) openModal("story");
-    if (edge(8)) openModal("achievements");
     if (edge(0)) talkToNpc();
     if (edge(9)) saveGame();
     if (edge(1)) requestMainMenuReturn();
@@ -3905,9 +4560,9 @@ function getActiveScrollableElement() {
   return null;
 }
 
-function getDifficulty() {
-  const key = state.game?.difficulty || state.creation.difficulty || "Normal";
-  return DIFFICULTY_PRESETS[key] || DIFFICULTY_PRESETS.Normal;
+function getDifficulty(key = null) {
+  const keyToUse = key || state.game?.difficulty || state.creation.difficulty || "Normal";
+  return DIFFICULTY_PRESETS[keyToUse] || DIFFICULTY_PRESETS.Normal;
 }
 
 function rollEquipmentRarity(level, rng, isBoss = false) {
@@ -4311,11 +4966,85 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function setInputMode(mode) {
+  if (!CONTROL_PROMPTS[mode] || state.inputMode === mode) return;
+  state.inputMode = mode;
+  updateControlPromptUi();
+}
+
+function updateControlPromptUi() {
+  const prompts = CONTROL_PROMPTS[state.inputMode] || CONTROL_PROMPTS.keyboard;
+  if (els.worldInteract) els.worldInteract.textContent = prompts.interact;
+  if (els.worldCharacter) els.worldCharacter.textContent = prompts.character;
+  if (els.worldShop) els.worldShop.textContent = prompts.shop;
+  if (els.worldTalk) els.worldTalk.textContent = prompts.talk;
+  if (els.worldSave) els.worldSave.textContent = prompts.save;
+  if (els.worldMenu) els.worldMenu.textContent = prompts.menu;
+  if (els.worldControlsHint) {
+    const modeLabel = state.inputMode === "controller" ? "Controller detected" : "Keyboard detected";
+    els.worldControlsHint.textContent = `${modeLabel}. ${prompts.hint}`;
+  }
+  if (els.worldShortcutsHint) {
+    const shoulderHint = state.inputMode === "controller" ? " Use LB/RB to switch character tabs." : "";
+    const autoHint = state.options.autoLevelUp ? " Auto-level is ON." : "";
+    const debugHint = state.options.debugMode ? " Debug hotkeys: Ctrl+Shift+L/G/H/X." : "";
+    els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Level Up, Quests, Bestiary, Story, Achievements, and journey stats.${shoulderHint}${autoHint}${debugHint}`;
+  }
+}
+
+function normalizeOptions(options) {
+  const next = { ...(options || {}) };
+  next.verboseCombatLog = next.verboseCombatLog !== false;
+  next.gamepadEnabled = next.gamepadEnabled !== false;
+  next.sfxEnabled = next.sfxEnabled !== false;
+  next.musicEnabled = next.musicEnabled !== false;
+  next.autoLevelUp = !!next.autoLevelUp;
+  next.debugMode = !!next.debugMode;
+  const masterVolume = Number(next.masterVolume);
+  const musicVolume = Number(next.musicVolume);
+  const sfxVolume = Number(next.sfxVolume);
+  next.masterVolume = clamp(Number.isFinite(masterVolume) ? masterVolume : 0.8, 0, 1);
+  next.musicVolume = clamp(Number.isFinite(musicVolume) ? musicVolume : 0.9, 0, 1);
+  next.sfxVolume = clamp(Number.isFinite(sfxVolume) ? sfxVolume : 0.9, 0, 1);
+  return next;
+}
+
+function updateOptionsUi() {
+  state.options = normalizeOptions(state.options);
+  if (els.optionCombatLog) els.optionCombatLog.checked = !!state.options.verboseCombatLog;
+  if (els.optionControllerVibe) els.optionControllerVibe.checked = !!state.options.gamepadEnabled;
+  if (els.optionSfx) els.optionSfx.checked = !!state.options.sfxEnabled;
+  if (els.optionMusic) els.optionMusic.checked = !!state.options.musicEnabled;
+  if (els.optionAutoLevel) els.optionAutoLevel.checked = !!state.options.autoLevelUp;
+  if (els.optionDebug) els.optionDebug.checked = !!state.options.debugMode;
+  if (els.optionMasterVolume) els.optionMasterVolume.value = String(Math.round(state.options.masterVolume * 100));
+  if (els.optionMusicVolume) els.optionMusicVolume.value = String(Math.round(state.options.musicVolume * 100));
+  if (els.optionSfxVolume) els.optionSfxVolume.value = String(Math.round(state.options.sfxVolume * 100));
+  if (els.optionMasterVolumeValue) els.optionMasterVolumeValue.textContent = `${Math.round(state.options.masterVolume * 100)}%`;
+  if (els.optionMusicVolumeValue) els.optionMusicVolumeValue.textContent = `${Math.round(state.options.musicVolume * 100)}%`;
+  if (els.optionSfxVolumeValue) els.optionSfxVolumeValue.textContent = `${Math.round(state.options.sfxVolume * 100)}%`;
+}
+
+function applyAudioMixLevels() {
+  if (!state.audio.started || !state.audio.context || !state.audio.master || !state.audio.musicBus || !state.audio.sfxBus) return;
+  const now = state.audio.context.currentTime;
+  const masterTarget = clamp(state.options.masterVolume * 1.35, 0, 1.35);
+  const musicTarget = state.options.musicEnabled ? clamp(0.12 + state.options.musicVolume * 1.15, 0, 1.3) : 0;
+  const sfxTarget = state.options.sfxEnabled ? clamp(0.12 + state.options.sfxVolume * 1.15, 0, 1.3) : 0;
+  state.audio.master.gain.cancelScheduledValues(now);
+  state.audio.master.gain.setTargetAtTime(masterTarget, now, 0.02);
+  state.audio.musicBus.gain.cancelScheduledValues(now);
+  state.audio.musicBus.gain.setTargetAtTime(musicTarget, now, 0.02);
+  state.audio.sfxBus.gain.cancelScheduledValues(now);
+  state.audio.sfxBus.gain.setTargetAtTime(sfxTarget, now, 0.02);
+}
+
 function ensureAudioStarted() {
   if (state.audio.started && state.audio.context) {
     if (state.audio.context.state === "suspended") {
       state.audio.context.resume().catch(() => {});
     }
+    applyAudioMixLevels();
     if (state.options.musicEnabled && !state.audio.intervalId) startMusicLoop();
     return;
   }
@@ -4323,21 +5052,30 @@ function ensureAudioStarted() {
   if (!AudioCtor) return;
   const context = new AudioCtor();
   const master = context.createGain();
-  master.gain.value = 0.3;
+  const musicBus = context.createGain();
+  const sfxBus = context.createGain();
+  master.gain.value = 0.9;
+  musicBus.gain.value = 0.9;
+  sfxBus.gain.value = 0.9;
+  musicBus.connect(master);
+  sfxBus.connect(master);
   master.connect(context.destination);
   state.audio.context = context;
   state.audio.master = master;
+  state.audio.musicBus = musicBus;
+  state.audio.sfxBus = sfxBus;
   state.audio.started = true;
   state.audio.step = 0;
-  state.audio.mode = state.combat ? "combat" : "world";
+  state.audio.mode = resolveMusicModeForCurrentContext();
   if (context.state === "suspended") {
     context.resume().catch(() => {});
   }
+  applyAudioMixLevels();
   if (state.options.musicEnabled) startMusicLoop();
 }
 
 function playSfx(type) {
-  if (!state.options.sfxEnabled || !state.audio.started || !state.audio.context || !state.audio.master) return;
+  if (!state.options.sfxEnabled || !state.audio.started || !state.audio.context || !state.audio.sfxBus) return;
   const ctxAudio = state.audio.context;
   const now = ctxAudio.currentTime;
   const normalizedType = type === "damage" ? "hit" : type;
@@ -4350,7 +5088,7 @@ function playSfx(type) {
     node.gain.linearRampToValueAtTime(gain, now + delay + 0.01);
     node.gain.exponentialRampToValueAtTime(0.001, now + delay + duration);
     oscillator.connect(node);
-    node.connect(state.audio.master);
+    node.connect(state.audio.sfxBus);
     oscillator.start(now + delay);
     oscillator.stop(now + delay + duration + 0.03);
   };
@@ -4372,7 +5110,7 @@ function playSfx(type) {
     node.gain.exponentialRampToValueAtTime(0.0001, now + delay + duration);
     source.connect(filter);
     filter.connect(node);
-    node.connect(state.audio.master);
+    node.connect(state.audio.sfxBus);
     source.start(now + delay);
     source.stop(now + delay + duration + 0.03);
   };
@@ -4446,27 +5184,40 @@ function playSfx(type) {
 }
 
 function startMusicLoop() {
-  if (!state.audio.started || !state.audio.context || !state.audio.master) return;
+  if (!state.audio.started || !state.audio.context || !state.audio.musicBus) return;
   if (state.audio.intervalId) return;
   const ctxAudio = state.audio.context;
   const theme = MUSIC_THEMES[state.audio.mode] || MUSIC_THEMES.world;
   state.audio.step = 0;
   state.audio.intervalId = window.setInterval(() => {
-    if (!state.options.musicEnabled || !state.audio.started || !state.audio.context || !state.audio.master) return;
+    if (!state.options.musicEnabled || !state.audio.started || !state.audio.context || !state.audio.musicBus) return;
     const now = ctxAudio.currentTime;
     const activeTheme = MUSIC_THEMES[state.audio.mode] || MUSIC_THEMES.world;
     const step = state.audio.step;
     const bass = activeTheme.bass[step % activeTheme.bass.length];
     const chord = activeTheme.chords[step % activeTheme.chords.length];
     const melody = activeTheme.melody[step % activeTheme.melody.length];
+    const counter = activeTheme.counter ? activeTheme.counter[step % activeTheme.counter.length] : null;
+    const percussion = activeTheme.percussionPattern ? activeTheme.percussionPattern[step % activeTheme.percussionPattern.length] : "none";
     const stepDuration = activeTheme.stepMs / 1000;
+    const bassGain = activeTheme.bassGain || 0.1;
+    const chordGain = activeTheme.chordGain || 0.055;
+    const melodyGain = activeTheme.melodyGain || 0.085;
+    const counterGain = activeTheme.counterGain || 0.04;
+    const percussionGain = activeTheme.percussionGain || 0.03;
 
-    playMusicTone(bass, now, stepDuration * 0.95, 0.055, activeTheme.bassWave);
+    playMusicTone(bass, now, stepDuration * 0.92, bassGain, activeTheme.bassWave);
     chord.forEach((freq, idx) => {
-      playMusicTone(freq, now, stepDuration * 0.86, Math.max(0.016, 0.033 - idx * 0.005), activeTheme.chordWave);
+      playMusicTone(freq, now + idx * 0.004, stepDuration * 0.86, Math.max(0.018, chordGain - idx * 0.008), activeTheme.chordWave);
     });
-    if (melody && (step % 2 === 0 || state.audio.mode !== "world")) {
-      playMusicTone(melody, now + 0.06, stepDuration * 0.48, 0.03, activeTheme.melodyWave);
+    if (melody && (state.audio.mode !== "world" || step % 2 === 0)) {
+      playMusicTone(melody, now + 0.03, stepDuration * 0.56, melodyGain, activeTheme.melodyWave);
+    }
+    if (counter && (state.audio.mode !== "world" || step % 2 === 1)) {
+      playMusicTone(counter, now + stepDuration * 0.32, stepDuration * 0.42, counterGain, activeTheme.counterWave || "sine");
+    }
+    if (percussion && percussion !== "none") {
+      playMusicPercussion(percussion, now, stepDuration, percussionGain);
     }
     state.audio.step += 1;
   }, theme.stepMs);
@@ -4480,7 +5231,7 @@ function stopMusicLoop() {
 }
 
 function playMusicTone(freq, startAt, duration, gainValue, wave = "sine") {
-  if (!state.audio.context || !state.audio.master || !freq) return;
+  if (!state.audio.context || !state.audio.musicBus || !freq) return;
   const osc = state.audio.context.createOscillator();
   const gain = state.audio.context.createGain();
   osc.type = wave;
@@ -4489,13 +5240,75 @@ function playMusicTone(freq, startAt, duration, gainValue, wave = "sine") {
   gain.gain.linearRampToValueAtTime(gainValue, startAt + Math.min(0.04, duration * 0.35));
   gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
   osc.connect(gain);
-  gain.connect(state.audio.master);
+  gain.connect(state.audio.musicBus);
   osc.start(startAt);
   osc.stop(startAt + duration + 0.02);
 }
 
+function playMusicPercussion(kind, startAt, stepDuration, baseGain) {
+  if (!state.audio.context || !state.audio.musicBus) return;
+  const ctxAudio = state.audio.context;
+  if (kind === "kick") {
+    playMusicTone(62, startAt, Math.min(0.18, stepDuration * 0.44), baseGain * 1.9, "sine");
+    playMusicTone(44, startAt + 0.01, Math.min(0.16, stepDuration * 0.38), baseGain * 1.2, "triangle");
+    return;
+  }
+  const length = Math.max(1, Math.floor(ctxAudio.sampleRate * Math.min(0.14, stepDuration * 0.36)));
+  const buffer = ctxAudio.createBuffer(1, length, ctxAudio.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let i = 0; i < length; i += 1) {
+    channel[i] = Math.random() * 2 - 1;
+  }
+  const source = ctxAudio.createBufferSource();
+  const filter = ctxAudio.createBiquadFilter();
+  const gain = ctxAudio.createGain();
+  source.buffer = buffer;
+  if (kind === "snare") {
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1800, startAt);
+    gain.gain.setValueAtTime(baseGain * 1.5, startAt);
+  } else {
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(5000, startAt);
+    gain.gain.setValueAtTime(baseGain * 0.95, startAt);
+  }
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + Math.min(0.12, stepDuration * 0.32));
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(state.audio.musicBus);
+  source.start(startAt);
+  source.stop(startAt + Math.min(0.16, stepDuration * 0.38));
+}
+
+function resolveWorldMusicMode() {
+  if (!state.game || !state.game.world || !state.game.player) return "world";
+  const { world, player } = state.game;
+  const feature = getFeatureAt(world, player.position.x, player.position.y);
+  const tile = world.tiles[player.position.y]?.[player.position.x];
+  if (feature?.type === "dungeon") return "worldDungeon";
+  if (feature?.type === "city" || feature?.type === "town") return "worldTown";
+  if (!tile) return "world";
+  if (tile.biome === "forest") return "worldForest";
+  if (tile.biome === "swamp") return "worldSwamp";
+  if (tile.biome === "badlands") return "worldBadlands";
+  return "world";
+}
+
+function resolveMusicModeForCurrentContext() {
+  if (state.screen === "combat") return "combat";
+  if (state.screen === "world") return resolveWorldMusicMode();
+  return "menu";
+}
+
+function syncMusicForCurrentContext() {
+  if (state.audio.victoryTimeoutId && state.audio.mode === "victory") return;
+  const mode = resolveMusicModeForCurrentContext();
+  setMusicMode(mode);
+  if (state.options.musicEnabled && state.audio.started && !state.audio.intervalId) startMusicLoop();
+}
+
 function setMusicMode(mode) {
-  const nextMode = MUSIC_THEMES[mode] ? mode : "world";
+  const nextMode = MUSIC_THEMES[mode] ? mode : "menu";
   if (state.audio.mode === nextMode) return;
   state.audio.mode = nextMode;
   state.audio.step = 0;
@@ -4513,7 +5326,7 @@ function triggerVictoryFanfare(isBoss) {
   const duration = isBoss ? 4600 : 3300;
   state.audio.victoryTimeoutId = window.setTimeout(() => {
     state.audio.victoryTimeoutId = null;
-    const nextMode = state.combat && !state.combat.result ? "combat" : "world";
+    const nextMode = state.combat && !state.combat.result ? "combat" : resolveWorldMusicMode();
     setMusicMode(nextMode);
   }, duration);
 }
