@@ -243,8 +243,21 @@ button:disabled {
   gap: 0.4rem;
 }
 
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.map-toolbar button {
+  min-width: 92px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+}
+
 #map-canvas {
   width: 100%;
+  height: min(62vh, 560px);
   max-width: 100%;
   border: 1px solid #4e627a;
   border-radius: 8px;
@@ -358,6 +371,18 @@ hr {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.2rem 0.6rem;
+}
+
+#screen-world.map-fullscreen .world-layout {
+  grid-template-columns: 1fr;
+}
+
+#screen-world.map-fullscreen .world-layout > aside {
+  display: none;
+}
+
+#screen-world.map-fullscreen #map-canvas {
+  height: min(84vh, 980px);
 }
 
 @media (max-width: 1040px) {

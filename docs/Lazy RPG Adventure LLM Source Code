@@ -1,0 +1,74 @@
+I want to make a game called, Lazy RPG Adventure. This is going to be a dice heavy turn based RPG. The style is that there is no art its going to be a map and simple shapes with various colors to represent the map navigation. surrounding the map will be text and buttons only. it's going to target web. I would like you to start working with me to design this game out. 
+
+Main Menu, has the following buttons (Start Game,  Load Game, Options, Exit).
+
+Starting the game: Intro about the game funny comedy think bards tale humor talking about the main character in 3rd person, you name your character
+
+I want the gameplay to start like this:
+
+You make a character, simple name your character and choose a starting Combat Style, Melee, Ranged, Magic. the player will be able to choose their starting city, there will be a world map the world will be procedural generation seed based randomized. I want to have an inventory, and equipment screen. the game should work with controller support. I want combat to be turn based. combat will be initiated from exploring the map outside of a city. the map will generate the overworld, and cities and towns and dungeons and other scenes. I want the player to be able to fight through encounters. think dragon quest turn based let's build this together. I want to have the following stats:
+
+Health
+MeleeAttack
+MeleeDefense
+RangedAttack
+RangedDefense
+MagicAttack
+MagicDefense
+CriticalChance
+Luck
+
+All equipment will affect all of these stats.
+
+I want equipment tiers every 10 levels is a new tier so at level 1 players can equip Puny (1 - tier) 
+
+
+
+## 15. Open Design Decisions (Next Session)
+1. Final level cap (50, 100, or infinite soft cap).
+100 Final Level
+ 
+2. Exact dice model (`d20` only vs mixed dice by weapon type).
+Think Dungeons and Dragons, each weapon type rolls different dice, d4, d6, d8, d10, d12, d20 (for checks and rolls I want to use all of those nice
+3. Encounter frequency formula by biome and level.
+linear progression
+
+4. Whether cities are handcrafted templates placed procedurally or fully generated.
+There will be defined cities and mostly generated I want the game to feel uique each play through
+
+5. How deep skills/magic trees should be in v1.
+simple magic spells of different elements think runescape elemental spells
+
+
+let's make the MVP following the game design and make the first prototype
+
+Some Changes:
+Main menu should be centered the buttons and text is not centered make sure it is also formatted for mobile
+The buttons don't appear to work so I cannot get into the game, let's make sure that I can just open the html with my browser.
+
+let's expand this game and add npcs, bosses and other things let's review and expand, what would be a fun factor I can add this is supposed to be a simple game, let's add difficulty, Story, Easy, Normal, Hard, Legendary. let's add a bunch of items to the game I want more items, potions and other items, I want to have a full loot system, encounters should be always scaled to your level since this is a single player experience. I want to make the battle scene a little cleaner and more appealing and I also want to add sound effects and a fantasy looping track. I want weapons to provide for the style, so melee and ranged and magic abilities and spells are unlocked and usable there is no ammo. also i want to add achievements and the combat scene I want a scrolling box for the encounter text so it does not push the buttons down. 
+
+
+Next I need to make sure music and sound effects are in place. also the character creation the name should be empty initially and I want to add chests and more NPCs make sure all controller controls are displayed and be able to interact with the world and level transitions, there should be towns, dungeons, NPCs, shops and quests. I want to add a quest system that works with the procedural generated content. also I want to expand the skills melee, ranged, magic all have skills, for magic its the spells, and for ranged and melee its various skills that unlock. also equipment will have level requirements. I want to make the game feel more alive I want to generate storyline's dynamically
+
+I want to fix the combat Log, it adds the log and expands outwards it should start at top and go down right now it feels a little off, and I want to now have you find or create assets for this game, simple assets since this is top down I am thinking the player can be a token based on the current combat style, so Sword, Bow or Staff. I want to add a fantasy looping track for music and sound effects for encounters, damage, losing, winning there should be a fanfare also music when victory
+
+
+The Item, and Skills Selection should show all available skills or magic if magic is active, so for the magic I should see all my spells. also the adventure log should by default scroll down to bottom as entries are added. I want to have a level up message and stat increase selection and be able to add stats to the available stats. also the game should start with all stats being 10 health and 1 of all other stats except for critical chance which will be 5% by default. I like the tokens and all of the map details should be tokens, for cities, and npcs and bosses. also confirm before going back to main menu should prompt a confirm just in-case of accidental press.
+
+when opening menus like the quest menu I should be able to scroll with the right thumb stick, this should be possible for all scrolling content when present. also I am not hearing any BGM I'm wanting a fantasy think final fantasy type of music having dedicated battle music, overworld music etc. I also want to be able to auto trigger events like quests and interactions when they do that. also I want to be able to feel like the game progresses dynamically. Also when entering the name it clears when any other changes happens. also weapons and armor when equipped changes the stats so for example a rusty broadsword gives + 1 Melee Attack,
+
+I want the player to choose their weapon from the available types of weapons per their given combat style they choose. like Dagger, Short Sword, LongSword, 2H Sword, Flail, Spear, etc etc those are just melee examples have ones for range and magic. also when selecting their weapon they will see the speed, damage, and other information for those weapons. streamline the process. make sure enemies are balanced and bosses are aswell. enemies will have weaknesses think octopath traveler so I want to also have a bestiary. when using let's say a flail some enemies are weak to slashing, piercing, blunt, etc
+
+let's improve the Music for Battle and overworld and make it much louder it is very quiet, also add more options to the menu like volumes, default master volume should be set to 80% default. I want fantasy overworld music and a more engaging battle soundtrack
+
+
+I want to theme the music for different areas, like Tropical Island, Or Dark dungeons and other types of environments that will steer the music direction. I want the main menu to have a fun yet adventurous theme and then the default over world will be like tropical island vibes if that biome is present. I also want to consolidate the action buttons like having a character menu that handles items, equipment, Level Up, Quests Bestiary Story and Achievements as well as more details about the game thus far also as you can see from the image the gamepad controls are not displaying and I want the controls to show on the button like (A) and detect keyboard or controller to update and have a smaller display so that everything fits on screen.
+
+
+now I want to balance enemies they are too strong for a level 1 player I keep getting killed also you lose nothing on easy death and full health restore. on normal you lose gold upon death like Pokemon and on hard you lose your gear and you have to go pick it up. these difficulties should be explained and shown. I want the character menu to be easily navigated with shoulder buttons on controller like switching tabs 
+
+
+combat is too difficult the player is too weak let's increase level 1 health to be 50 for the player character. I want the player to be able to survive at least 4-5 enemies at full health on normal. let's re-balance the game so that enemies are scaled to the player. when leveling up it should be an option to auto level and be able to choose other options like turning debug on that will allow for quick testing.
+
+On Level up when choosing Auto it should show on the next screen what stat adjustments were made. and be able to manually allocate if not happy with the results, in game the map and display

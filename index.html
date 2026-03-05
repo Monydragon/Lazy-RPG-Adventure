@@ -142,7 +142,14 @@
         </aside>
 
         <main class="panel map-panel">
+          <div class="map-toolbar">
+            <button id="world-map-toggle">Fullscreen Map</button>
+            <button id="world-map-zoom-out">- Zoom</button>
+            <button id="world-map-zoom-in">+ Zoom</button>
+            <button id="world-map-zoom-reset">Reset Zoom</button>
+          </div>
           <canvas id="map-canvas" width="672" height="432" aria-label="Overworld map"></canvas>
+          <p id="map-legend" class="hint"></p>
           <p id="world-context" class="hint"></p>
         </main>
 

@@ -5,8 +5,14 @@ const MAP_HEIGHT = 60;
 const TILE_SIZE = 24;
 const VIEW_TILES_X = 28;
 const VIEW_TILES_Y = 18;
+const FULLSCREEN_VIEW_TILES_X = 44;
+const FULLSCREEN_VIEW_TILES_Y = 28;
 const WORLD_LOG_LIMIT = 16;
 const COMBAT_LOG_LIMIT = 16;
+const MAP_ZOOM_MIN = 0.35;
+const MAP_ZOOM_MAX = 4.2;
+const MAP_ZOOM_STEP = 0.25;
+const DEFAULT_MAP_ZOOM = 3.2;
 
 const ALL_STATS = [
   "Health",
@@ -857,22 +863,22 @@ const MUSIC_THEMES = {
 
 const CONTROL_PROMPTS = {
   keyboard: {
-    interact: "Interact [F]",
+    interact: "Action [F]",
     character: "Character [C]",
-    shop: "Shop [J]",
-    talk: "Talk [T]",
+    shop: "Shop [Action]",
+    talk: "Talk [Action]",
     save: "Save [P]",
     menu: "Menu [M]",
-    hint: "Keyboard: Move WASD/Arrows. Character menu C. Quick open: I/E/U/Q/K/O/H.",
+    hint: "Keyboard: Move WASD/Arrows. Character menu C. Map fullscreen V. Zoom +/-/0. Quick open: I/E/U/Q/K/O/H.",
   },
   controller: {
-    interact: "Interact (RT)",
+    interact: "Action (A)",
     character: "Character (Y)",
-    shop: "Shop (LT)",
-    talk: "Talk (A)",
+    shop: "Shop (Action)",
+    talk: "Talk (Action)",
     save: "Save (START)",
     menu: "Menu (B)",
-    hint: "Controller: Move D-pad/Left Stick. Character menu Y. LB/RB switch character tabs. Scroll Right Stick.",
+    hint: "Controller: Move D-pad/Left Stick. A = contextual action. Character menu Y. Fullscreen map X. Zoom LB/RB. Scroll Right Stick.",
   },
 };
 
@@ -916,6 +922,7 @@ const els = {
   optionSfxVolumeValue: document.getElementById("option-sfx-volume-value"),
   optionsBack: document.getElementById("options-back"),
   mapCanvas: document.getElementById("map-canvas"),
+  mapLegend: document.getElementById("map-legend"),
   playerSummary: document.getElementById("player-summary"),
   playerStats: document.getElementById("player-stats"),
   worldContext: document.getElementById("world-context"),
@@ -926,6 +933,10 @@ const els = {
   worldTalk: document.getElementById("world-talk"),
   worldSave: document.getElementById("world-save"),
   worldMenu: document.getElementById("world-menu"),
+  worldMapToggle: document.getElementById("world-map-toggle"),
+  worldMapZoomOut: document.getElementById("world-map-zoom-out"),
+  worldMapZoomIn: document.getElementById("world-map-zoom-in"),
+  worldMapZoomReset: document.getElementById("world-map-zoom-reset"),
   worldControlsHint: document.getElementById("world-controls-hint"),
   worldShortcutsHint: document.getElementById("world-shortcuts-hint"),
   combatPlayer: document.getElementById("combat-player"),
@@ -972,6 +983,10 @@ const state = {
   focusables: [],
   focusIndex: 0,
   gamepad: { previousButtons: [], axisXReadyAt: 0, axisYReadyAt: 0, scrollReadyAt: 0 },
+  map: {
+    fullscreen: false,
+    zoom: DEFAULT_MAP_ZOOM,
+  },
   assets: {
     playerTokens: { Melee: null, Ranged: null, Magic: null },
     featureTokens: {},
@@ -997,6 +1012,7 @@ function initialize() {
   bindEvents();
   updateOptionsUi();
   updateControlPromptUi();
+  updateMapUi();
   renderCreationSelectors();
   renderIntro();
   els.seedInput.value = state.creation.seed;
@@ -1111,9 +1127,8 @@ function bindEvents() {
     updateControlPromptUi();
     if (!state.options.autoLevelUp || !state.game?.player) return;
     if ((state.game.player.unspentStatPoints || 0) <= 0) return;
-    const spent = autoAllocateStatPoints(state.game.player);
-    const summary = formatAllocationSummary(spent);
-    if (summary) addWorldLog(`Auto-level applied pending points: ${summary}.`);
+    const info = applyAutoLevelWithReview(state.game.player);
+    if (info?.summary) addWorldLog(`Auto-level applied pending points: ${info.summary}. Review in Level Up if you want to edit.`);
     renderWorld();
     if (state.modal === "levelup") renderModal();
   });
@@ -1146,10 +1161,14 @@ function bindEvents() {
 
   els.worldInteract.addEventListener("click", handleWorldInteract);
   els.worldCharacter.addEventListener("click", openCharacterMenu);
-  els.worldShop.addEventListener("click", openCurrentShop);
-  els.worldTalk.addEventListener("click", talkToNpc);
+  els.worldShop.addEventListener("click", handleWorldInteract);
+  els.worldTalk.addEventListener("click", handleWorldInteract);
   els.worldSave.addEventListener("click", saveGame);
   els.worldMenu.addEventListener("click", requestMainMenuReturn);
+  if (els.worldMapToggle) els.worldMapToggle.addEventListener("click", toggleMapFullscreen);
+  if (els.worldMapZoomOut) els.worldMapZoomOut.addEventListener("click", () => changeMapZoom(-MAP_ZOOM_STEP));
+  if (els.worldMapZoomIn) els.worldMapZoomIn.addEventListener("click", () => changeMapZoom(MAP_ZOOM_STEP));
+  if (els.worldMapZoomReset) els.worldMapZoomReset.addEventListener("click", resetMapZoom);
 
   els.combatActions.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action]");
@@ -1167,6 +1186,9 @@ function bindEvents() {
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("pointerdown", ensureAudioStarted, { once: true });
   document.addEventListener("click", () => playSfx("click"));
+  window.addEventListener("resize", () => {
+    if (state.screen === "world" && state.game) renderWorld();
+  });
 }
 
 function onKeyDown(event) {
@@ -1230,6 +1252,27 @@ function onKeyDown(event) {
 
   if (state.screen !== "world" || !state.game || state.combat) return;
 
+  if (lower === "v") {
+    toggleMapFullscreen();
+    event.preventDefault();
+    return;
+  }
+  if (key === "+" || key === "=") {
+    changeMapZoom(MAP_ZOOM_STEP);
+    event.preventDefault();
+    return;
+  }
+  if (key === "-" || key === "_") {
+    changeMapZoom(-MAP_ZOOM_STEP);
+    event.preventDefault();
+    return;
+  }
+  if (key === "0") {
+    resetMapZoom();
+    event.preventDefault();
+    return;
+  }
+
   let moved = false;
   if (key === "ArrowUp" || lower === "w") moved = movePlayer(0, -1);
   if (key === "ArrowDown" || lower === "s") moved = movePlayer(0, 1);
@@ -1254,7 +1297,7 @@ function onKeyDown(event) {
     openModal("equipment");
     event.preventDefault();
   } else if (lower === "j") {
-    openCurrentShop();
+    handleWorldInteract();
     event.preventDefault();
   } else if (lower === "u") {
     openLevelUpModal();
@@ -1266,7 +1309,7 @@ function onKeyDown(event) {
     openModal("bestiary");
     event.preventDefault();
   } else if (lower === "t") {
-    talkToNpc();
+    handleWorldInteract();
     event.preventDefault();
   } else if (lower === "o") {
     openModal("story");
@@ -1477,6 +1520,8 @@ function beginAdventure() {
       totalGoldFound: 0,
     },
     pendingLevelUp: false,
+    pendingLevelUpReview: false,
+    lastAutoLevelUp: null,
     dynamic: {
       threat: 0,
       lastEventStep: 0,
@@ -1540,7 +1585,7 @@ function showScreen(screen) {
     renderCombat();
   }
   syncMusicForCurrentContext();
-  if (screen === "world" && state.game?.pendingLevelUp && (state.game.player.unspentStatPoints || 0) > 0 && !state.combat) {
+  if (screen === "world" && hasPendingLevelUpFlow() && !state.combat) {
     openLevelUpModal();
   }
   updateControlPromptUi();
@@ -1554,6 +1599,8 @@ function addMenuMessage(message) {
 
 function renderWorld() {
   if (!state.game) return;
+  setMapFullscreen(state.map.fullscreen);
+  updateMapUi();
   renderPlayerPanel();
   renderWorldLog();
   renderWorldContext();
@@ -1617,7 +1664,8 @@ function renderWorldContext() {
       els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.role}). Press Talk or Interact to speak. Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
     } else if (feature.type === "city" || feature.type === "town") {
       const shopText = feature.hasShop ? "Shop available." : "No shop.";
-      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} Press Shop, Character, or Interact.`;
+      const innText = feature.hasInn ? "Inn available." : "No inn services.";
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} ${innText} Press Shop, Character, or Interact.`;
     } else if (feature.type === "grave") {
       const count = Array.isArray(feature.items) ? feature.items.length : 0;
       els.worldContext.textContent = `${biomeLabel} - ${feature.name}. Dropped gear cache (${count} item${count === 1 ? "" : "s"}). Press Interact to recover equipment.`;
@@ -1629,45 +1677,111 @@ function renderWorldContext() {
   }
 }
 
+function setMapFullscreen(enabled) {
+  state.map.fullscreen = !!enabled;
+  if (els.screens.world) {
+    els.screens.world.classList.toggle("map-fullscreen", state.map.fullscreen);
+  }
+  updateMapUi();
+  updateControlPromptUi();
+}
+
+function toggleMapFullscreen() {
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
+  setMapFullscreen(!state.map.fullscreen);
+  renderWorld();
+}
+
+function changeMapZoom(delta) {
+  if (!state.game) return;
+  const next = clamp(Number(state.map.zoom || 1) + delta, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  if (Math.abs(next - state.map.zoom) < 0.0001) return;
+  state.map.zoom = next;
+  updateMapUi();
+  updateControlPromptUi();
+  renderWorld();
+}
+
+function resetMapZoom() {
+  if (!state.game) return;
+  state.map.zoom = DEFAULT_MAP_ZOOM;
+  updateMapUi();
+  updateControlPromptUi();
+  renderWorld();
+}
+
+function updateMapUi() {
+  if (els.worldMapToggle) {
+    els.worldMapToggle.textContent = state.map.fullscreen ? "Exit Fullscreen Map" : "Fullscreen Map";
+  }
+  if (els.mapLegend) {
+    const zoomText = `${Math.round((state.map.zoom || 1) * 100)}%`;
+    els.mapLegend.textContent = `Map icons: City, House (town), Stairs, Chest, NPC, Boss, Shop badge ($), Inn badge (I). Zoom ${zoomText}.`;
+  }
+}
+
+function ensureMapCanvasSize() {
+  if (!els.mapCanvas) return;
+  const rect = els.mapCanvas.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 0));
+  const height = Math.max(220, Math.floor(rect.height || 0));
+  if (els.mapCanvas.width !== width) els.mapCanvas.width = width;
+  if (els.mapCanvas.height !== height) els.mapCanvas.height = height;
+}
+
 function drawMap() {
   if (!state.game) return;
+  ensureMapCanvasSize();
   const { world, player } = state.game;
-  const cameraX = clamp(player.position.x - Math.floor(VIEW_TILES_X / 2), 0, world.width - VIEW_TILES_X);
-  const cameraY = clamp(player.position.y - Math.floor(VIEW_TILES_Y / 2), 0, world.height - VIEW_TILES_Y);
-  ctx.clearRect(0, 0, els.mapCanvas.width, els.mapCanvas.height);
+  const baseTilesX = state.map.fullscreen ? FULLSCREEN_VIEW_TILES_X : VIEW_TILES_X;
+  const baseTilesY = state.map.fullscreen ? FULLSCREEN_VIEW_TILES_Y : VIEW_TILES_Y;
+  const zoom = clamp(state.map.zoom || 1, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  const viewTilesX = clamp(Math.round(baseTilesX / zoom), 8, world.width);
+  const viewTilesY = clamp(Math.round(baseTilesY / zoom), 6, world.height);
+  const cameraX = clamp(player.position.x - Math.floor(viewTilesX / 2), 0, world.width - viewTilesX);
+  const cameraY = clamp(player.position.y - Math.floor(viewTilesY / 2), 0, world.height - viewTilesY);
+  const tileSize = Math.max(8, Math.floor(Math.min(els.mapCanvas.width / viewTilesX, els.mapCanvas.height / viewTilesY)));
+  const drawWidth = tileSize * viewTilesX;
+  const drawHeight = tileSize * viewTilesY;
+  const offsetX = Math.floor((els.mapCanvas.width - drawWidth) / 2);
+  const offsetY = Math.floor((els.mapCanvas.height - drawHeight) / 2);
 
-  for (let sy = 0; sy < VIEW_TILES_Y; sy += 1) {
-    for (let sx = 0; sx < VIEW_TILES_X; sx += 1) {
+  ctx.clearRect(0, 0, els.mapCanvas.width, els.mapCanvas.height);
+  ctx.fillStyle = "#0b1219";
+  ctx.fillRect(0, 0, els.mapCanvas.width, els.mapCanvas.height);
+
+  for (let sy = 0; sy < viewTilesY; sy += 1) {
+    for (let sx = 0; sx < viewTilesX; sx += 1) {
       const wx = cameraX + sx;
       const wy = cameraY + sy;
       const tile = world.tiles[wy][wx];
       const discovered = world.discovered[wy][wx];
-      const px = sx * TILE_SIZE;
-      const py = sy * TILE_SIZE;
+      const px = offsetX + sx * tileSize;
+      const py = offsetY + sy * tileSize;
       ctx.fillStyle = discovered ? BIOME_DATA[tile.biome].color : "#0a0d12";
-      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+      ctx.fillRect(px, py, tileSize, tileSize);
       ctx.strokeStyle = "rgba(0,0,0,0.22)";
-      ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+      ctx.strokeRect(px, py, tileSize, tileSize);
     }
   }
 
   world.features.forEach((feature) => {
-    if (feature.x < cameraX || feature.y < cameraY || feature.x >= cameraX + VIEW_TILES_X || feature.y >= cameraY + VIEW_TILES_Y) return;
+    if (feature.x < cameraX || feature.y < cameraY || feature.x >= cameraX + viewTilesX || feature.y >= cameraY + viewTilesY) return;
     if (!world.discovered[feature.y][feature.x]) return;
-    drawFeatureSymbol(feature, (feature.x - cameraX) * TILE_SIZE, (feature.y - cameraY) * TILE_SIZE);
+    drawFeatureSymbol(feature, offsetX + (feature.x - cameraX) * tileSize, offsetY + (feature.y - cameraY) * tileSize, tileSize);
   });
 
-  const px = (player.position.x - cameraX) * TILE_SIZE;
-  const py = (player.position.y - cameraY) * TILE_SIZE;
-  drawPlayerToken(player, px, py);
+  const px = offsetX + (player.position.x - cameraX) * tileSize;
+  const py = offsetY + (player.position.y - cameraY) * tileSize;
+  drawPlayerToken(player, px, py, tileSize);
 }
 
-function drawPlayerToken(player, sx, sy) {
+function drawPlayerToken(player, sx, sy, tileSize = TILE_SIZE) {
   const style = getActiveAttackStyle(player);
   const token = state.assets.playerTokens[style];
   if (token && token.complete && token.naturalWidth > 0) {
-    const pad = 2;
-    ctx.drawImage(token, sx + pad, sy + pad, TILE_SIZE - pad * 2, TILE_SIZE - pad * 2);
+    const pad = Math.max(1, Math.floor(tileSize * 0.1));
+    ctx.drawImage(token, sx + pad, sy + pad, tileSize - pad * 2, tileSize - pad * 2);
     return;
   }
 
@@ -1676,78 +1790,131 @@ function drawPlayerToken(player, sx, sy) {
   const py = sy;
   ctx.fillStyle = "#f4f7ff";
   ctx.beginPath();
-  ctx.moveTo(px + TILE_SIZE / 2, py + 3);
-  ctx.lineTo(px + 3, py + TILE_SIZE - 3);
-  ctx.lineTo(px + TILE_SIZE - 3, py + TILE_SIZE - 3);
+  ctx.moveTo(px + tileSize / 2, py + 3);
+  ctx.lineTo(px + 3, py + tileSize - 3);
+  ctx.lineTo(px + tileSize - 3, py + tileSize - 3);
   ctx.closePath();
   ctx.fill();
 }
 
-function drawFeatureSymbol(feature, sx, sy) {
-  const cx = sx + TILE_SIZE / 2;
-  const cy = sy + TILE_SIZE / 2;
-  const radius = TILE_SIZE * 0.34;
-  const tokenType = feature.type === "dungeon" && !feature.bossDefeated ? "boss" : feature.type;
-  const token = state.assets.featureTokens[tokenType];
-  if (token && token.complete && token.naturalWidth > 0) {
-    const pad = 2;
-    ctx.drawImage(token, sx + pad, sy + pad, TILE_SIZE - pad * 2, TILE_SIZE - pad * 2);
-    return;
-  }
+function drawFeatureSymbol(feature, sx, sy, tileSize = TILE_SIZE) {
+  const pad = Math.max(1, Math.floor(tileSize * 0.1));
+  const left = sx + pad;
+  const top = sy + pad;
+  const size = Math.max(6, tileSize - pad * 2);
+  const isBossDungeon = feature.type === "dungeon" && !feature.bossDefeated;
+
+  ctx.save();
+  ctx.translate(left, top);
+  ctx.lineWidth = Math.max(1, Math.floor(size * 0.08));
+
   if (feature.type === "city") {
-    ctx.fillStyle = "#4aa3ff";
-    ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
-    return;
-  }
-  if (feature.type === "town") {
-    ctx.fillStyle = "#50cf7b";
+    ctx.fillStyle = "#1f3f66";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#9ed0ff";
+    ctx.fillRect(size * 0.14, size * 0.58, size * 0.72, size * 0.26);
+    ctx.fillRect(size * 0.18, size * 0.36, size * 0.17, size * 0.22);
+    ctx.fillRect(size * 0.42, size * 0.22, size * 0.19, size * 0.36);
+    ctx.fillRect(size * 0.66, size * 0.42, size * 0.16, size * 0.16);
+  } else if (feature.type === "town") {
+    ctx.fillStyle = "#29593a";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#d7c39a";
     ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  if (feature.type === "dungeon") {
-    ctx.fillStyle = "#e1655a";
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - radius);
-    ctx.lineTo(cx + radius, cy);
-    ctx.lineTo(cx, cy + radius);
-    ctx.lineTo(cx - radius, cy);
+    ctx.moveTo(size * 0.15, size * 0.54);
+    ctx.lineTo(size * 0.5, size * 0.24);
+    ctx.lineTo(size * 0.85, size * 0.54);
     ctx.closePath();
     ctx.fill();
-    return;
-  }
-  if (feature.type === "chest") {
-    ctx.fillStyle = feature.opened ? "#77643f" : "#f0b44d";
-    ctx.fillRect(cx - radius, cy - radius * 0.7, radius * 2, radius * 1.4);
-    ctx.strokeStyle = "#3d2a13";
-    ctx.strokeRect(cx - radius, cy - radius * 0.7, radius * 2, radius * 1.4);
-    return;
-  }
-  if (feature.type === "npc") {
-    ctx.fillStyle = "#c5e2ff";
+    ctx.fillRect(size * 0.2, size * 0.54, size * 0.6, size * 0.3);
+    ctx.fillStyle = "#7f5a2d";
+    ctx.fillRect(size * 0.46, size * 0.63, size * 0.12, size * 0.21);
+  } else if (feature.type === "dungeon") {
+    ctx.fillStyle = "#5f2f2f";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#d2d9df";
+    ctx.fillRect(size * 0.12, size * 0.66, size * 0.76, size * 0.12);
+    ctx.fillRect(size * 0.2, size * 0.5, size * 0.6, size * 0.12);
+    ctx.fillRect(size * 0.28, size * 0.34, size * 0.44, size * 0.12);
+    ctx.fillRect(size * 0.36, size * 0.18, size * 0.28, size * 0.12);
+  } else if (feature.type === "transition") {
+    ctx.fillStyle = "#2e2d5f";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#e8d5ff";
+    ctx.fillRect(size * 0.12, size * 0.7, size * 0.7, size * 0.1);
+    ctx.fillRect(size * 0.2, size * 0.54, size * 0.62, size * 0.1);
+    ctx.fillRect(size * 0.28, size * 0.38, size * 0.54, size * 0.1);
+    ctx.fillRect(size * 0.36, size * 0.22, size * 0.46, size * 0.1);
+    ctx.strokeStyle = "#e8d5ff";
     ctx.beginPath();
-    ctx.arc(cx, cy - 3, radius * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(cx - radius * 0.45, cy - 2, radius * 0.9, radius * 1.1);
-    return;
-  }
-  if (feature.type === "transition") {
-    ctx.strokeStyle = "#b985ff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.moveTo(size * 0.78, size * 0.18);
+    ctx.lineTo(size * 0.92, size * 0.18);
+    ctx.lineTo(size * 0.92, size * 0.82);
     ctx.stroke();
-    ctx.lineWidth = 1;
-    return;
+  } else if (feature.type === "chest") {
+    ctx.fillStyle = feature.opened ? "#6a5d49" : "#7a4e1f";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = feature.opened ? "#9b8f77" : "#f1b35e";
+    ctx.fillRect(size * 0.15, size * 0.5, size * 0.7, size * 0.28);
+    ctx.fillRect(size * 0.15, size * 0.35, size * 0.7, size * 0.12);
+    ctx.fillStyle = "#3b2d1d";
+    ctx.fillRect(size * 0.46, size * 0.46, size * 0.08, size * 0.2);
+  } else if (feature.type === "npc") {
+    ctx.fillStyle = "#2f4b5c";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#d6e6f6";
+    ctx.fillRect(size * 0.4, size * 0.18, size * 0.2, size * 0.2);
+    ctx.fillRect(size * 0.33, size * 0.42, size * 0.34, size * 0.34);
+    ctx.fillRect(size * 0.22, size * 0.5, size * 0.12, size * 0.22);
+    ctx.fillRect(size * 0.66, size * 0.5, size * 0.12, size * 0.22);
+  } else if (feature.type === "grave") {
+    ctx.fillStyle = "#4a4355";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#d9cee8";
+    ctx.fillRect(size * 0.44, size * 0.2, size * 0.12, size * 0.54);
+    ctx.fillRect(size * 0.3, size * 0.35, size * 0.4, size * 0.12);
+    ctx.fillStyle = "#b9a7cf";
+    ctx.fillRect(size * 0.22, size * 0.74, size * 0.56, size * 0.1);
+  } else {
+    ctx.fillStyle = "#6a6f7a";
+    ctx.fillRect(0, 0, size, size);
   }
-  if (feature.type === "grave") {
-    ctx.fillStyle = "#b7a2c7";
-    ctx.fillRect(cx - radius * 0.85, cy - radius * 0.15, radius * 1.7, radius * 0.95);
-    ctx.fillStyle = "#eadffc";
-    ctx.fillRect(cx - radius * 0.38, cy - radius * 0.85, radius * 0.76, radius * 1.65);
-    return;
+
+  ctx.strokeStyle = "rgba(14,18,24,0.7)";
+  ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
+  ctx.restore();
+
+  if ((feature.type === "city" || feature.type === "town") && feature.hasInn) {
+    drawFeatureBadge(sx, sy, tileSize, "I", "#4f6e2e", "top-left");
   }
+  if ((feature.type === "city" || feature.type === "town") && feature.hasShop) {
+    drawFeatureBadge(sx, sy, tileSize, "$", "#6d5021", "top-right");
+  }
+  if (isBossDungeon) {
+    drawFeatureBadge(sx, sy, tileSize, "B", "#7a2525", "top-right");
+  }
+}
+
+function drawFeatureBadge(sx, sy, tileSize, label, bgColor, corner = "top-right") {
+  const size = Math.max(9, Math.floor(tileSize * 0.38));
+  const pad = Math.max(1, Math.floor(tileSize * 0.05));
+  let x = sx + tileSize - size - pad;
+  let y = sy + pad;
+  if (corner === "top-left") x = sx + pad;
+  if (corner === "bottom-left") {
+    x = sx + pad;
+    y = sy + tileSize - size - pad;
+  }
+  if (corner === "bottom-right") y = sy + tileSize - size - pad;
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = "#141b23";
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+  ctx.fillStyle = "#f3f6fb";
+  ctx.font = `${Math.max(8, Math.floor(size * 0.62))}px "Trebuchet MS", "Segoe UI", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + size / 2, y + size / 2 + 0.2);
 }
 
 function movePlayer(dx, dy) {
@@ -1792,61 +1959,156 @@ function describeCurrentTile() {
   renderWorldLog();
 }
 
-function handleWorldInteract() {
-  if (!state.game || state.combat || state.modal) return;
-  const { world, player } = state.game;
-  const feature = getFeatureAt(world, player.position.x, player.position.y);
-  if (!feature) {
-    describeCurrentTile();
+function restAtInn(feature = null) {
+  if (!state.game) return;
+  const player = state.game.player;
+  const targetName = feature?.name || "the local inn";
+  const missingHp = Math.max(0, player.derivedStats.Health - player.currentHealth);
+  if (missingHp <= 0) {
+    addWorldLog(`You rest briefly at ${targetName}, but already feel fully restored.`);
     return;
+  }
+  const cost = Math.max(8, Math.floor(player.level * 1.4));
+  if (player.gold < cost) {
+    addWorldLog(`Innkeeper asks for ${cost} gold. You only have ${player.gold}.`);
+    return;
+  }
+  player.gold -= cost;
+  player.currentHealth = player.derivedStats.Health;
+  addWorldLog(`You rest at ${targetName} for ${cost} gold and recover to full health.`);
+  playSfx("potion");
+  renderWorld();
+}
+
+function getWorldInteractionActions(feature, allowInspect = false) {
+  const actions = [];
+  if (!feature) {
+    actions.push({
+      id: "inspect",
+      label: "Inspect Area",
+      description: "Look at the current tile.",
+    });
+    return actions;
   }
 
   if (feature.type === "chest") {
-    openChest(feature);
+    actions.push({ id: "open-chest", label: feature.opened ? "Inspect Chest" : "Open Chest", description: feature.name });
+  } else if (feature.type === "transition") {
+    actions.push({ id: "use-transition", label: "Use Transition", description: `Travel via ${feature.name}` });
+  } else if (feature.type === "npc") {
+    actions.push({ id: "talk", label: "Talk", description: `${feature.name} (${feature.role || "npc"})` });
+  } else if (feature.type === "grave") {
+    actions.push({ id: "recover-gear", label: "Recover Gear", description: feature.name });
+  } else if (feature.type === "dungeon") {
+    actions.push({
+      id: "enter-dungeon",
+      label: feature.bossDefeated ? "Delve Deeper" : "Challenge Boss",
+      description: feature.name,
+    });
+  } else if (feature.type === "city" || feature.type === "town") {
+    actions.push({ id: "talk", label: "Talk To Locals", description: `${feature.name} gossip and rumors` });
+    if (feature.hasShop) actions.push({ id: "open-shop", label: "Visit Shop", description: `${feature.name} merchants` });
+    if (feature.hasInn) actions.push({ id: "rest-inn", label: "Rest At Inn", description: "Restore HP for gold" });
+  }
+
+  if (allowInspect) {
+    actions.push({ id: "inspect", label: "Inspect Area", description: "Read tile details" });
+  }
+  return actions;
+}
+
+function executeWorldInteractionAction(actionId, feature = null) {
+  if (!state.game || state.combat) return;
+  const { world, player } = state.game;
+  const activeFeature = feature || getFeatureAt(world, player.position.x, player.position.y);
+  if (actionId === "inspect") {
+    describeCurrentTile();
     return;
   }
-  if (feature.type === "transition") {
-    useTransition(feature);
+  if (actionId === "open-chest") {
+    if (!activeFeature || activeFeature.type !== "chest") return addWorldLog("No chest here.");
+    openChest(activeFeature);
     return;
   }
-  if (feature.type === "npc") {
+  if (actionId === "use-transition") {
+    if (!activeFeature || activeFeature.type !== "transition") return addWorldLog("No transition gate here.");
+    useTransition(activeFeature);
+    return;
+  }
+  if (actionId === "talk") {
     talkToNpc();
     return;
   }
-  if (feature.type === "grave") {
-    recoverDroppedGear(feature);
+  if (actionId === "recover-gear") {
+    if (!activeFeature || activeFeature.type !== "grave") return addWorldLog("No dropped gear cache here.");
+    recoverDroppedGear(activeFeature);
     return;
   }
-  if (feature.type === "city" || feature.type === "town") {
-    if (feature.hasShop) openShopAtFeature(feature);
-    else addWorldLog(`${feature.name} has no active merchants right now.`);
+  if (actionId === "open-shop") {
+    if (!activeFeature || (activeFeature.type !== "city" && activeFeature.type !== "town")) return addWorldLog("No shop here.");
+    if (!activeFeature.hasShop) return addWorldLog(`${activeFeature.name} has no active merchants right now.`);
+    openShopAtFeature(activeFeature);
     return;
   }
-  if (feature.type === "dungeon") {
-    if (!feature.bossDefeated) {
-      maybeTriggerDungeonBoss(feature);
+  if (actionId === "rest-inn") {
+    if (!activeFeature || (activeFeature.type !== "city" && activeFeature.type !== "town") || !activeFeature.hasInn) {
+      addWorldLog("No inn services are available here.");
+      return;
+    }
+    restAtInn(activeFeature);
+    return;
+  }
+  if (actionId === "enter-dungeon") {
+    if (!activeFeature || activeFeature.type !== "dungeon") return addWorldLog("No dungeon entrance here.");
+    if (!activeFeature.bossDefeated) {
+      maybeTriggerDungeonBoss(activeFeature);
       return;
     }
     const tile = world.tiles[player.position.y][player.position.x];
     const depthEnemy = generateEnemy(tile.biome, player.level + 1, state.game.runtimeRng, {
-      name: `${feature.name} Delver`,
-      featureId: feature.id,
+      name: `${activeFeature.name} Delver`,
+      featureId: activeFeature.id,
     });
-    addWorldLog(`You delve deeper into ${feature.name}.`);
+    addWorldLog(`You delve deeper into ${activeFeature.name}.`);
     startCombat(depthEnemy, tile.biome);
     return;
   }
-  describeCurrentTile();
+}
+
+function openInteractionMenu(actions, feature = null) {
+  if (!state.game || !actions || !actions.length) return;
+  state.modal = "interaction";
+  state.modalData = {
+    featureId: feature?.id || null,
+    featureName: feature?.name || "Current Tile",
+    options: actions.map((action) => ({ id: action.id, label: action.label, description: action.description || "" })),
+  };
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+}
+
+function handleWorldInteract() {
+  if (!state.game || state.combat || state.modal) return;
+  const { world, player } = state.game;
+  const feature = getFeatureAt(world, player.position.x, player.position.y);
+  const actions = getWorldInteractionActions(feature, false);
+  if (!actions.length) {
+    describeCurrentTile();
+    return;
+  }
+  if (actions.length === 1) {
+    executeWorldInteractionAction(actions[0].id, feature);
+    return;
+  }
+  openInteractionMenu(actions, feature);
 }
 
 function openCurrentShop() {
   if (!state.game || state.combat) return;
   const feature = getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
-  if (!feature || (feature.type !== "city" && feature.type !== "town")) {
-    addWorldLog("No shop here. Visit a town or city.");
-    return;
-  }
-  openShopAtFeature(feature);
+  if (!feature) return addWorldLog("No shop here. Visit a town or city.");
+  executeWorldInteractionAction("open-shop", feature);
 }
 
 function maybeAutoTriggerFeatureEvent(feature) {
@@ -2303,8 +2565,8 @@ function allocateStatPoint(stat) {
   player.unspentStatPoints -= 1;
   recalculatePlayerStats(player, true);
   addWorldLog(`${stat} increased by ${amount}.`);
-  if (player.unspentStatPoints <= 0) {
-    state.game.pendingLevelUp = false;
+  state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0 || hasPendingAutoLevelReview();
+  if (player.unspentStatPoints <= 0 && !hasPendingAutoLevelReview()) {
     addWorldLog("All level-up points spent.");
   }
 }
@@ -2342,14 +2604,71 @@ function formatAllocationSummary(spent) {
   return entries.map(([stat, value]) => `${stat} +${value}`).join(", ");
 }
 
+function hasPendingAutoLevelReview() {
+  return !!(state.game && state.game.pendingLevelUpReview && state.game.lastAutoLevelUp);
+}
+
+function hasPendingLevelUpFlow() {
+  if (!state.game || !state.game.player) return false;
+  if (hasPendingAutoLevelReview()) return true;
+  return !!(state.game.pendingLevelUp && (state.game.player.unspentStatPoints || 0) > 0);
+}
+
+function applyAutoLevelWithReview(player) {
+  if (!state.game || !player) return null;
+  const pointsBefore = player.unspentStatPoints || 0;
+  if (pointsBefore <= 0) return null;
+  const baseStatsBefore = copyStats(player.baseStats);
+  const spent = autoAllocateStatPoints(player);
+  const pointsAfter = player.unspentStatPoints || 0;
+  const pointsSpent = Math.max(0, pointsBefore - pointsAfter);
+  if (!spent || pointsSpent <= 0) return null;
+  const summary = formatAllocationSummary(spent);
+  state.game.lastAutoLevelUp = {
+    summary,
+    spent,
+    pointsBefore,
+    pointsSpent,
+    level: player.level,
+    baseStatsBefore,
+  };
+  state.game.pendingLevelUpReview = true;
+  state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0;
+  return state.game.lastAutoLevelUp;
+}
+
+function keepAutoLevelAllocation() {
+  if (!state.game || !hasPendingAutoLevelReview()) return;
+  const info = state.game.lastAutoLevelUp;
+  state.game.pendingLevelUpReview = false;
+  state.game.lastAutoLevelUp = null;
+  state.game.pendingLevelUp = (state.game.player.unspentStatPoints || 0) > 0;
+  if (info?.summary) addWorldLog(`Auto-level kept: ${info.summary}.`);
+}
+
+function revertAutoLevelAllocation() {
+  if (!state.game || !hasPendingAutoLevelReview()) return false;
+  const player = state.game.player;
+  const info = state.game.lastAutoLevelUp;
+  if (!info || !info.baseStatsBefore) return false;
+  player.baseStats = copyStats(info.baseStatsBefore);
+  player.unspentStatPoints = Math.max(0, info.pointsBefore || 0);
+  recalculatePlayerStats(player, true);
+  state.game.pendingLevelUpReview = false;
+  state.game.lastAutoLevelUp = null;
+  state.game.pendingLevelUp = player.unspentStatPoints > 0;
+  addWorldLog("Auto-level reverted. Allocate points manually.");
+  return true;
+}
+
 function openLevelUpModal() {
   if (!state.game || state.combat) return;
   const points = state.game.player.unspentStatPoints || 0;
-  if (points <= 0) {
+  if (points <= 0 && !hasPendingAutoLevelReview()) {
     addWorldLog("No stat points available.");
     return;
   }
-  state.game.pendingLevelUp = points > 0;
+  state.game.pendingLevelUp = points > 0 || hasPendingAutoLevelReview();
   state.modal = "levelup";
   state.modalData = null;
   els.modalBackdrop.classList.remove("hidden");
@@ -2680,7 +2999,7 @@ function endCombatAndReturnToWorld() {
   state.combat = null;
   clearVictoryMusicTimer();
   showScreen("world");
-  if (state.game?.pendingLevelUp && (state.game.player.unspentStatPoints || 0) > 0) {
+  if (hasPendingLevelUpFlow()) {
     openLevelUpModal();
   }
 }
@@ -2702,13 +3021,12 @@ function gainXp(player, amount) {
     addWorldLog(`Level up. ${player.name} is now level ${player.level}.`);
     const gainedPoints = levelsGained * 3;
     if (state.options.autoLevelUp) {
-      const spent = autoAllocateStatPoints(player);
-      const summary = formatAllocationSummary(spent);
-      if (summary) {
-        addWorldLog(`Auto-level allocated: ${summary}.`);
-        if (state.combat) pushCombatLog(`Auto-level: ${summary}.`);
+      const info = applyAutoLevelWithReview(player);
+      if (info?.summary) {
+        addWorldLog(`Auto-level allocated: ${info.summary}. Check Level Up to keep or switch to manual.`);
+        if (state.combat) pushCombatLog(`Auto-level: ${info.summary}. You can review it in Level Up.`);
       }
-      state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0;
+      state.game.pendingLevelUp = hasPendingLevelUpFlow();
     } else {
       addWorldLog(`You gained ${gainedPoints} stat points. Open Level Up to assign them.`);
       if (state.combat) pushCombatLog(`Level up! ${gainedPoints} stat points available.`);
@@ -2718,7 +3036,7 @@ function gainXp(player, amount) {
     updateQuestProgress("levelUp", { level: player.level });
     advanceStoryIfNeeded("level");
     checkAchievements();
-    if (!state.options.autoLevelUp && !state.combat && state.screen === "world") openLevelUpModal();
+    if (!state.combat && state.screen === "world" && hasPendingLevelUpFlow()) openLevelUpModal();
   }
 }
 
@@ -2920,29 +3238,62 @@ function renderModal() {
     `).join("");
     els.modalTitle.textContent = "Combat Items";
     els.modalContent.innerHTML = `<div class="modal-list">${rows || "<p>No usable combat items.</p>"}</div>`;
-  } else if (state.modal === "levelup") {
-    const player = state.game.player;
-    const points = player.unspentStatPoints || 0;
-    els.modalTitle.textContent = "Level Up";
-    if (points <= 0) {
-      els.modalContent.innerHTML = "<p>No unspent stat points.</p>";
+  } else if (state.modal === "interaction") {
+    const options = Array.isArray(state.modalData?.options) ? state.modalData.options : [];
+    const locationName = state.modalData?.featureName || "Current Tile";
+    els.modalTitle.textContent = "Choose Interaction";
+    if (!options.length) {
+      els.modalContent.innerHTML = "<p>No interactions available.</p>";
     } else {
-      const autoState = state.options.autoLevelUp ? "ON" : "OFF";
-      const rows = ALL_STATS.map((stat) => `
+      const rows = options.map((option) => `
         <div class="item-row">
           <div>
-            <strong>${stat}</strong>
-            <p>Current ${player.baseStats[stat]} | +${STAT_POINT_INCREASES[stat] || 1} per point</p>
+            <strong>${escapeHtml(option.label || "Action")}</strong>
+            <p>${escapeHtml(option.description || "")}</p>
           </div>
-          <button class="focusable" data-modal-action="levelup-add-stat" data-stat="${stat}">Add</button>
+          <button class="focusable" data-modal-action="choose-interaction" data-interaction-id="${escapeHtml(option.id || "")}">Select</button>
         </div>
       `).join("");
       els.modalContent.innerHTML = `
+        <p><strong>Location:</strong> ${escapeHtml(locationName)}</p>
+        <div class="modal-list">${rows}</div>
+      `;
+    }
+  } else if (state.modal === "levelup") {
+    const player = state.game.player;
+    const points = player.unspentStatPoints || 0;
+    const review = hasPendingAutoLevelReview() ? state.game.lastAutoLevelUp : null;
+    els.modalTitle.textContent = "Level Up";
+    if (points <= 0 && !review) {
+      els.modalContent.innerHTML = "<p>No unspent stat points.</p>";
+    } else {
+      const autoState = state.options.autoLevelUp ? "ON" : "OFF";
+      const rows = points > 0
+        ? ALL_STATS.map((stat) => `
+          <div class="item-row">
+            <div>
+              <strong>${stat}</strong>
+              <p>Current ${player.baseStats[stat]} | +${STAT_POINT_INCREASES[stat] || 1} per point</p>
+            </div>
+            <button class="focusable" data-modal-action="levelup-add-stat" data-stat="${stat}">Add</button>
+          </div>
+        `).join("")
+        : "<p>No manual points currently available. Use Switch To Manual to restore points.</p>";
+      const reviewSummary = review?.summary
+        ? `<p><strong>Last Auto Allocation:</strong> ${escapeHtml(review.summary)} (Lv ${review.level})</p>`
+        : "";
+      const reviewActions = review
+        ? `<div class="button-row">
+            <button class="focusable" data-modal-action="levelup-keep-auto">Keep Auto Result</button>
+            <button class="focusable" data-modal-action="levelup-revert-auto">Switch To Manual</button>
+          </div>`
+        : "";
+      els.modalContent.innerHTML = `
+        ${reviewSummary}
         <p><strong>Unspent Points:</strong> ${points}</p>
         <p>Auto Level Up option: <strong>${autoState}</strong></p>
-        <div class="button-row">
-          <button class="focusable" data-modal-action="levelup-auto">Auto Allocate All</button>
-        </div>
+        ${points > 0 ? `<div class="button-row"><button class="focusable" data-modal-action="levelup-auto">Auto Allocate All</button></div>` : ""}
+        ${reviewActions}
         <div class="modal-list">${rows}</div>
       `;
     }
@@ -3086,7 +3437,7 @@ function onModalAction(event) {
     const target = button.dataset.target;
     if (!target) return;
     if (target === "levelup") {
-      if ((player.unspentStatPoints || 0) <= 0) {
+      if ((player.unspentStatPoints || 0) <= 0 && !hasPendingAutoLevelReview()) {
         addWorldLog("No stat points available.");
         return;
       }
@@ -3149,6 +3500,17 @@ function onModalAction(event) {
     return;
   }
 
+  if (action === "choose-interaction") {
+    const actionId = button.dataset.interactionId;
+    if (!actionId) return;
+    const world = state.game.world;
+    const featureId = state.modalData?.featureId || null;
+    const feature = featureId ? world.features.find((entry) => entry.id === featureId) : null;
+    closeModal();
+    executeWorldInteractionAction(actionId, feature || null);
+    return;
+  }
+
   if (action === "levelup-add-stat") {
     const stat = button.dataset.stat;
     allocateStatPoint(stat);
@@ -3158,10 +3520,23 @@ function onModalAction(event) {
   }
 
   if (action === "levelup-auto") {
-    const spent = autoAllocateStatPoints(player);
-    const summary = formatAllocationSummary(spent);
-    if (!summary) addWorldLog("No stat points available.");
-    else addWorldLog(`Auto-level allocated: ${summary}.`);
+    const info = applyAutoLevelWithReview(player);
+    if (!info?.summary) addWorldLog("No stat points available.");
+    else addWorldLog(`Auto-level allocated: ${info.summary}. Choose Keep or Switch To Manual if needed.`);
+    renderWorld();
+    renderModal();
+    return;
+  }
+
+  if (action === "levelup-keep-auto") {
+    keepAutoLevelAllocation();
+    renderWorld();
+    renderModal();
+    return;
+  }
+
+  if (action === "levelup-revert-auto") {
+    revertAutoLevelAllocation();
     renderWorld();
     renderModal();
     return;
@@ -3397,6 +3772,7 @@ function generateWorld(seedText) {
       x: spot.x,
       y: spot.y,
       hasShop: true,
+      hasInn: true,
       shopTier: clamp(2 + index, 2, 8),
       shopStock: [],
       lastRestockStep: 0,
@@ -3423,6 +3799,7 @@ function generateWorld(seedText) {
       x: spot.x,
       y: spot.y,
       hasShop: rng.next() > 0.18,
+      hasInn: rng.next() > 0.24,
       shopTier: rng.int(1, 6),
       shopStock: [],
       lastRestockStep: 0,
@@ -4316,6 +4693,11 @@ function serializeGame(game) {
     achievements: game.achievements,
     meta: game.meta,
     pendingLevelUp: !!game.pendingLevelUp,
+    pendingLevelUpReview: !!game.pendingLevelUpReview,
+    lastAutoLevelUp: game.lastAutoLevelUp ? {
+      ...game.lastAutoLevelUp,
+      baseStatsBefore: copyStats(game.lastAutoLevelUp.baseStatsBefore || {}),
+    } : null,
     dynamic: game.dynamic,
     runtimeRngState: game.runtimeRng.getState(),
   };
@@ -4336,6 +4718,7 @@ function hydrateGame(saved) {
       feature.targetName = feature.targetName || "Unknown Gate";
     } else if (feature.type === "city" || feature.type === "town") {
       feature.hasShop = feature.hasShop !== false;
+      feature.hasInn = feature.hasInn !== false;
       feature.shopTier = feature.shopTier || 1;
       feature.shopStock = feature.shopStock || [];
       feature.lastRestockStep = Number.isFinite(feature.lastRestockStep) ? feature.lastRestockStep : 0;
@@ -4396,7 +4779,12 @@ function hydrateGame(saved) {
       tilesDiscovered: saved.meta?.tilesDiscovered || countDiscoveredTiles(world),
       totalGoldFound: saved.meta?.totalGoldFound || 0,
     },
-    pendingLevelUp: !!saved.pendingLevelUp || player.unspentStatPoints > 0,
+    pendingLevelUp: !!saved.pendingLevelUp || player.unspentStatPoints > 0 || (!!saved.pendingLevelUpReview && !!saved.lastAutoLevelUp),
+    pendingLevelUpReview: !!saved.pendingLevelUpReview && !!saved.lastAutoLevelUp,
+    lastAutoLevelUp: saved.lastAutoLevelUp ? {
+      ...saved.lastAutoLevelUp,
+      baseStatsBefore: copyStats(saved.lastAutoLevelUp.baseStatsBefore || {}),
+    } : null,
     dynamic: {
       threat: saved.dynamic?.threat || 0,
       lastEventStep: saved.dynamic?.lastEventStep || 0,
@@ -4516,6 +4904,9 @@ function pollGamepad(now) {
   }
 
   if (state.screen === "world" && state.game && !state.modal && !state.combat) {
+    if (edge(2)) toggleMapFullscreen();
+    if (edge(4)) changeMapZoom(-MAP_ZOOM_STEP);
+    if (edge(5)) changeMapZoom(MAP_ZOOM_STEP);
     if (edge(12) || (axisY < -0.55 && now >= state.gamepad.axisYReadyAt)) {
       movePlayer(0, -1);
       state.gamepad.axisYReadyAt = now + 140;
@@ -4530,9 +4921,7 @@ function pollGamepad(now) {
       state.gamepad.axisXReadyAt = now + 140;
     }
     if (edge(3)) openCharacterMenu();
-    if (edge(7)) handleWorldInteract();
-    if (edge(6)) openCurrentShop();
-    if (edge(0)) talkToNpc();
+    if (edge(0)) handleWorldInteract();
     if (edge(9)) saveGame();
     if (edge(1)) requestMainMenuReturn();
   }
@@ -4988,7 +5377,8 @@ function updateControlPromptUi() {
     const shoulderHint = state.inputMode === "controller" ? " Use LB/RB to switch character tabs." : "";
     const autoHint = state.options.autoLevelUp ? " Auto-level is ON." : "";
     const debugHint = state.options.debugMode ? " Debug hotkeys: Ctrl+Shift+L/G/H/X." : "";
-    els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Level Up, Quests, Bestiary, Story, Achievements, and journey stats.${shoulderHint}${autoHint}${debugHint}`;
+    const mapHint = ` Map ${state.map.fullscreen ? "fullscreen" : "windowed"} at ${Math.round((state.map.zoom || 1) * 100)}% zoom.`;
+    els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Level Up, Quests, Bestiary, Story, Achievements, and journey stats.${shoulderHint}${mapHint}${autoHint}${debugHint}`;
   }
 }
 
