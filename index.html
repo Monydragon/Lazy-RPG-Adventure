@@ -25,6 +25,17 @@
       <p id="menu-message" class="hint"></p>
     </section>
 
+    <section id="screen-load" class="screen">
+      <h2>Load Adventure</h2>
+      <p id="load-summary" class="hint"></p>
+      <div class="panel">
+        <div id="load-slots" class="modal-list"></div>
+      </div>
+      <div class="button-row">
+        <button id="load-back" class="focusable">Back</button>
+      </div>
+    </section>
+
     <section id="screen-intro" class="screen">
       <h2>Prologue</h2>
       <p id="intro-text" class="story"></p>
@@ -153,6 +164,7 @@
             <button id="world-map-zoom-reset">Reset Zoom</button>
           </div>
           <canvas id="map-canvas" width="672" height="432" aria-label="Overworld map"></canvas>
+          <div id="world-interact-popup" class="world-interact-popup hidden" aria-hidden="true"></div>
           <p id="map-legend" class="hint"></p>
           <p id="world-context" class="hint"></p>
         </main>
@@ -167,6 +179,7 @@
 
       <div class="button-row world-controls">
         <button id="world-interact">Interact</button>
+        <button id="world-debug" class="hidden">Debug</button>
         <button id="world-character">Character</button>
         <button id="world-shop">Shop</button>
         <button id="world-talk">Talk</button>

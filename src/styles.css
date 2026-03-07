@@ -132,6 +132,48 @@ body {
   margin-right: auto;
 }
 
+#screen-load {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+#screen-load .panel {
+  min-height: 280px;
+}
+
+.save-slot-row {
+  align-items: flex-start;
+}
+
+.save-slot-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-slot-copy p {
+  margin: 0.2rem 0;
+}
+
+.save-slot-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid #5f738d;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  margin-right: 0.35rem;
+  margin-top: 0.22rem;
+  background: #172332;
+  color: #dce8f7;
+  font-size: 0.8rem;
+}
+
+.save-slot-pill.active {
+  border-color: #8ebd70;
+  background: #21331b;
+  color: #e6f6dc;
+}
+
 .panel {
   background: linear-gradient(180deg, var(--panel), var(--panel-alt));
   border: 1px solid #405063;
@@ -218,6 +260,26 @@ button:disabled {
   margin-top: 0.6rem;
 }
 
+.modal-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.75rem;
+  padding: 0 0 0.55rem;
+  border-bottom: 1px solid #425367;
+}
+
+.modal-tab-strip button {
+  min-width: 0;
+  padding: 0.38rem 0.68rem;
+  font-size: 0.88rem;
+}
+
+.modal-tab-strip .selected {
+  background: linear-gradient(180deg, #3d5e2d, #2b4720);
+  border-color: #8ebd70;
+}
+
 .wrap {
   max-width: 740px;
 }
@@ -293,6 +355,7 @@ button:disabled {
 }
 
 .map-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -317,6 +380,74 @@ button:disabled {
   border: 1px solid #4e627a;
   border-radius: 8px;
   background: #0f151d;
+}
+
+.world-interact-popup {
+  position: absolute;
+  z-index: 5;
+  min-width: 180px;
+  max-width: min(320px, calc(100% - 1.5rem));
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #5f738d;
+  border-radius: 10px;
+  background: rgba(14, 21, 29, 0.96);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.world-interact-popup::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid #5f738d;
+  border-bottom: 1px solid #5f738d;
+  background: rgba(14, 21, 29, 0.96);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.world-interact-popup strong,
+.world-interact-popup small {
+  display: block;
+}
+
+.world-interact-popup strong {
+  color: #f2f6fd;
+}
+
+.world-interact-popup small {
+  margin-top: 0.18rem;
+  color: var(--muted);
+}
+
+.world-interact-popup[data-state="locked"] {
+  border-color: #9c6363;
+}
+
+.world-interact-popup[data-state="locked"]::after {
+  border-right-color: #9c6363;
+  border-bottom-color: #9c6363;
+}
+
+.world-interact-popup[data-state="ready"] {
+  border-color: #6ea882;
+}
+
+.world-interact-popup[data-state="ready"]::after {
+  border-right-color: #6ea882;
+  border-bottom-color: #6ea882;
+}
+
+.world-interact-popup[data-state="depleted"] {
+  border-color: #7a6b4f;
+}
+
+.world-interact-popup[data-state="depleted"]::after {
+  border-right-color: #7a6b4f;
+  border-bottom-color: #7a6b4f;
 }
 
 #screen-world.hud-stacked .world-layout {
@@ -516,6 +647,11 @@ button:disabled {
   background: #2a1717;
 }
 
+.timing-chip[data-tier="rough"] {
+  border-color: #8f5454;
+  background: #2a1717;
+}
+
 .timing-chip[data-tier="good"] {
   border-color: #6f86a4;
   background: #162434;
@@ -529,6 +665,228 @@ button:disabled {
 .timing-chip[data-tier="perfect"] {
   border-color: #d7b861;
   background: #2e2510;
+}
+
+.crafting-board {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.craft-gauge-group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.craft-gauge {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.craft-gauge-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.craft-gauge-track {
+  position: relative;
+  height: 0.85rem;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid #40546a;
+  background: linear-gradient(90deg, #0f1721 0%, #1b2736 100%);
+}
+
+.craft-gauge-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.craft-gauge-fill[data-kind="progress"] {
+  background: linear-gradient(90deg, #c98d4e 0%, #f0c065 100%);
+}
+
+.craft-gauge-fill[data-kind="quality"] {
+  background: linear-gradient(90deg, #4da57f 0%, #8fd6a0 100%);
+}
+
+.craft-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.craft-status-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #465a72;
+  border-radius: 10px;
+  background: #121d29;
+}
+
+.craft-status-card strong {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.craft-status-chip,
+.craft-buff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid #566b82;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  background: #16212c;
+  font-size: 0.82rem;
+}
+
+.craft-status-chip[data-condition="Good"] {
+  border-color: #5e8b66;
+  background: #15241a;
+}
+
+.craft-status-chip[data-condition="Excellent"] {
+  border-color: #d6b35c;
+  background: #2e2410;
+}
+
+.craft-status-chip[data-condition="Poor"] {
+  border-color: #8f5454;
+  background: #2a1717;
+}
+
+.craft-status-chip[data-condition="Sturdy"] {
+  border-color: #5d84a8;
+  background: #15202c;
+}
+
+.craft-status-chip[data-condition="Pliant"] {
+  border-color: #5e75a8;
+  background: #171d2d;
+}
+
+.craft-status-chip[data-condition="Malleable"] {
+  border-color: #8a6ba9;
+  background: #21192d;
+}
+
+.craft-buff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.craft-encounter-window {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.craft-encounter-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+  gap: 0.85rem;
+  min-height: 0;
+}
+
+.craft-encounter-panel {
+  border: 1px solid #465a72;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #121c28 0%, #182434 100%);
+  padding: 0.8rem 0.9rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.craft-summary-copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.craft-summary-copy p {
+  margin: 0;
+}
+
+.craft-log-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.craft-log-list {
+  max-height: none;
+  min-height: 0;
+}
+
+.craft-action-dock {
+  display: grid;
+  gap: 0.65rem;
+  border-top: 1px solid #425367;
+  padding-top: 0.8rem;
+  max-height: min(38vh, 320px);
+  overflow: auto;
+}
+
+.craft-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.55rem;
+}
+
+.craft-action-button {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: 0.24rem;
+  min-height: 110px;
+  padding: 0.8rem 0.85rem 0.7rem;
+  text-align: left;
+  background: linear-gradient(180deg, #1e3248 0%, #203247 100%);
+}
+
+.craft-action-button strong,
+.craft-action-button small,
+.craft-action-button .craft-action-meta {
+  display: block;
+}
+
+.craft-action-button strong {
+  padding-right: 1.75rem;
+}
+
+.craft-action-button small {
+  color: #d9e6f7;
+  font-size: 0.82rem;
+}
+
+.craft-action-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.craft-action-key {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  min-width: 1.5rem;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid #6f86a4;
+  border-radius: 999px;
+  background: #122030;
+  color: #e4edf9;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.craft-action-row {
+  align-items: flex-start;
 }
 
 .combat-log-box {
@@ -589,6 +947,19 @@ button:disabled {
   overflow: auto;
 }
 
+#modal-window.modal-craft-encounter {
+  width: min(1120px, 96vw);
+  max-height: 92vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+#modal-window.modal-craft-encounter #modal-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .modal-list {
   display: grid;
   gap: 0.5rem;
@@ -602,6 +973,13 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 0.55rem;
+}
+
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 .hidden {
@@ -642,6 +1020,14 @@ hr {
 
   .button-list.tight {
     grid-template-columns: 1fr;
+  }
+
+  .craft-encounter-main {
+    grid-template-columns: 1fr;
+  }
+
+  .craft-action-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 }
 

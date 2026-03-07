@@ -71,4 +71,51 @@ now I want to balance enemies they are too strong for a level 1 player I keep ge
 
 combat is too difficult the player is too weak let's increase level 1 health to be 50 for the player character. I want the player to be able to survive at least 4-5 enemies at full health on normal. let's re-balance the game so that enemies are scaled to the player. when leveling up it should be an option to auto level and be able to choose other options like turning debug on that will allow for quick testing.
 
-On Level up when choosing Auto it should show on the next screen what stat adjustments were made. and be able to manually allocate if not happy with the results, in game the map and display
+On Level up when choosing Auto it should show on the next screen what stat adjustments were made. and be able to manually allocate if not happy with the results, in game the map and display I want to do away with circle shapes for the map icons they can be a house, or a city, or stairs and chests also have the ability to open the map in full screen with an easy toggle. and when full screen the player can zoom in and out on the map make sure this works with controller too. I want to have even more icons and showcase Inns, Shops, Npc's, Bosses, etc
+
+I want to add the ability to zoom in and out even more. I want to combine the Interact and Talk and other types of interaction just to the A button on controller and if there are npcs with dialogue or shops or such have a  popup menu that you choose what to interact with to simplify things.
+
+I want the default zoom level to be 4 ticks from max zoom in currently. make sure to mirror the action for keyboard which should be F for interact Action.
+
+
+I want to add skills to the game where the player can craft their own gear so I want to add Botany, Mining, Fishing, and Smithing, Woodworking, Cooking, Leatherworking, Alchemy these independently level up to a max of 100, they offer a way to craft and gather items on the map have trees and places where the players can get hides and fishing spots, let's not add a fishing minigame yet but prepare for a fishing minigame.
+
+I want to shrink the logo in game to be about 1/10 what it currently is in size I want the entire game to fit on screen and in an iframe for itch.io
+
+
+on the title screen it should be full size (not 1/10 the size, I want the size to be about 3x the current size for the tiny size so that it's readable make sure to set up so that iframes are easily managed) so that the player can always see what they need to see on screen at normal 1920x1080 or smaller screens also make the options accessible in game not just the main menu
+
+I want to add even more weapons to all types Melee, Ranged, Magic think dungeons and dragons level of weapons like everything with a nice mix of Piercing/Slashing/Blunt/Crushing expand each section with more weapons and for ranged and magic come up with good equivalents. I want weapons to be special depending on the weapon type different skills and attacks are available and weaknesses the player to also have the ability to equip mid battle and switch as needed with no turn penalty. make sure to keep the existing options and add to the variety. also I want to add the ability to switch combat style if a respective weapon of that type is changed. think final fantasty xiv where weapons change class this is the same with this system.
+
+Small edit fix the selection for Magic as you can see the gltich
+
+I want to show the skills like Mining, Botany, Fishing, and all of the crafting classes displayed on the main HUB under the log on the right under the chat
+
+I want the skills to be progress bars and show exp 
+
+I want to add Crafting skill and Clothier (or whatever name works best for this game)
+
+I want to show all of the hud more easily and be able to collapse and expand the viewport to match the native resolution and orientation
+
+I want to have a mastery system for weapons and their respective classes. I want to to see weapons gain abilities through usage and mastery of that type progression like leveling but not the type of leveling format think learning based on usage and skills need to unlock various levels of mastery to be able to use them and there is no limit based on mastery
+
+I want to add a timing minigame for gathering all of them where if timing is good yield more based on level. think a simple back and forth bar where you try to get the max efficiency it will change each zone where you need to hit and make it so that if there is 3 resources in a spot then do it in conjunction 3 times and make sure its worth its yield I also want to add sound effects for the gathering and crafting skills I want a relevant sound effect.
+
+
+I want to be able to use all of my crafting based skills anywhere not just in cities however there needs to be requirements to use the skills like tools that are used to activate the skill for example blacksmith tools which would start a minigame there will be quality so the higher the level the harder it is to craft perfect or likewise you can craft higher level gear than you find and there needs to be a way to desynth or breakdown existing items and weapons and armor etc into crafting materials that can be recycled. this should scale considering 100 is the max level and max level for crafting and gathering skills.
+
+when in the crafting menu each crafting skill should show recipes and such for each and make sure that all of them have 1 - 100 and make sure all of the game is set to scale to 100 total level and max stats I want to add crafting stations in town is fine but the shops and drops need to have some revamp. I need to be able to buy crafting stations that can be used when the item is used. let's re-envision character and inventory to be tab based and show each tab contents not a whole replacement UI. let's make this so that controller can easily control the flow with rb an lb buttons navigating the tabs in the character menu.
+
+I want to add Jewel crafting to cover the bases for accessories
+
+remove the skill "Crafting" this is being replaced with Jewelcrafting and as such those recipes will be in Jewelcrafting
+
+
+I Want to add save slots (unlimited amounts show x on page on load game) I also want to expand the procedural generation to build endless quests and npc dialogues leverage anything that can make that task easier. I want each playthrough to be different and I want the scaling so that within 4-5 hours of play time with replay ability
+
+
+weapon Mastery is happening too quickly I want the user to spend around 5x the current amount it takes roughly? also I want to add even more resources to be gathered that are crafting materials needed I would like all materials to be available for all crafting recipes. also all gathering should be Botany, Mining, Fishing, right now we have a hides giving leatherworking we want to change that so that it gives botany experience and correct the spot to make sense with that. I want the player to easily obtain materials needed to craft gear and such. I also want spots on the map that are crafting encounters where there is a different mini-game with a similar processes. I want to mirror final fantasy XIV system a little here. I want progress and quality bars and the abilities are unlocked with each crafting skill unlocks. skills unlocked with other crafting classes are unlocked for all crafting classes. For example some abilities will increase quality or progress, some will take reduced steps or beable to recover I want to closely but not 100% copy the final fantasy xiv crafting classes setup. make it as close we can get
+
+
+let's add a faster way to test crafting and gathering for testers let's add a whole area where there is no encounters and all the available resources available debug menu will be able to teleport to debug area which will be called DEBUG_CRAFTING for the entire game and make sure that resources have levels needed to gather them for progression. it will say the level on map, also I want tooltip like popups in game when interacting to indicate to interact. 
+
