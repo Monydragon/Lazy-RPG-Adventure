@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-labelledby="iconTitle iconDesc">
+  <title id="iconTitle">Lazy RPG Adventure Icon</title>
+  <desc id="iconDesc">A triangle crest containing a sword, bow, and staff.</desc>
+
+  <defs>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7df9a"/>
+      <stop offset="55%" stop-color="#f0bb5c"/>
+      <stop offset="100%" stop-color="#d08b2f"/>
+    </linearGradient>
+    <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5f9ff"/>
+      <stop offset="100%" stop-color="#9eb3cf"/>
+    </linearGradient>
+    <linearGradient id="staffGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c68a49"/>
+      <stop offset="100%" stop-color="#7c4b23"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#050a11" flood-opacity="0.46"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <ellipse cx="178" cy="325" rx="103" ry="20" fill="#08111d" opacity="0.62"/>
+
+    <path d="M180 22L318 292H42Z" fill="rgba(22,33,48,0.56)" stroke="url(#goldGrad)" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M180 50L291 275H69Z" fill="none" stroke="#8fb0d6" stroke-opacity="0.38" stroke-width="2.4"/>
+
+    <g transform="translate(180 170)">
+      <path d="M-11-84L0-121L11-84V86H-11Z" fill="url(#steelGrad)"/>
+      <rect x="-34" y="82" width="68" height="12" rx="6" fill="#ddb468"/>
+      <rect x="-8" y="94" width="16" height="38" rx="7" fill="#8a5a2f"/>
+      <circle cx="0" cy="136" r="8" fill="#ddb468"/>
+    </g>
+
+    <g transform="translate(110 178)">
+      <path d="M0-90C-32-38-32 38 0 90" fill="none" stroke="#d8a55a" stroke-width="9" stroke-linecap="round"/>
+      <line x1="-2" y1="-84" x2="-2" y2="84" stroke="#e4edf9" stroke-width="3"/>
+      <line x1="-4" y1="-40" x2="33" y2="0" stroke="#e4edf9" stroke-width="3"/>
+      <line x1="-4" y1="40" x2="33" y2="0" stroke="#e4edf9" stroke-width="3"/>
+    </g>
+
+    <g transform="translate(254 178)">
+      <rect x="-4.5" y="-97" width="9" height="194" rx="4.5" fill="url(#staffGrad)"/>
+      <circle cx="0" cy="-112" r="15" fill="#80d2ff" stroke="#c4edff" stroke-width="4"/>
+      <path d="M0-132V-146M-18-116H-33M18-116H33M-12-130L-23-141M12-130L23-141" stroke="#9fe1ff" stroke-width="3.4" stroke-linecap="round"/>
+    </g>
+
+    <circle cx="180" cy="182" r="11" fill="#f5f8ff" opacity="0.92"/>
+  </g>
+</svg>

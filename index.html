@@ -9,7 +9,8 @@
 <body>
   <div id="app">
     <header class="app-header">
-      <h1>Lazy RPG Adventure</h1>
+      <img class="game-logo" src="./src/assets/branding/lazy-rpg-adventure-logo.svg" alt="Lazy RPG Adventure logo" />
+      <h1 class="sr-only">Lazy RPG Adventure</h1>
       <p>Dice-heavy turn-based RPG prototype (Keyboard + Controller)</p>
     </header>
 
@@ -143,7 +144,10 @@
 
         <main class="panel map-panel">
           <div class="map-toolbar">
-            <button id="world-map-toggle">Fullscreen Map</button>
+            <button id="world-map-toggle">Expand Viewport</button>
+            <button id="world-hud-layout">HUD: Side</button>
+            <button id="world-viewport-mode">Viewport: Fit</button>
+            <button id="world-viewport-orientation">Orientation: Landscape</button>
             <button id="world-map-zoom-out">- Zoom</button>
             <button id="world-map-zoom-in">+ Zoom</button>
             <button id="world-map-zoom-reset">Reset Zoom</button>
@@ -156,6 +160,8 @@
         <aside class="panel">
           <h3>Adventure Log</h3>
           <ul id="world-log" class="log-list"></ul>
+          <hr />
+          <div id="world-skills"></div>
         </aside>
       </div>
 
@@ -165,6 +171,7 @@
         <button id="world-shop">Shop</button>
         <button id="world-talk">Talk</button>
         <button id="world-save">Save Game</button>
+        <button id="world-options">Options</button>
         <button id="world-menu">Main Menu</button>
       </div>
       <p id="world-controls-hint" class="hint"></p>
@@ -186,6 +193,7 @@
           <div id="combat-actions" class="button-list tight">
             <button class="focusable combat-action" data-action="attack">Attack</button>
             <button class="focusable combat-action" data-action="skill">Skill</button>
+            <button class="focusable combat-action" data-action="swap-weapon">Swap Weapon</button>
             <button class="focusable combat-action" data-action="item">Item</button>
             <button class="focusable combat-action" data-action="defend">Defend</button>
             <button class="focusable combat-action" data-action="flee">Flee</button>

@@ -7,12 +7,36 @@ const VIEW_TILES_X = 28;
 const VIEW_TILES_Y = 18;
 const FULLSCREEN_VIEW_TILES_X = 44;
 const FULLSCREEN_VIEW_TILES_Y = 28;
+const PORTRAIT_VIEW_TILES_X = 18;
+const PORTRAIT_VIEW_TILES_Y = 30;
+const PORTRAIT_FULLSCREEN_VIEW_TILES_X = 24;
+const PORTRAIT_FULLSCREEN_VIEW_TILES_Y = 40;
 const WORLD_LOG_LIMIT = 16;
 const COMBAT_LOG_LIMIT = 16;
 const MAP_ZOOM_MIN = 0.35;
 const MAP_ZOOM_MAX = 4.2;
 const MAP_ZOOM_STEP = 0.25;
 const DEFAULT_MAP_ZOOM = 3.2;
+const GATHERING_BIOME_TUNING = {
+  road: { zoneWidth: 0.28, speed: 0.92 },
+  plains: { zoneWidth: 0.26, speed: 1 },
+  forest: { zoneWidth: 0.23, speed: 1.08 },
+  swamp: { zoneWidth: 0.2, speed: 1.16 },
+  badlands: { zoneWidth: 0.18, speed: 1.24 },
+};
+const GATHERING_RESOURCE_TUNING = {
+  tree: { zoneWidth: 1.08, speed: 0.94, prompt: "Chop on the clean grain." },
+  herb: { zoneWidth: 1.12, speed: 0.98, prompt: "Pluck cleanly without bruising the patch." },
+  ore: { zoneWidth: 0.9, speed: 1.08, prompt: "Strike the fracture line." },
+  hide: { zoneWidth: 0.95, speed: 1.04, prompt: "Cut where the hide opens easiest." },
+  fishing: { zoneWidth: 1, speed: 1.02, prompt: "Set the hook on the strongest bite." },
+};
+const GATHERING_TIMING_TIERS = {
+  miss: { key: "miss", name: "Miss", quantityScale: 0.72, xpScale: 0.68, chanceBonus: -0.08, flatBonus: 0, guaranteedPrimary: 1, color: "#d57a7a", score: 0.35 },
+  good: { key: "good", name: "Good", quantityScale: 1.02, xpScale: 1, chanceBonus: 0.02, flatBonus: 0, guaranteedPrimary: 1, color: "#9eb0c8", score: 1 },
+  great: { key: "great", name: "Great", quantityScale: 1.34, xpScale: 1.18, chanceBonus: 0.1, flatBonus: 0, guaranteedPrimary: 1, color: "#7bcf94", score: 1.45 },
+  perfect: { key: "perfect", name: "Perfect", quantityScale: 1.72, xpScale: 1.42, chanceBonus: 0.18, flatBonus: 1, guaranteedPrimary: 1, color: "#f4b942", score: 1.95 },
+};
 
 const ALL_STATS = [
   "Health",
@@ -62,6 +86,22 @@ const ATTACK_TO_STATS = {
   Ranged: { attack: "RangedAttack", defense: "RangedDefense" },
   Magic: { attack: "MagicAttack", defense: "MagicDefense" },
 };
+
+function weaponTemplate(id, name, attackType, weaponFamily, damageDie, speed, damageKind, hitBonus, critBonus, summary) {
+  return {
+    id,
+    name,
+    slot: "Weapon",
+    attackType,
+    weaponFamily,
+    damageDie,
+    speed,
+    damageKind,
+    hitBonus,
+    critBonus,
+    summary,
+  };
+}
 
 const MAJOR_CITIES = [
   { id: "guffinford", name: "Guffinford" },
@@ -130,6 +170,8 @@ const SHOP_CONSUMABLE_PRICES = {
   smoke_bomb: 42,
   fire_bomb: 70,
   focus_tonic: 62,
+  hearty_stew: 34,
+  anglers_stew: 56,
 };
 
 const INTRO_PAGES = [
@@ -145,228 +187,93 @@ const DAMAGE_KINDS_BY_STYLE = {
   Magic: ["Arcane", "Fire", "Ice", "Lightning", "Wind", "Earth", "Water"],
 };
 
+const DEFAULT_WEAPON_FAMILY_BY_STYLE = {
+  Melee: "sword",
+  Ranged: "bow",
+  Magic: "wand",
+};
+
+const WEAPON_FAMILY_DEFS = {
+  dagger: { name: "Dagger", style: "Melee", discipline: "Rogue", strengths: "Fast crit chains and precise piercing.", weaknesses: "Lower reach and lighter base impact." },
+  sword: { name: "Sword", style: "Melee", discipline: "Swordmaster", strengths: "Balanced slashing combos and all-around control.", weaknesses: "Less specialized than hammers or polearms." },
+  axe: { name: "Axe", style: "Melee", discipline: "Marauder", strengths: "Heavy cleaves and armor-breaking pressure.", weaknesses: "Lower accuracy and slower recovery." },
+  hammer: { name: "Hammer/Mace", style: "Melee", discipline: "Breaker", strengths: "Crushing blunt damage and strong anti-armor hits.", weaknesses: "Slow tempo against nimble foes." },
+  flail: { name: "Flail", style: "Melee", discipline: "Chainwarden", strengths: "Mixed blunt and piercing coverage with tricky angles.", weaknesses: "Less stable timing than straight blades." },
+  spear: { name: "Spear", style: "Melee", discipline: "Lancer", strengths: "Reach, accuracy, and precise piercing pressure.", weaknesses: "Less effective when enemies shrug off pierce." },
+  polearm: { name: "Polearm", style: "Melee", discipline: "Dragoon", strengths: "Wide sweeps and long reach.", weaknesses: "Heavier commitment per swing." },
+  quarterstaff: { name: "Quarterstaff", style: "Melee", discipline: "Staff Adept", strengths: "Quick blunt chains and safe control patterns.", weaknesses: "Lower burst than the heaviest melee arms." },
+  bow: { name: "Bow", style: "Ranged", discipline: "Archer", strengths: "Accurate sustained fire and strong piercing pressure.", weaknesses: "Less burst than crossbows." },
+  crossbow: { name: "Crossbow", style: "Ranged", discipline: "Marksman", strengths: "Heavy bolts and excellent single-hit burst.", weaknesses: "Slower reload cycle." },
+  thrown: { name: "Thrown", style: "Ranged", discipline: "Skirmisher", strengths: "Flexible damage types and high crit pressure.", weaknesses: "Lower base power than dedicated launchers." },
+  sling: { name: "Sling", style: "Ranged", discipline: "Stonecaller", strengths: "Reliable blunt ranged damage and control shots.", weaknesses: "Lower piercing access." },
+  wand: { name: "Wand", style: "Magic", discipline: "Arcanist", strengths: "Fast precise casting and strong arcane crit chains.", weaknesses: "Lighter base spell impact." },
+  magic_staff: { name: "Staff", style: "Magic", discipline: "Invoker", strengths: "Stable channels and heavy ritual spell scaling.", weaknesses: "Slower wind-up than wands or foci." },
+  rod: { name: "Rod", style: "Magic", discipline: "Elementalist", strengths: "Direct elemental damage and clear weakness coverage.", weaknesses: "Can stall when the element is resisted." },
+  tome: { name: "Tome", style: "Magic", discipline: "Runesage", strengths: "Layered prepared spells and flexible elements.", weaknesses: "More setup-heavy than fast catalysts." },
+  focus: { name: "Focus", style: "Magic", discipline: "Stormcaller", strengths: "Quick multi-hit casting and precise lightning or wind pressure.", weaknesses: "Lower single-hit force than staves or scepters." },
+  scepter: { name: "Scepter", style: "Magic", discipline: "Geomancer", strengths: "Heavy earth and water force with crushing finishes.", weaknesses: "Slow tempo and lower crit reliability." },
+  orb: { name: "Orb", style: "Magic", discipline: "Voidbinder", strengths: "Versatile spell rotation and high ceiling finishers.", weaknesses: "Less straightforward than rods or wands." },
+};
+const WEAPON_FAMILY_ORDER = Object.keys(WEAPON_FAMILY_DEFS);
+
 const WEAPON_LIBRARY = {
   Melee: [
-    {
-      id: "melee_dagger",
-      name: "Dagger",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 4,
-      speed: 9,
-      damageKind: "Pierce",
-      hitBonus: 2,
-      critBonus: 4,
-      summary: "Very fast and precise. Lower base damage, strong crit pressure.",
-    },
-    {
-      id: "melee_short_sword",
-      name: "Short Sword",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 6,
-      speed: 7,
-      damageKind: "Slash",
-      hitBonus: 1,
-      critBonus: 2,
-      summary: "Balanced starter blade with reliable tempo.",
-    },
-    {
-      id: "melee_longsword",
-      name: "Longsword",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 8,
-      speed: 6,
-      damageKind: "Slash",
-      hitBonus: 0,
-      critBonus: 1,
-      summary: "Solid reach and damage, slower than light swords.",
-    },
-    {
-      id: "melee_greatsword",
-      name: "2H Sword",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 10,
-      speed: 4,
-      damageKind: "Slash",
-      hitBonus: 0,
-      critBonus: 2,
-      summary: "Heavy hits with slower swings and lower accuracy.",
-    },
-    {
-      id: "melee_flail",
-      name: "Flail",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 8,
-      speed: 5,
-      damageKind: "Blunt",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Crushing blunt strikes. Excellent into armored targets.",
-    },
-    {
-      id: "melee_spear",
-      name: "Spear",
-      slot: "Weapon",
-      attackType: "Melee",
-      damageDie: 7,
-      speed: 7,
-      damageKind: "Pierce",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Reach-focused thrusting weapon with strong accuracy.",
-    },
+    weaponTemplate("melee_dagger", "Dagger", "Melee", "dagger", 4, 9, "Pierce", 2, 4, "Very fast and precise. Lower base damage, strong crit pressure."),
+    weaponTemplate("melee_stiletto", "Stiletto", "Melee", "dagger", 5, 9, "Pierce", 3, 4, "Needle-thin duelist blade built to pierce weak points."),
+    weaponTemplate("melee_short_sword", "Short Sword", "Melee", "sword", 6, 7, "Slash", 1, 2, "Balanced starter blade with reliable tempo."),
+    weaponTemplate("melee_longsword", "Longsword", "Melee", "sword", 8, 6, "Slash", 0, 1, "Solid reach and damage, slower than light swords."),
+    weaponTemplate("melee_rapier", "Rapier", "Melee", "sword", 7, 8, "Pierce", 2, 3, "Fencing blade with strong hit rate and dueling crits."),
+    weaponTemplate("melee_scimitar", "Scimitar", "Melee", "sword", 7, 8, "Slash", 1, 3, "Curved blade that favors fast slashing strings."),
+    weaponTemplate("melee_greatsword", "2H Sword", "Melee", "sword", 10, 4, "Slash", 0, 2, "Heavy hits with slower swings and lower accuracy."),
+    weaponTemplate("melee_falchion", "Falchion", "Melee", "sword", 9, 5, "Slash", 0, 3, "Wide slashes with high crit finish potential."),
+    weaponTemplate("melee_battleaxe", "Battleaxe", "Melee", "axe", 9, 5, "Slash", 0, 2, "Brutal chopping axe that rewards committed swings."),
+    weaponTemplate("melee_greataxe", "Greataxe", "Melee", "axe", 11, 3, "Slash", -1, 3, "Massive cleaver with huge hits and risky timing."),
+    weaponTemplate("melee_club", "Club", "Melee", "hammer", 6, 7, "Blunt", 1, 0, "Simple blunt weapon that batters fragile targets."),
+    weaponTemplate("melee_mace", "Mace", "Melee", "hammer", 7, 6, "Blunt", 1, 1, "Steady crushing strikes tuned for armored enemies."),
+    weaponTemplate("melee_warhammer", "Warhammer", "Melee", "hammer", 9, 4, "Blunt", 0, 2, "Heavy blunt force with excellent stagger potential."),
+    weaponTemplate("melee_maul", "Maul", "Melee", "hammer", 11, 3, "Blunt", -1, 2, "Two-handed crusher built for devastating impact."),
+    weaponTemplate("melee_flail", "Flail", "Melee", "flail", 8, 5, "Blunt", 1, 1, "Crushing blunt strikes. Excellent into armored targets."),
+    weaponTemplate("melee_morningstar", "Morningstar", "Melee", "flail", 8, 5, "Pierce", 0, 2, "Spiked head trades smoother arcs for nastier punctures."),
+    weaponTemplate("melee_spear", "Spear", "Melee", "spear", 7, 7, "Pierce", 1, 1, "Reach-focused thrusting weapon with strong accuracy."),
+    weaponTemplate("melee_trident", "Trident", "Melee", "spear", 8, 6, "Pierce", 1, 2, "Three-pronged piercer with stronger catch-and-twist damage."),
+    weaponTemplate("melee_pike", "Pike", "Melee", "spear", 9, 5, "Pierce", 1, 1, "Long battlefield lance that favors precise heavy thrusts."),
+    weaponTemplate("melee_glaive", "Glaive", "Melee", "polearm", 9, 5, "Slash", 0, 2, "Long sweeping blade with broad zone control."),
+    weaponTemplate("melee_halberd", "Halberd", "Melee", "polearm", 10, 4, "Slash", 0, 2, "Polearm that mixes chop, hook, and thrust pressure."),
+    weaponTemplate("melee_quarterstaff", "Quarterstaff", "Melee", "quarterstaff", 7, 7, "Blunt", 1, 1, "Disciplined blunt style with strong flow and mobility."),
   ],
   Ranged: [
-    {
-      id: "ranged_shortbow",
-      name: "Shortbow",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 6,
-      speed: 8,
-      damageKind: "Pierce",
-      hitBonus: 2,
-      critBonus: 2,
-      summary: "Fast arrows and reliable hit rate at all times.",
-    },
-    {
-      id: "ranged_longbow",
-      name: "Longbow",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 8,
-      speed: 6,
-      damageKind: "Pierce",
-      hitBonus: 1,
-      critBonus: 3,
-      summary: "Higher damage and crit pressure with slower draw speed.",
-    },
-    {
-      id: "ranged_crossbow",
-      name: "Crossbow",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 10,
-      speed: 4,
-      damageKind: "Pierce",
-      hitBonus: 0,
-      critBonus: 2,
-      summary: "Hard-hitting bolts with lower attack tempo.",
-    },
-    {
-      id: "ranged_repeating",
-      name: "Repeating Crossbow",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 6,
-      speed: 7,
-      damageKind: "Pierce",
-      hitBonus: 2,
-      critBonus: 1,
-      summary: "Rapid shots and smooth handling over raw bolt force.",
-    },
-    {
-      id: "ranged_throwing_knives",
-      name: "Throwing Knives",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 5,
-      speed: 9,
-      damageKind: "Slash",
-      hitBonus: 2,
-      critBonus: 4,
-      summary: "Very fast style with high crit chance and flexible damage type.",
-    },
-    {
-      id: "ranged_sling",
-      name: "Sling",
-      slot: "Weapon",
-      attackType: "Ranged",
-      damageDie: 7,
-      speed: 7,
-      damageKind: "Blunt",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Blunt ranged damage that can punish skeleton-like foes.",
-    },
+    weaponTemplate("ranged_shortbow", "Shortbow", "Ranged", "bow", 6, 8, "Pierce", 2, 2, "Fast arrows and reliable hit rate at all times."),
+    weaponTemplate("ranged_longbow", "Longbow", "Ranged", "bow", 8, 6, "Pierce", 1, 3, "Higher damage and crit pressure with slower draw speed."),
+    weaponTemplate("ranged_recurve_bow", "Recurve Bow", "Ranged", "bow", 7, 8, "Pierce", 2, 2, "Responsive bow with strong sustained accuracy."),
+    weaponTemplate("ranged_greatbow", "Greatbow", "Ranged", "bow", 10, 4, "Pierce", 0, 4, "Towering bow tuned for brutal single-arrow damage."),
+    weaponTemplate("ranged_crossbow", "Crossbow", "Ranged", "crossbow", 10, 4, "Pierce", 0, 2, "Hard-hitting bolts with lower attack tempo."),
+    weaponTemplate("ranged_hand_crossbow", "Hand Crossbow", "Ranged", "crossbow", 6, 8, "Pierce", 2, 3, "Compact bolt launcher with fast draw and finishers."),
+    weaponTemplate("ranged_heavy_crossbow", "Heavy Crossbow", "Ranged", "crossbow", 12, 3, "Pierce", -1, 3, "Siege-grade bolt power with a slower cadence."),
+    weaponTemplate("ranged_repeating", "Repeating Crossbow", "Ranged", "crossbow", 6, 7, "Pierce", 2, 1, "Rapid shots and smooth handling over raw bolt force."),
+    weaponTemplate("ranged_throwing_knives", "Throwing Knives", "Ranged", "thrown", 5, 9, "Slash", 2, 4, "Very fast style with high crit chance and flexible damage type."),
+    weaponTemplate("ranged_throwing_axes", "Throwing Axes", "Ranged", "thrown", 7, 7, "Slash", 1, 3, "Heavier thrown blades with nastier cleaving hits."),
+    weaponTemplate("ranged_javelins", "Javelins", "Ranged", "thrown", 7, 7, "Pierce", 1, 2, "Thrown spears that reward accurate punctures."),
+    weaponTemplate("ranged_chakram", "Chakram", "Ranged", "thrown", 6, 8, "Slash", 2, 3, "Circular blades that chain cleanly through skirmishes."),
+    weaponTemplate("ranged_throwing_hammers", "Throwing Hammers", "Ranged", "thrown", 7, 6, "Blunt", 1, 2, "Compact blunt projectiles that crack tough targets."),
+    weaponTemplate("ranged_darts", "Darts", "Ranged", "thrown", 5, 9, "Pierce", 3, 2, "Needle-fast missiles for relentless pressure."),
+    weaponTemplate("ranged_sling", "Sling", "Ranged", "sling", 7, 7, "Blunt", 1, 1, "Blunt ranged damage that can punish skeleton-like foes."),
+    weaponTemplate("ranged_staff_sling", "Staff Sling", "Ranged", "sling", 9, 5, "Blunt", 1, 1, "Longer sling with heavier stones and deeper knockback."),
   ],
   Magic: [
-    {
-      id: "magic_apprentice_wand",
-      name: "Apprentice Wand",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 4,
-      speed: 8,
-      damageKind: "Arcane",
-      hitBonus: 1,
-      critBonus: 2,
-      summary: "Stable focus for fast casting and arcane pressure.",
-    },
-    {
-      id: "magic_oak_staff",
-      name: "Oak Staff",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 6,
-      speed: 6,
-      damageKind: "Arcane",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Balanced spell focus with stronger base power.",
-    },
-    {
-      id: "magic_fire_rod",
-      name: "Fire Rod",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 7,
-      speed: 5,
-      damageKind: "Fire",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Elemental focus specialized for fire-based pressure.",
-    },
-    {
-      id: "magic_frost_tome",
-      name: "Frost Tome",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 7,
-      speed: 5,
-      damageKind: "Ice",
-      hitBonus: 1,
-      critBonus: 1,
-      summary: "Steady ice focus with controlled, durable damage output.",
-    },
-    {
-      id: "magic_storm_focus",
-      name: "Storm Focus",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 6,
-      speed: 7,
-      damageKind: "Lightning",
-      hitBonus: 2,
-      critBonus: 1,
-      summary: "Quick-cast catalyst tuned for lightning techniques.",
-    },
-    {
-      id: "magic_earth_scepter",
-      name: "Earth Scepter",
-      slot: "Weapon",
-      attackType: "Magic",
-      damageDie: 8,
-      speed: 4,
-      damageKind: "Earth",
-      hitBonus: 0,
-      critBonus: 2,
-      summary: "Slow but heavy elemental focus with strong base impact.",
-    },
+    weaponTemplate("magic_apprentice_wand", "Apprentice Wand", "Magic", "wand", 4, 8, "Arcane", 1, 2, "Stable focus for fast casting and arcane pressure."),
+    weaponTemplate("magic_crystal_wand", "Crystal Wand", "Magic", "wand", 5, 9, "Arcane", 2, 3, "Refined wand that sharpens precise arcane bursts."),
+    weaponTemplate("magic_oak_staff", "Oak Staff", "Magic", "magic_staff", 6, 6, "Arcane", 1, 1, "Balanced spell focus with stronger base power."),
+    weaponTemplate("magic_archmage_staff", "Archmage Staff", "Magic", "magic_staff", 8, 5, "Arcane", 1, 2, "Long ritual staff for heavier channeling magic."),
+    weaponTemplate("magic_fire_rod", "Fire Rod", "Magic", "rod", 7, 5, "Fire", 1, 1, "Elemental focus specialized for fire-based pressure."),
+    weaponTemplate("magic_frost_rod", "Frost Rod", "Magic", "rod", 7, 6, "Ice", 1, 2, "Cold-aligned rod that rewards steady elemental pressure."),
+    weaponTemplate("magic_frost_tome", "Frost Tome", "Magic", "tome", 7, 5, "Ice", 1, 1, "Steady ice focus with controlled, durable damage output."),
+    weaponTemplate("magic_runebound_grimoire", "Runebound Grimoire", "Magic", "tome", 8, 4, "Arcane", 1, 2, "Prepared spellbook built for layered magical barrages."),
+    weaponTemplate("magic_storm_focus", "Storm Focus", "Magic", "focus", 6, 7, "Lightning", 2, 1, "Quick-cast catalyst tuned for lightning techniques."),
+    weaponTemplate("magic_gale_focus", "Gale Focus", "Magic", "focus", 6, 8, "Wind", 2, 2, "Swift focus that turns movement into sharp spell tempo."),
+    weaponTemplate("magic_earth_scepter", "Earth Scepter", "Magic", "scepter", 8, 4, "Earth", 0, 2, "Slow but heavy elemental focus with strong base impact."),
+    weaponTemplate("magic_tide_scepter", "Tide Scepter", "Magic", "scepter", 8, 5, "Water", 1, 1, "Regal focus that batters foes with tidal force."),
+    weaponTemplate("magic_astral_orb", "Astral Orb", "Magic", "orb", 7, 6, "Arcane", 1, 3, "Floating catalyst with flexible astral spell patterns."),
+    weaponTemplate("magic_void_orb", "Void Orb", "Magic", "orb", 8, 5, "Arcane", 0, 3, "Dense orb that trades speed for volatile finishers."),
   ],
 };
 
@@ -475,33 +382,157 @@ const DIFFICULTY_PRESETS = {
 };
 
 const WEAPON_ABILITY_SETS = {
-  Melee: [
-    { level: 1, name: "Sweeping Slash", damageDice: [6], hitBonus: 1, attackScale: 0.62, defenseScale: 0.28, critBonus: 2, damageKind: "Slash" },
-    { level: 4, name: "Shieldbreaker", damageDice: [8], hitBonus: 2, attackScale: 0.66, defenseScale: 0.22, critBonus: 3, damageKind: "Blunt" },
-    { level: 8, name: "Relentless Cleave", damageDice: [8, 4], hitBonus: 2, attackScale: 0.69, defenseScale: 0.18, critBonus: 4, damageKind: null },
-    { level: 12, name: "Earthsplitter", damageDice: [10, 4], hitBonus: 3, attackScale: 0.72, defenseScale: 0.15, critBonus: 5, damageKind: "Blunt" },
-    { level: 17, name: "Iron Tempest", damageDice: [10, 6], hitBonus: 3, attackScale: 0.75, defenseScale: 0.12, critBonus: 6, damageKind: null },
-    { level: 24, name: "Colossus Crash", damageDice: [12, 8], hitBonus: 4, attackScale: 0.8, defenseScale: 0.1, critBonus: 8, damageKind: "Blunt" },
-    { level: 32, name: "Worldrender", damageDice: [12, 10], hitBonus: 4, attackScale: 0.84, defenseScale: 0.08, critBonus: 10, damageKind: null },
+  dagger: [
+    { level: 1, name: "Quick Stab", damageDice: [4, 4], hitBonus: 3, attackScale: 0.52, defenseScale: 0.24, critBonus: 8, damageKind: "Pierce" },
+    { level: 4, name: "Kidney Strike", damageDice: [8], hitBonus: 4, attackScale: 0.56, defenseScale: 0.22, critBonus: 10, damageKind: "Pierce" },
+    { level: 8, name: "Twinfang Rush", damageDice: [6, 6], hitBonus: 4, attackScale: 0.59, defenseScale: 0.18, critBonus: 12, damageKind: null },
+    { level: 14, name: "Shadow Needle", damageDice: [10, 4], hitBonus: 5, attackScale: 0.63, defenseScale: 0.16, critBonus: 14, damageKind: "Pierce" },
+    { level: 22, name: "Bleeding Constellation", damageDice: [8, 8, 6], hitBonus: 5, attackScale: 0.67, defenseScale: 0.13, critBonus: 16, damageKind: null },
+    { level: 32, name: "Last Whisper", damageDice: [12, 10], hitBonus: 6, attackScale: 0.72, defenseScale: 0.1, critBonus: 19, damageKind: "Pierce" },
   ],
-  Ranged: [
+  sword: [
+    { level: 1, name: "Sweeping Slash", damageDice: [6], hitBonus: 1, attackScale: 0.62, defenseScale: 0.28, critBonus: 2, damageKind: "Slash" },
+    { level: 4, name: "Riposte Line", damageDice: [8], hitBonus: 2, attackScale: 0.66, defenseScale: 0.22, critBonus: 4, damageKind: "Slash" },
+    { level: 8, name: "Cross Cut", damageDice: [8, 4], hitBonus: 2, attackScale: 0.69, defenseScale: 0.18, critBonus: 5, damageKind: null },
+    { level: 14, name: "Crescent Drive", damageDice: [10, 4], hitBonus: 3, attackScale: 0.72, defenseScale: 0.16, critBonus: 6, damageKind: "Slash" },
+    { level: 22, name: "King's Measure", damageDice: [10, 8], hitBonus: 3, attackScale: 0.76, defenseScale: 0.12, critBonus: 8, damageKind: null },
+    { level: 32, name: "Zenith Sever", damageDice: [12, 10], hitBonus: 4, attackScale: 0.82, defenseScale: 0.09, critBonus: 10, damageKind: "Slash" },
+  ],
+  axe: [
+    { level: 1, name: "Hooking Chop", damageDice: [8], hitBonus: 0, attackScale: 0.64, defenseScale: 0.26, critBonus: 2, damageKind: "Slash" },
+    { level: 4, name: "Armor Rend", damageDice: [10], hitBonus: 1, attackScale: 0.68, defenseScale: 0.2, critBonus: 3, damageKind: "Slash" },
+    { level: 8, name: "Reaving Arc", damageDice: [8, 6], hitBonus: 1, attackScale: 0.72, defenseScale: 0.18, critBonus: 4, damageKind: null },
+    { level: 14, name: "Headsman's Oath", damageDice: [12], hitBonus: 2, attackScale: 0.75, defenseScale: 0.16, critBonus: 6, damageKind: "Slash" },
+    { level: 22, name: "Fell Horizon", damageDice: [10, 8, 6], hitBonus: 2, attackScale: 0.79, defenseScale: 0.13, critBonus: 7, damageKind: null },
+    { level: 32, name: "Bloodmoon Cleave", damageDice: [12, 12], hitBonus: 3, attackScale: 0.84, defenseScale: 0.1, critBonus: 9, damageKind: "Slash" },
+  ],
+  hammer: [
+    { level: 1, name: "Shieldbreaker", damageDice: [8], hitBonus: 1, attackScale: 0.66, defenseScale: 0.22, critBonus: 3, damageKind: "Blunt" },
+    { level: 4, name: "Bone Shaker", damageDice: [10], hitBonus: 1, attackScale: 0.69, defenseScale: 0.2, critBonus: 4, damageKind: "Blunt" },
+    { level: 8, name: "Meteor Maul", damageDice: [10, 4], hitBonus: 2, attackScale: 0.72, defenseScale: 0.18, critBonus: 5, damageKind: null },
+    { level: 14, name: "Sundering Toll", damageDice: [12, 4], hitBonus: 2, attackScale: 0.76, defenseScale: 0.15, critBonus: 6, damageKind: "Blunt" },
+    { level: 22, name: "Titan Anvil", damageDice: [12, 8], hitBonus: 3, attackScale: 0.8, defenseScale: 0.12, critBonus: 8, damageKind: "Blunt" },
+    { level: 32, name: "Worldbreaker", damageDice: [14, 10], hitBonus: 3, attackScale: 0.85, defenseScale: 0.09, critBonus: 10, damageKind: "Blunt" },
+  ],
+  flail: [
+    { level: 1, name: "Chain Lash", damageDice: [6, 4], hitBonus: 2, attackScale: 0.6, defenseScale: 0.25, critBonus: 4, damageKind: "Blunt" },
+    { level: 4, name: "Spiked Swing", damageDice: [8], hitBonus: 2, attackScale: 0.64, defenseScale: 0.22, critBonus: 5, damageKind: "Pierce" },
+    { level: 8, name: "Iron Orbit", damageDice: [6, 6, 4], hitBonus: 3, attackScale: 0.67, defenseScale: 0.18, critBonus: 7, damageKind: null },
+    { level: 14, name: "Cagebreaker", damageDice: [10, 6], hitBonus: 3, attackScale: 0.71, defenseScale: 0.16, critBonus: 8, damageKind: "Blunt" },
+    { level: 22, name: "Ruin Carousel", damageDice: [8, 8, 6], hitBonus: 4, attackScale: 0.75, defenseScale: 0.13, critBonus: 10, damageKind: null },
+    { level: 32, name: "Catastrophe Chain", damageDice: [10, 10, 8], hitBonus: 4, attackScale: 0.8, defenseScale: 0.1, critBonus: 12, damageKind: "Blunt" },
+  ],
+  spear: [
+    { level: 1, name: "Long Thrust", damageDice: [6], hitBonus: 3, attackScale: 0.6, defenseScale: 0.24, critBonus: 3, damageKind: "Pierce" },
+    { level: 4, name: "Pinning Jab", damageDice: [8], hitBonus: 4, attackScale: 0.63, defenseScale: 0.2, critBonus: 4, damageKind: "Pierce" },
+    { level: 8, name: "Skewer Drive", damageDice: [8, 4], hitBonus: 4, attackScale: 0.67, defenseScale: 0.17, critBonus: 6, damageKind: null },
+    { level: 14, name: "Dragonlance", damageDice: [10, 6], hitBonus: 5, attackScale: 0.71, defenseScale: 0.15, critBonus: 7, damageKind: "Pierce" },
+    { level: 22, name: "Horizon Impaler", damageDice: [10, 8], hitBonus: 5, attackScale: 0.75, defenseScale: 0.12, critBonus: 9, damageKind: "Pierce" },
+    { level: 32, name: "Starpiercer", damageDice: [12, 10], hitBonus: 6, attackScale: 0.8, defenseScale: 0.09, critBonus: 11, damageKind: "Pierce" },
+  ],
+  polearm: [
+    { level: 1, name: "Glaive Sweep", damageDice: [6, 6], hitBonus: 2, attackScale: 0.61, defenseScale: 0.26, critBonus: 3, damageKind: "Slash" },
+    { level: 4, name: "Reaper Hook", damageDice: [8], hitBonus: 3, attackScale: 0.65, defenseScale: 0.22, critBonus: 4, damageKind: "Slash" },
+    { level: 8, name: "Halberd Vault", damageDice: [8, 6], hitBonus: 3, attackScale: 0.69, defenseScale: 0.18, critBonus: 6, damageKind: null },
+    { level: 14, name: "Cyclone Reach", damageDice: [10, 6], hitBonus: 4, attackScale: 0.72, defenseScale: 0.16, critBonus: 7, damageKind: "Slash" },
+    { level: 22, name: "Bannerfall", damageDice: [10, 8, 6], hitBonus: 4, attackScale: 0.77, defenseScale: 0.12, critBonus: 8, damageKind: null },
+    { level: 32, name: "Dragoon Eclipse", damageDice: [12, 10, 8], hitBonus: 5, attackScale: 0.82, defenseScale: 0.1, critBonus: 10, damageKind: "Slash" },
+  ],
+  quarterstaff: [
+    { level: 1, name: "Vaulting Strike", damageDice: [6], hitBonus: 2, attackScale: 0.58, defenseScale: 0.26, critBonus: 4, damageKind: "Blunt" },
+    { level: 4, name: "Twin End Flurry", damageDice: [4, 4, 4], hitBonus: 3, attackScale: 0.61, defenseScale: 0.22, critBonus: 5, damageKind: "Blunt" },
+    { level: 8, name: "Monk's Wheel", damageDice: [8, 4], hitBonus: 3, attackScale: 0.65, defenseScale: 0.19, critBonus: 7, damageKind: null },
+    { level: 14, name: "Temple Rush", damageDice: [8, 8], hitBonus: 4, attackScale: 0.69, defenseScale: 0.16, critBonus: 8, damageKind: "Blunt" },
+    { level: 22, name: "Echoing Palm", damageDice: [10, 8, 4], hitBonus: 4, attackScale: 0.74, defenseScale: 0.13, critBonus: 10, damageKind: null },
+    { level: 32, name: "Heavenly Stafffall", damageDice: [12, 10, 6], hitBonus: 5, attackScale: 0.79, defenseScale: 0.1, critBonus: 12, damageKind: "Blunt" },
+  ],
+  bow: [
     { level: 1, name: "Quick Volley", damageDice: [4, 4], hitBonus: 3, attackScale: 0.55, defenseScale: 0.26, critBonus: 6, damageKind: null },
     { level: 4, name: "Piercing Shot", damageDice: [8], hitBonus: 4, attackScale: 0.58, defenseScale: 0.22, critBonus: 9, damageKind: "Pierce" },
-    { level: 8, name: "Ricochet Bolt", damageDice: [6, 6], hitBonus: 4, attackScale: 0.61, defenseScale: 0.18, critBonus: 11, damageKind: null },
-    { level: 12, name: "Rain of Arrows", damageDice: [6, 6, 4], hitBonus: 5, attackScale: 0.64, defenseScale: 0.17, critBonus: 12, damageKind: "Pierce" },
-    { level: 17, name: "Sniper's Oath", damageDice: [12], hitBonus: 6, attackScale: 0.66, defenseScale: 0.15, critBonus: 15, damageKind: "Pierce" },
-    { level: 24, name: "Starfall Volley", damageDice: [8, 8, 6], hitBonus: 6, attackScale: 0.7, defenseScale: 0.13, critBonus: 17, damageKind: null },
-    { level: 32, name: "Zero Wind Barrage", damageDice: [10, 10, 8], hitBonus: 7, attackScale: 0.75, defenseScale: 0.1, critBonus: 20, damageKind: "Pierce" },
+    { level: 8, name: "Hunter's Rain", damageDice: [6, 6], hitBonus: 4, attackScale: 0.61, defenseScale: 0.18, critBonus: 11, damageKind: null },
+    { level: 14, name: "Falcon Mark", damageDice: [10, 4], hitBonus: 5, attackScale: 0.65, defenseScale: 0.16, critBonus: 13, damageKind: "Pierce" },
+    { level: 22, name: "Sky Burial", damageDice: [8, 8, 6], hitBonus: 6, attackScale: 0.7, defenseScale: 0.13, critBonus: 16, damageKind: null },
+    { level: 32, name: "Thousand Branches", damageDice: [10, 10, 8], hitBonus: 7, attackScale: 0.75, defenseScale: 0.1, critBonus: 19, damageKind: "Pierce" },
   ],
-  Magic: [
-    { level: 1, name: "Air Strike", damageDice: [6], hitBonus: 2, attackScale: 0.62, defenseScale: 0.25, critBonus: 2, damageKind: "Wind" },
-    { level: 3, name: "Water Strike", damageDice: [8], hitBonus: 2, attackScale: 0.65, defenseScale: 0.22, critBonus: 3, damageKind: "Water" },
-    { level: 6, name: "Earth Strike", damageDice: [10], hitBonus: 2, attackScale: 0.67, defenseScale: 0.2, critBonus: 4, damageKind: "Earth" },
-    { level: 9, name: "Fire Strike", damageDice: [12], hitBonus: 3, attackScale: 0.7, defenseScale: 0.18, critBonus: 5, damageKind: "Fire" },
-    { level: 13, name: "Storm Lance", damageDice: [10, 6], hitBonus: 3, attackScale: 0.73, defenseScale: 0.16, critBonus: 6, damageKind: "Lightning" },
-    { level: 18, name: "Glacial Crown", damageDice: [10, 8], hitBonus: 4, attackScale: 0.76, defenseScale: 0.14, critBonus: 7, damageKind: "Ice" },
-    { level: 24, name: "Volcanic Wake", damageDice: [12, 10], hitBonus: 4, attackScale: 0.8, defenseScale: 0.12, critBonus: 8, damageKind: "Fire" },
-    { level: 32, name: "Astral Cataclysm", damageDice: [12, 12, 10], hitBonus: 5, attackScale: 0.86, defenseScale: 0.09, critBonus: 10, damageKind: "Arcane" },
+  crossbow: [
+    { level: 1, name: "Bolt Drive", damageDice: [8], hitBonus: 2, attackScale: 0.6, defenseScale: 0.24, critBonus: 4, damageKind: "Pierce" },
+    { level: 4, name: "Crank Burst", damageDice: [8, 4], hitBonus: 3, attackScale: 0.63, defenseScale: 0.2, critBonus: 6, damageKind: "Pierce" },
+    { level: 8, name: "Armor Drill", damageDice: [10], hitBonus: 4, attackScale: 0.66, defenseScale: 0.17, critBonus: 8, damageKind: "Pierce" },
+    { level: 14, name: "Deadeye Stake", damageDice: [12], hitBonus: 5, attackScale: 0.7, defenseScale: 0.15, critBonus: 10, damageKind: "Pierce" },
+    { level: 22, name: "Siege Salvo", damageDice: [10, 8, 6], hitBonus: 5, attackScale: 0.75, defenseScale: 0.12, critBonus: 12, damageKind: null },
+    { level: 32, name: "Ballista Verdict", damageDice: [14, 10], hitBonus: 6, attackScale: 0.8, defenseScale: 0.09, critBonus: 14, damageKind: "Pierce" },
+  ],
+  thrown: [
+    { level: 1, name: "Fan of Steel", damageDice: [4, 4], hitBonus: 3, attackScale: 0.56, defenseScale: 0.25, critBonus: 7, damageKind: null },
+    { level: 4, name: "Skirmisher's Arc", damageDice: [6, 6], hitBonus: 4, attackScale: 0.59, defenseScale: 0.21, critBonus: 9, damageKind: null },
+    { level: 8, name: "Razor Wheel", damageDice: [8, 4], hitBonus: 4, attackScale: 0.63, defenseScale: 0.18, critBonus: 11, damageKind: "Slash" },
+    { level: 14, name: "Hunting Javelin", damageDice: [10, 4], hitBonus: 5, attackScale: 0.66, defenseScale: 0.15, critBonus: 13, damageKind: "Pierce" },
+    { level: 22, name: "Storm of Edges", damageDice: [8, 8, 6], hitBonus: 6, attackScale: 0.71, defenseScale: 0.12, critBonus: 15, damageKind: null },
+    { level: 32, name: "Endless Pursuit", damageDice: [10, 10, 8], hitBonus: 7, attackScale: 0.76, defenseScale: 0.1, critBonus: 17, damageKind: null },
+  ],
+  sling: [
+    { level: 1, name: "Stone Crack", damageDice: [6], hitBonus: 3, attackScale: 0.57, defenseScale: 0.24, critBonus: 4, damageKind: "Blunt" },
+    { level: 4, name: "Skip Shot", damageDice: [6, 4], hitBonus: 4, attackScale: 0.6, defenseScale: 0.21, critBonus: 5, damageKind: "Blunt" },
+    { level: 8, name: "Lead Rain", damageDice: [6, 6, 4], hitBonus: 4, attackScale: 0.64, defenseScale: 0.18, critBonus: 7, damageKind: null },
+    { level: 14, name: "Concussion Arc", damageDice: [10, 4], hitBonus: 5, attackScale: 0.68, defenseScale: 0.15, critBonus: 8, damageKind: "Blunt" },
+    { level: 22, name: "Giant-Feller", damageDice: [12, 6], hitBonus: 5, attackScale: 0.72, defenseScale: 0.12, critBonus: 10, damageKind: "Blunt" },
+    { level: 32, name: "Avalanche Pocket", damageDice: [12, 8, 6], hitBonus: 6, attackScale: 0.77, defenseScale: 0.1, critBonus: 12, damageKind: "Blunt" },
+  ],
+  wand: [
+    { level: 1, name: "Arc Bolt", damageDice: [6], hitBonus: 2, attackScale: 0.6, defenseScale: 0.25, critBonus: 4, damageKind: "Arcane" },
+    { level: 4, name: "Prism Needle", damageDice: [8], hitBonus: 3, attackScale: 0.63, defenseScale: 0.21, critBonus: 6, damageKind: "Arcane" },
+    { level: 8, name: "Mana Lance", damageDice: [8, 4], hitBonus: 3, attackScale: 0.67, defenseScale: 0.18, critBonus: 8, damageKind: null },
+    { level: 14, name: "Star Stitch", damageDice: [10, 4], hitBonus: 4, attackScale: 0.71, defenseScale: 0.16, critBonus: 10, damageKind: "Arcane" },
+    { level: 22, name: "Comet String", damageDice: [10, 8], hitBonus: 4, attackScale: 0.76, defenseScale: 0.12, critBonus: 12, damageKind: null },
+    { level: 32, name: "Astral Thread", damageDice: [12, 10], hitBonus: 5, attackScale: 0.81, defenseScale: 0.09, critBonus: 14, damageKind: "Arcane" },
+  ],
+  magic_staff: [
+    { level: 1, name: "Resonant Pulse", damageDice: [6], hitBonus: 2, attackScale: 0.63, defenseScale: 0.24, critBonus: 2, damageKind: "Arcane" },
+    { level: 4, name: "Leyline Burst", damageDice: [8], hitBonus: 2, attackScale: 0.66, defenseScale: 0.21, critBonus: 3, damageKind: "Arcane" },
+    { level: 8, name: "Aether Column", damageDice: [10], hitBonus: 3, attackScale: 0.69, defenseScale: 0.18, critBonus: 4, damageKind: "Arcane" },
+    { level: 14, name: "Grand Invocation", damageDice: [10, 6], hitBonus: 3, attackScale: 0.73, defenseScale: 0.15, critBonus: 6, damageKind: null },
+    { level: 22, name: "Celestial Chorus", damageDice: [12, 8], hitBonus: 4, attackScale: 0.78, defenseScale: 0.12, critBonus: 7, damageKind: "Arcane" },
+    { level: 32, name: "World Tree Descent", damageDice: [12, 10, 8], hitBonus: 4, attackScale: 0.84, defenseScale: 0.09, critBonus: 9, damageKind: "Arcane" },
+  ],
+  rod: [
+    { level: 1, name: "Ember Spear", damageDice: [6], hitBonus: 2, attackScale: 0.62, defenseScale: 0.24, critBonus: 3, damageKind: "Fire" },
+    { level: 4, name: "Frostbrand Ray", damageDice: [8], hitBonus: 2, attackScale: 0.65, defenseScale: 0.21, critBonus: 4, damageKind: "Ice" },
+    { level: 8, name: "Thunder Lash", damageDice: [10], hitBonus: 3, attackScale: 0.68, defenseScale: 0.18, critBonus: 5, damageKind: "Lightning" },
+    { level: 14, name: "Faultline Burst", damageDice: [10, 6], hitBonus: 3, attackScale: 0.72, defenseScale: 0.15, critBonus: 6, damageKind: "Earth" },
+    { level: 22, name: "Tempest Furnace", damageDice: [12, 8], hitBonus: 4, attackScale: 0.77, defenseScale: 0.12, critBonus: 7, damageKind: "Fire" },
+    { level: 32, name: "Elemental Collapse", damageDice: [12, 10, 8], hitBonus: 5, attackScale: 0.83, defenseScale: 0.09, critBonus: 9, damageKind: null },
+  ],
+  tome: [
+    { level: 1, name: "Rune Sever", damageDice: [6], hitBonus: 3, attackScale: 0.61, defenseScale: 0.24, critBonus: 3, damageKind: "Arcane" },
+    { level: 4, name: "Frost Page", damageDice: [8], hitBonus: 3, attackScale: 0.64, defenseScale: 0.21, critBonus: 4, damageKind: "Ice" },
+    { level: 8, name: "Hex Spiral", damageDice: [8, 4], hitBonus: 4, attackScale: 0.68, defenseScale: 0.18, critBonus: 6, damageKind: null },
+    { level: 14, name: "Binding Chapter", damageDice: [10, 6], hitBonus: 4, attackScale: 0.71, defenseScale: 0.15, critBonus: 7, damageKind: "Water" },
+    { level: 22, name: "Final Verse", damageDice: [10, 8, 6], hitBonus: 5, attackScale: 0.76, defenseScale: 0.12, critBonus: 8, damageKind: null },
+    { level: 32, name: "Forbidden Index", damageDice: [12, 10, 8], hitBonus: 5, attackScale: 0.82, defenseScale: 0.09, critBonus: 10, damageKind: "Arcane" },
+  ],
+  focus: [
+    { level: 1, name: "Spark Needle", damageDice: [6], hitBonus: 3, attackScale: 0.6, defenseScale: 0.24, critBonus: 5, damageKind: "Lightning" },
+    { level: 4, name: "Gale Ring", damageDice: [8], hitBonus: 3, attackScale: 0.63, defenseScale: 0.21, critBonus: 6, damageKind: "Wind" },
+    { level: 8, name: "Storm Lance", damageDice: [10, 6], hitBonus: 4, attackScale: 0.67, defenseScale: 0.18, critBonus: 8, damageKind: "Lightning" },
+    { level: 14, name: "Flash Step Sigil", damageDice: [8, 8, 6], hitBonus: 4, attackScale: 0.71, defenseScale: 0.15, critBonus: 10, damageKind: null },
+    { level: 22, name: "Zero Wind Barrage", damageDice: [10, 10, 8], hitBonus: 5, attackScale: 0.76, defenseScale: 0.12, critBonus: 12, damageKind: "Wind" },
+    { level: 32, name: "Tempest Core", damageDice: [12, 10, 10], hitBonus: 6, attackScale: 0.82, defenseScale: 0.09, critBonus: 14, damageKind: "Lightning" },
+  ],
+  scepter: [
+    { level: 1, name: "Stone Crush", damageDice: [8], hitBonus: 1, attackScale: 0.65, defenseScale: 0.23, critBonus: 3, damageKind: "Earth" },
+    { level: 4, name: "Tidal Crown", damageDice: [8, 4], hitBonus: 2, attackScale: 0.68, defenseScale: 0.2, critBonus: 4, damageKind: "Water" },
+    { level: 8, name: "Kingbreaker Quake", damageDice: [10, 6], hitBonus: 2, attackScale: 0.72, defenseScale: 0.17, critBonus: 5, damageKind: "Earth" },
+    { level: 14, name: "Crown of Salt", damageDice: [12, 6], hitBonus: 3, attackScale: 0.76, defenseScale: 0.15, critBonus: 6, damageKind: "Water" },
+    { level: 22, name: "Continental Fall", damageDice: [12, 8], hitBonus: 3, attackScale: 0.8, defenseScale: 0.12, critBonus: 8, damageKind: "Earth" },
+    { level: 32, name: "Sovereign Rupture", damageDice: [14, 10], hitBonus: 4, attackScale: 0.85, defenseScale: 0.09, critBonus: 10, damageKind: "Earth" },
+  ],
+  orb: [
+    { level: 1, name: "Orbit Shard", damageDice: [6], hitBonus: 2, attackScale: 0.61, defenseScale: 0.24, critBonus: 4, damageKind: "Arcane" },
+    { level: 4, name: "Chaos Sphere", damageDice: [8], hitBonus: 3, attackScale: 0.64, defenseScale: 0.21, critBonus: 5, damageKind: "Arcane" },
+    { level: 8, name: "Gravity Well", damageDice: [8, 6], hitBonus: 3, attackScale: 0.68, defenseScale: 0.18, critBonus: 7, damageKind: null },
+    { level: 14, name: "Lunar Collapse", damageDice: [10, 6], hitBonus: 4, attackScale: 0.72, defenseScale: 0.15, critBonus: 8, damageKind: "Wind" },
+    { level: 22, name: "Star Choir", damageDice: [10, 8, 6], hitBonus: 4, attackScale: 0.77, defenseScale: 0.12, critBonus: 10, damageKind: null },
+    { level: 32, name: "Celestial Nova", damageDice: [12, 10, 8], hitBonus: 5, attackScale: 0.83, defenseScale: 0.09, critBonus: 12, damageKind: "Arcane" },
   ],
 };
 
@@ -520,6 +551,8 @@ const CONSUMABLE_DEFS = {
   smoke_bomb: { id: "smoke_bomb", name: "Smoke Bomb", description: "Escape from battle instantly.", flee: true, rarity: "Uncommon" },
   fire_bomb: { id: "fire_bomb", name: "Fire Bomb", description: "Deal 40 + 1d12 fire damage.", damage: 40, die: 12, rarity: "Rare" },
   focus_tonic: { id: "focus_tonic", name: "Focus Tonic", description: "Gain +8 Critical Chance for 3 turns.", critBuff: 8, buffTurns: 3, rarity: "Rare" },
+  hearty_stew: { id: "hearty_stew", name: "Hearty Stew", description: "Recover 42 Health.", heal: 42, rarity: "Uncommon" },
+  anglers_stew: { id: "anglers_stew", name: "Angler's Stew", description: "Recover 72 Health.", heal: 72, rarity: "Rare" },
 };
 
 const MATERIAL_DEFS = {
@@ -527,7 +560,317 @@ const MATERIAL_DEFS = {
   iron_scrap: { id: "iron_scrap", name: "Iron Scrap", description: "Useful for improvised upgrades." },
   arcane_dust: { id: "arcane_dust", name: "Arcane Dust", description: "Shimmering residue from magic foes." },
   beast_fang: { id: "beast_fang", name: "Beast Fang", description: "Sharp and probably still warm." },
+  hardwood_log: { id: "hardwood_log", name: "Hardwood Log", description: "Strong timber from old growth trees." },
+  fiber_bundle: { id: "fiber_bundle", name: "Fiber Bundle", description: "Plant fibers useful for bindings and cloth wraps." },
+  herb_bundle: { id: "herb_bundle", name: "Herb Bundle", description: "Fresh medicinal herbs for cooking and alchemy." },
+  iron_ore: { id: "iron_ore", name: "Iron Ore", description: "Raw ore ready for smelting and smithing." },
+  beast_hide: { id: "beast_hide", name: "Beast Hide", description: "Tanned hide suited for practical armor." },
+  fresh_fish: { id: "fresh_fish", name: "Fresh Fish", description: "A fresh catch that can be cooked into restorative food." },
+  river_scale: { id: "river_scale", name: "River Scale", description: "A gleaming scale used in alchemy and trade." },
 };
+
+const SKILL_CAP_LEVEL = 100;
+const SKILL_DEFS = {
+  Botany: { role: "Gathering", summary: "Harvest herbs and logs from natural nodes." },
+  Mining: { role: "Gathering", summary: "Extract ore and mineral components." },
+  Fishing: { role: "Gathering", summary: "Catch fish from fishing spots. Minigame-ready hooks are included." },
+  Crafting: { role: "Crafting", summary: "Overall crafting mastery earned whenever you complete any recipe." },
+  Clothier: { role: "Crafting", summary: "Tailor wraps, robes, and travelwear from fibers and arcane cloth." },
+  Smithing: { role: "Crafting", summary: "Forge weapons and metal armor." },
+  Woodworking: { role: "Crafting", summary: "Craft bows, staves, and wood gear." },
+  Cooking: { role: "Crafting", summary: "Cook restorative meals." },
+  Leatherworking: { role: "Crafting", summary: "Process hides into protective gear." },
+  Alchemy: { role: "Crafting", summary: "Brew potions, tonics, and utility mixtures." },
+};
+const SKILL_ORDER = Object.keys(SKILL_DEFS);
+
+const RESOURCE_NODE_DEFS = {
+  tree: {
+    label: "Tree Grove",
+    actionLabel: "Gather Wood",
+    skill: "Botany",
+    xpMin: 8,
+    xpMax: 14,
+    minCharges: 2,
+    maxCharges: 4,
+    respawnSteps: 20,
+    placementBiomes: ["forest", "plains"],
+    drops: [
+      { id: "hardwood_log", chance: 1, min: 1, max: 2 },
+      { id: "fiber_bundle", chance: 0.5, min: 1, max: 2 },
+      { id: "herb_bundle", chance: 0.24, min: 1, max: 1 },
+    ],
+  },
+  herb: {
+    label: "Herb Patch",
+    actionLabel: "Harvest Herbs",
+    skill: "Botany",
+    xpMin: 7,
+    xpMax: 13,
+    minCharges: 2,
+    maxCharges: 4,
+    respawnSteps: 16,
+    placementBiomes: ["forest", "plains", "swamp"],
+    drops: [
+      { id: "herb_bundle", chance: 1, min: 1, max: 3 },
+      { id: "slime_gel", chance: 0.28, min: 1, max: 1 },
+    ],
+  },
+  ore: {
+    label: "Ore Vein",
+    actionLabel: "Mine Vein",
+    skill: "Mining",
+    xpMin: 9,
+    xpMax: 15,
+    minCharges: 2,
+    maxCharges: 3,
+    respawnSteps: 24,
+    placementBiomes: ["badlands", "swamp", "forest"],
+    drops: [
+      { id: "iron_ore", chance: 1, min: 1, max: 2 },
+      { id: "iron_scrap", chance: 0.5, min: 1, max: 2 },
+      { id: "arcane_dust", chance: 0.12, min: 1, max: 1 },
+    ],
+  },
+  hide: {
+    label: "Hunting Grounds",
+    actionLabel: "Collect Hides",
+    skill: "Leatherworking",
+    xpMin: 8,
+    xpMax: 14,
+    minCharges: 2,
+    maxCharges: 3,
+    respawnSteps: 22,
+    placementBiomes: ["plains", "forest", "swamp"],
+    drops: [
+      { id: "beast_hide", chance: 1, min: 1, max: 2 },
+      { id: "beast_fang", chance: 0.4, min: 1, max: 1 },
+    ],
+  },
+  fishing: {
+    label: "Fishing Spot",
+    actionLabel: "Cast Line",
+    skill: "Fishing",
+    xpMin: 10,
+    xpMax: 16,
+    minCharges: 2,
+    maxCharges: 4,
+    respawnSteps: 18,
+    placementBiomes: ["swamp", "plains", "road"],
+    minigameId: "fishing_basic_v1",
+  },
+};
+
+const CRAFTING_RECIPES = [
+  {
+    id: "cloth_travelers_wraps",
+    skill: "Clothier",
+    minLevel: 1,
+    name: "Stitch Traveler Wraps",
+    description: "Tailor durable cloth wrappings for agile adventuring.",
+    costs: [{ id: "fiber_bundle", qty: 4 }, { id: "herb_bundle", qty: 1 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Hands",
+        name: "Traveler Wraps",
+        levelReqBase: 1,
+        modifiers: { Health: 5, RangedDefense: 1, MagicDefense: 1, Luck: 1 },
+      },
+    },
+    xp: 15,
+  },
+  {
+    id: "cloth_spellweave_robe",
+    skill: "Clothier",
+    minLevel: 6,
+    name: "Tailor Spellweave Robe",
+    description: "Craft a lined robe that favors magic and light defense.",
+    costs: [{ id: "fiber_bundle", qty: 5 }, { id: "arcane_dust", qty: 2 }, { id: "beast_hide", qty: 1 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Chest",
+        name: "Spellweave Robe",
+        levelReqBase: 4,
+        modifiers: { Health: 7, MagicAttack: 2, MagicDefense: 2, RangedDefense: 1 },
+      },
+    },
+    xp: 22,
+  },
+  {
+    id: "smith_iron_blade",
+    skill: "Smithing",
+    minLevel: 1,
+    name: "Forge Iron Blade",
+    description: "Craft a balanced melee weapon.",
+    costs: [{ id: "iron_ore", qty: 4 }, { id: "hardwood_log", qty: 1 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Weapon",
+        attackType: "Melee",
+        weaponFamily: "sword",
+        name: "Forged Iron Blade",
+        levelReqBase: 1,
+        damageDie: 8,
+        speed: 6,
+        damageKind: "Slash",
+        hitBonus: 1,
+        critBonus: 2,
+        summary: "Balanced forged blade with reliable sword techniques.",
+        modifiers: { MeleeAttack: 2 },
+      },
+    },
+    xp: 16,
+  },
+  {
+    id: "smith_reinforced_helm",
+    skill: "Smithing",
+    minLevel: 5,
+    name: "Forge Reinforced Helm",
+    description: "Craft a sturdy metal helm.",
+    costs: [{ id: "iron_ore", qty: 5 }, { id: "beast_hide", qty: 2 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Head",
+        name: "Reinforced Helm",
+        levelReqBase: 3,
+        modifiers: { Health: 6, MeleeDefense: 2, RangedDefense: 1 },
+      },
+    },
+    xp: 20,
+  },
+  {
+    id: "wood_hunter_bow",
+    skill: "Woodworking",
+    minLevel: 1,
+    name: "Carve Hunter Bow",
+    description: "Craft a ranged weapon from hardwood and fibers.",
+    costs: [{ id: "hardwood_log", qty: 4 }, { id: "fiber_bundle", qty: 2 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Weapon",
+        attackType: "Ranged",
+        weaponFamily: "bow",
+        name: "Hunter Bow",
+        levelReqBase: 1,
+        damageDie: 8,
+        speed: 7,
+        damageKind: "Pierce",
+        hitBonus: 1,
+        critBonus: 3,
+        summary: "Reliable bow that supports classic archer pressure.",
+        modifiers: { RangedAttack: 2 },
+      },
+    },
+    xp: 16,
+  },
+  {
+    id: "wood_oak_focus_staff",
+    skill: "Woodworking",
+    minLevel: 6,
+    name: "Shape Oak Focus Staff",
+    description: "Craft a stable magic staff.",
+    costs: [{ id: "hardwood_log", qty: 4 }, { id: "arcane_dust", qty: 2 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Weapon",
+        attackType: "Magic",
+        weaponFamily: "magic_staff",
+        name: "Oak Focus Staff",
+        levelReqBase: 4,
+        damageDie: 7,
+        speed: 6,
+        damageKind: "Arcane",
+        hitBonus: 1,
+        critBonus: 2,
+        summary: "Stable staff for invoker-style spellcasting.",
+        modifiers: { MagicAttack: 2 },
+      },
+    },
+    xp: 22,
+  },
+  {
+    id: "cook_hearty_stew",
+    skill: "Cooking",
+    minLevel: 1,
+    name: "Cook Hearty Stew",
+    description: "Prepare restorative food from fish and herbs.",
+    costs: [{ id: "fresh_fish", qty: 2 }, { id: "herb_bundle", qty: 2 }],
+    output: { kind: "consumable", id: "hearty_stew", quantity: 2 },
+    xp: 14,
+  },
+  {
+    id: "cook_anglers_stew",
+    skill: "Cooking",
+    minLevel: 8,
+    name: "Cook Angler's Stew",
+    description: "Prepare an advanced meal for stronger healing.",
+    costs: [{ id: "fresh_fish", qty: 3 }, { id: "herb_bundle", qty: 3 }, { id: "river_scale", qty: 1 }],
+    output: { kind: "consumable", id: "anglers_stew", quantity: 1 },
+    xp: 24,
+  },
+  {
+    id: "leather_hunters_vest",
+    skill: "Leatherworking",
+    minLevel: 1,
+    name: "Stitch Hunter's Vest",
+    description: "Craft light defensive armor from hides.",
+    costs: [{ id: "beast_hide", qty: 4 }, { id: "fiber_bundle", qty: 2 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Chest",
+        name: "Hunter's Vest",
+        levelReqBase: 2,
+        modifiers: { Health: 8, MeleeDefense: 2, RangedDefense: 2 },
+      },
+    },
+    xp: 17,
+  },
+  {
+    id: "leather_tracker_gloves",
+    skill: "Leatherworking",
+    minLevel: 5,
+    name: "Stitch Tracker Gloves",
+    description: "Craft gloves with balanced offense and control.",
+    costs: [{ id: "beast_hide", qty: 3 }, { id: "hardwood_log", qty: 1 }],
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Hands",
+        name: "Tracker Gloves",
+        levelReqBase: 4,
+        modifiers: { MeleeAttack: 1, RangedAttack: 1, CriticalChance: 2 },
+      },
+    },
+    xp: 20,
+  },
+  {
+    id: "alchemy_greater_potion",
+    skill: "Alchemy",
+    minLevel: 1,
+    name: "Brew Greater Potion",
+    description: "Refine herbal reagents into a stronger potion.",
+    costs: [{ id: "herb_bundle", qty: 3 }, { id: "slime_gel", qty: 2 }],
+    output: { kind: "consumable", id: "greater_potion", quantity: 1 },
+    xp: 16,
+  },
+  {
+    id: "alchemy_focus_tonic",
+    skill: "Alchemy",
+    minLevel: 7,
+    name: "Distill Focus Tonic",
+    description: "Produce a combat tonic for critical precision.",
+    costs: [{ id: "herb_bundle", qty: 3 }, { id: "arcane_dust", qty: 2 }, { id: "river_scale", qty: 1 }],
+    output: { kind: "consumable", id: "focus_tonic", quantity: 1 },
+    xp: 24,
+  },
+];
 
 const TREASURE_DEFS = {
   old_coin: { id: "old_coin", name: "Old Coin", description: "A relic worth selling." },
@@ -868,8 +1211,9 @@ const CONTROL_PROMPTS = {
     shop: "Shop [Action]",
     talk: "Talk [Action]",
     save: "Save [P]",
+    options: "Options [N]",
     menu: "Menu [M]",
-    hint: "Keyboard: Move WASD/Arrows. Character menu C. Map fullscreen V. Zoom +/-/0. Quick open: I/E/U/Q/K/O/H.",
+    hint: "Keyboard: Move WASD/Arrows. Character menu C. Map fullscreen V. Zoom +/-/0. Quick open: I/E/U/Y/Q/K/O/H/R/N.",
   },
   controller: {
     interact: "Action (A)",
@@ -877,14 +1221,16 @@ const CONTROL_PROMPTS = {
     shop: "Shop (Action)",
     talk: "Talk (Action)",
     save: "Save (START)",
+    options: "Options (VIEW)",
     menu: "Menu (B)",
-    hint: "Controller: Move D-pad/Left Stick. A = contextual action. Character menu Y. Fullscreen map X. Zoom LB/RB. Scroll Right Stick.",
+    hint: "Controller: Move D-pad/Left Stick. A = contextual action. Character menu Y. Fullscreen map X. Zoom LB/RB. VIEW opens options. Scroll Right Stick. Crafting via Interact in towns/cities.",
   },
 };
 
-const CHARACTER_MODAL_TABS = ["character", "inventory", "equipment", "levelup", "quests", "bestiary", "story", "achievements"];
+const CHARACTER_MODAL_TABS = ["character", "inventory", "equipment", "skills", "mastery", "levelup", "quests", "bestiary", "story", "achievements"];
 
 const els = {
+  app: document.getElementById("app"),
   screens: {
     menu: document.getElementById("screen-menu"),
     intro: document.getElementById("screen-intro"),
@@ -927,13 +1273,18 @@ const els = {
   playerStats: document.getElementById("player-stats"),
   worldContext: document.getElementById("world-context"),
   worldLog: document.getElementById("world-log"),
+  worldSkills: document.getElementById("world-skills"),
+  worldHudLayout: document.getElementById("world-hud-layout"),
   worldInteract: document.getElementById("world-interact"),
   worldCharacter: document.getElementById("world-character"),
   worldShop: document.getElementById("world-shop"),
   worldTalk: document.getElementById("world-talk"),
   worldSave: document.getElementById("world-save"),
+  worldOptions: document.getElementById("world-options"),
   worldMenu: document.getElementById("world-menu"),
   worldMapToggle: document.getElementById("world-map-toggle"),
+  worldViewportMode: document.getElementById("world-viewport-mode"),
+  worldViewportOrientation: document.getElementById("world-viewport-orientation"),
   worldMapZoomOut: document.getElementById("world-map-zoom-out"),
   worldMapZoomIn: document.getElementById("world-map-zoom-in"),
   worldMapZoomReset: document.getElementById("world-map-zoom-reset"),
@@ -979,6 +1330,8 @@ const state = {
   combat: null,
   modal: null,
   modalData: null,
+  gathering: null,
+  optionsReturnScreen: "menu",
   inputMode: "keyboard",
   focusables: [],
   focusIndex: 0,
@@ -986,6 +1339,9 @@ const state = {
   map: {
     fullscreen: false,
     zoom: DEFAULT_MAP_ZOOM,
+    hudLayout: "side",
+    viewportMode: "fit",
+    viewportOrientation: "landscape",
   },
   assets: {
     playerTokens: { Melee: null, Ranged: null, Magic: null },
@@ -1009,6 +1365,7 @@ initialize();
 function initialize() {
   loadPlayerTokenAssets();
   loadFeatureTokenAssets();
+  state.map = normalizeMapViewState(state.map);
   bindEvents();
   updateOptionsUi();
   updateControlPromptUi();
@@ -1062,6 +1419,7 @@ function bindEvents() {
     const selected = getWeaponTemplateForStyle(state.creation.style, state.creation.weaponId);
     state.creation.weaponId = selected ? selected.id : getDefaultWeaponIdForStyle(state.creation.style);
     renderCreationSelectors();
+    focusButtonByDataset("style", state.creation.style);
   });
 
   els.weaponButtons.addEventListener("click", (event) => {
@@ -1069,6 +1427,7 @@ function bindEvents() {
     if (!button) return;
     state.creation.weaponId = button.dataset.weaponId;
     renderCreationSelectors();
+    focusButtonByDataset("weaponId", state.creation.weaponId);
   });
 
   els.cityButtons.addEventListener("click", (event) => {
@@ -1076,6 +1435,7 @@ function bindEvents() {
     if (!button) return;
     state.creation.cityId = button.dataset.cityId;
     renderCreationSelectors();
+    focusButtonByDataset("cityId", state.creation.cityId);
   });
 
   els.difficultyButtons.addEventListener("click", (event) => {
@@ -1083,6 +1443,7 @@ function bindEvents() {
     if (!button) return;
     state.creation.difficulty = button.dataset.difficulty;
     renderCreationSelectors();
+    focusButtonByDataset("difficulty", state.creation.difficulty);
   });
 
   els.seedRandom.addEventListener("click", () => {
@@ -1099,7 +1460,7 @@ function bindEvents() {
 
   els.createStart.addEventListener("click", beginAdventure);
   els.createBack.addEventListener("click", () => showScreen("menu"));
-  els.optionsBack.addEventListener("click", () => showScreen("menu"));
+  els.optionsBack.addEventListener("click", closeOptionsScreen);
 
   els.optionCombatLog.addEventListener("change", () => {
     state.options.verboseCombatLog = !!els.optionCombatLog.checked;
@@ -1164,8 +1525,12 @@ function bindEvents() {
   els.worldShop.addEventListener("click", handleWorldInteract);
   els.worldTalk.addEventListener("click", handleWorldInteract);
   els.worldSave.addEventListener("click", saveGame);
+  if (els.worldOptions) els.worldOptions.addEventListener("click", () => openOptionsScreen("world"));
   els.worldMenu.addEventListener("click", requestMainMenuReturn);
   if (els.worldMapToggle) els.worldMapToggle.addEventListener("click", toggleMapFullscreen);
+  if (els.worldHudLayout) els.worldHudLayout.addEventListener("click", toggleWorldHudLayout);
+  if (els.worldViewportMode) els.worldViewportMode.addEventListener("click", cycleWorldViewportMode);
+  if (els.worldViewportOrientation) els.worldViewportOrientation.addEventListener("click", cycleWorldViewportOrientation);
   if (els.worldMapZoomOut) els.worldMapZoomOut.addEventListener("click", () => changeMapZoom(-MAP_ZOOM_STEP));
   if (els.worldMapZoomIn) els.worldMapZoomIn.addEventListener("click", () => changeMapZoom(MAP_ZOOM_STEP));
   if (els.worldMapZoomReset) els.worldMapZoomReset.addEventListener("click", resetMapZoom);
@@ -1272,6 +1637,21 @@ function onKeyDown(event) {
     event.preventDefault();
     return;
   }
+  if (lower === "b") {
+    toggleWorldHudLayout();
+    event.preventDefault();
+    return;
+  }
+  if (lower === "x") {
+    cycleWorldViewportMode();
+    event.preventDefault();
+    return;
+  }
+  if (lower === "z") {
+    cycleWorldViewportOrientation();
+    event.preventDefault();
+    return;
+  }
 
   let moved = false;
   if (key === "ArrowUp" || lower === "w") moved = movePlayer(0, -1);
@@ -1302,6 +1682,9 @@ function onKeyDown(event) {
   } else if (lower === "u") {
     openLevelUpModal();
     event.preventDefault();
+  } else if (lower === "y") {
+    openModal("skills");
+    event.preventDefault();
   } else if (lower === "q") {
     openModal("quests");
     event.preventDefault();
@@ -1316,6 +1699,12 @@ function onKeyDown(event) {
     event.preventDefault();
   } else if (lower === "h") {
     openModal("achievements");
+    event.preventDefault();
+  } else if (lower === "n") {
+    openOptionsScreen("world");
+    event.preventDefault();
+  } else if (lower === "r") {
+    openCurrentCrafting();
     event.preventDefault();
   } else if (lower === "p" && !typingInInput) {
     saveGame();
@@ -1381,8 +1770,7 @@ function handleMenuAction(action) {
     return;
   }
   if (action === "options") {
-    updateOptionsUi();
-    showScreen("options");
+    openOptionsScreen("menu");
     return;
   }
   if (action === "exit") {
@@ -1435,16 +1823,20 @@ function renderCreationSelectors() {
     if (selectedWeapon) {
       const hitBonus = getWeaponHitModifier(selectedWeapon);
       const hitText = hitBonus >= 0 ? `+${hitBonus}` : `${hitBonus}`;
+      const family = getWeaponFamilyDefinition(selectedWeapon, selectedWeapon.attackType);
       els.weaponInfo.innerHTML = `
-        <p><strong>${escapeHtml(selectedWeapon.name)}</strong> (${escapeHtml(selectedWeapon.attackType)})</p>
+        <p><strong>${escapeHtml(selectedWeapon.name)}</strong> (${escapeHtml(selectedWeapon.attackType)} / ${escapeHtml(family.discipline)})</p>
         <div class="weapon-pills">
           <span class="weapon-pill">Damage 1d${selectedWeapon.damageDie}</span>
+          <span class="weapon-pill">${escapeHtml(family.name)}</span>
           <span class="weapon-pill">Type ${escapeHtml(selectedWeapon.damageKind)}</span>
           <span class="weapon-pill">Speed ${getWeaponSpeed(selectedWeapon)}</span>
           <span class="weapon-pill">Hit ${hitText}</span>
           <span class="weapon-pill">Crit +${getWeaponCritBonus(selectedWeapon)}</span>
         </div>
         <p>${escapeHtml(selectedWeapon.summary || "No description.")}</p>
+        <p><strong>Strengths:</strong> ${escapeHtml(family.strengths)}</p>
+        <p><strong>Tradeoffs:</strong> ${escapeHtml(family.weaknesses)}</p>
       `;
     } else {
       els.weaponInfo.innerHTML = "<p>No weapon selected.</p>";
@@ -1536,7 +1928,8 @@ function beginAdventure() {
   addWorldLog(`Welcome, ${player.name}. ${spawnCity.name} pretends this is a normal day.`);
   addWorldLog(`Difficulty: ${state.game.difficulty}. ${difficultyInfo.summary}`);
   addWorldLog(`Defeat Rule: ${difficultyInfo.deathRule}`);
-  addWorldLog("Explore towns, dungeons, NPC camps, and chests. Use Interact on special locations.");
+  addWorldLog("Explore towns, dungeons, NPC camps, chests, and resource nodes. Use Interact on special locations.");
+  addWorldLog("Gather from trees, ore veins, hide grounds, and fishing spots. Craft in towns and cities.");
   addWorldLog(`Active quests posted: ${state.game.quests.filter((quest) => !quest.claimed).length}.`);
   renderWorld();
   showScreen("world");
@@ -1547,6 +1940,7 @@ function createPlayer(name, style, selectedWeapon = null) {
   const styleData = COMBAT_STYLES[style] || COMBAT_STYLES.Melee;
   const styleKey = COMBAT_STYLES[style] ? style : "Melee";
   const starterTemplate = selectedWeapon || getDefaultWeaponForStyle(styleKey);
+  const starterFamilyKey = getWeaponFamilyKey(starterTemplate, styleKey);
   const player = {
     name,
     style,
@@ -1561,8 +1955,12 @@ function createPlayer(name, style, selectedWeapon = null) {
     equipment: { Weapon: null, Head: null, Chest: null, Hands: null, Legs: null, Accessory1: null, Accessory2: null },
     bag: [],
     unspentStatPoints: 0,
+    skills: createDefaultSkillState(),
+    weaponMastery: createDefaultWeaponMasteryState({ [starterFamilyKey]: 1 }),
   };
   player.equipment.Weapon = createStarterWeapon(starterTemplate);
+  normalizeWeaponItem(player.equipment.Weapon);
+  syncPlayerStyleToWeapon(player);
   return player;
 }
 
@@ -1575,6 +1973,7 @@ function addStartingItems(player) {
 
 function showScreen(screen) {
   state.screen = screen;
+  if (els.app) els.app.dataset.screen = screen;
   Object.keys(els.screens).forEach((key) => {
     els.screens[key].classList.toggle("active", key === screen);
   });
@@ -1592,6 +1991,19 @@ function showScreen(screen) {
   updateFocusables();
 }
 
+function openOptionsScreen(returnScreen = "menu") {
+  if (returnScreen === "world" && (state.screen !== "world" || !state.game || state.combat || state.modal)) return;
+  const fromWorld = returnScreen === "world" && state.game && !state.combat;
+  state.optionsReturnScreen = fromWorld ? "world" : "menu";
+  updateOptionsUi();
+  showScreen("options");
+}
+
+function closeOptionsScreen() {
+  const target = state.optionsReturnScreen === "world" && state.game ? "world" : "menu";
+  showScreen(target);
+}
+
 function addMenuMessage(message) {
   if (!els.menuMessage) return;
   els.menuMessage.textContent = message;
@@ -1603,6 +2015,7 @@ function renderWorld() {
   updateMapUi();
   renderPlayerPanel();
   renderWorldLog();
+  renderWorldSkillsPanel();
   renderWorldContext();
   drawMap();
   if (state.screen === "world" && !state.combat) syncMusicForCurrentContext();
@@ -1610,26 +2023,40 @@ function renderWorld() {
 
 function renderPlayerPanel() {
   const { player } = state.game;
+  const skills = ensurePlayerSkills(player);
   const nextXp = xpToNextLevel(player.level);
   const chapter = getCurrentStoryChapter();
   const activeStyle = getActiveAttackStyle(player);
-  const unlocked = getUnlockedAbilitiesForStyle(player, activeStyle);
-  const activeSkill = unlocked[unlocked.length - 1];
-  const nextSkill = getNextAbilityForStyle(player, activeStyle);
+  const activeWeapon = player.equipment.Weapon;
+  const weaponFamily = getWeaponFamilyDefinition(activeWeapon, activeStyle);
+  const discipline = getWeaponDiscipline(activeWeapon, activeStyle);
+  const mastery = getWeaponMasterySnapshot(player, activeWeapon, activeStyle);
+  const activeSkill = mastery.unlocked[mastery.unlocked.length - 1] || null;
+  const nextSkill = mastery.next;
   const equippedWeaponSummary = player.equipment.Weapon ? summarizeWeaponForUi(player.equipment.Weapon) : "None";
+  const topSkill = SKILL_ORDER
+    .map((name) => ({ name, level: skills[name]?.level || 1 }))
+    .sort((a, b) => b.level - a.level)[0];
+  const gatheringPreview = `Bot ${skills.Botany.level} | Min ${skills.Mining.level} | Fish ${skills.Fishing.level}`;
+  const craftingPreview = `Craft ${skills.Crafting.level} | Cloth ${skills.Clothier.level} | Smith ${skills.Smithing.level}`;
   const difficulty = getDifficulty();
   els.playerSummary.innerHTML = `
-    <p><strong>${escapeHtml(player.name)}</strong> (${player.style})</p>
+    <p><strong>${escapeHtml(player.name)}</strong> (${escapeHtml(discipline)})</p>
     <p>Difficulty ${state.game.difficulty}</p>
     <p>${escapeHtml(difficulty.deathRule || "")}</p>
     <p>Level ${player.level} | XP ${player.xp}/${nextXp}</p>
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
     <p>Unspent Stat Points ${player.unspentStatPoints || 0}</p>
     <p>Gold ${player.gold}</p>
+    <p>Top Skill ${escapeHtml(topSkill?.name || "None")} Lv ${topSkill?.level || 1}</p>
+    <p>${escapeHtml(gatheringPreview)}</p>
+    <p>${escapeHtml(craftingPreview)}</p>
     <p>${escapeHtml(chapter.title)}</p>
+    <p>Style ${escapeHtml(activeStyle)} | Weapon Class ${escapeHtml(weaponFamily.name)}</p>
     <p>Weapon ${escapeHtml(equippedWeaponSummary)}</p>
-    <p>${activeStyle} ${activeStyle === "Magic" ? "Spell" : "Skill"}: ${escapeHtml(activeSkill.name)}</p>
-    <p>${nextSkill ? `Next unlock Lv ${nextSkill.level}: ${escapeHtml(nextSkill.name)}` : "All known skills unlocked."}</p>
+    <p>Mastery ${mastery.masteryPoints} | Uses ${mastery.entry.uses} | Techniques ${mastery.learnedCount}/${mastery.totalCount}</p>
+    <p>${activeSkill ? `${escapeHtml(discipline)} ${activeStyle === "Magic" ? "Spell" : "Technique"}: ${escapeHtml(activeSkill.name)}` : `${escapeHtml(discipline)} techniques are still unlearned. Use the weapon class to build mastery.`}</p>
+    <p>${nextSkill ? `${escapeHtml(weaponFamily.name)} mastery ${mastery.nextRequirement}: ${escapeHtml(nextSkill.name)} (${mastery.nextRequirement - mastery.masteryPoints} to go)` : "All weapon-class techniques learned. Mastery remains uncapped."}</p>
     <p>Position ${player.position.x}, ${player.position.y}</p>
     <p>Seed <code>${escapeHtml(state.game.seed)}</code></p>
   `;
@@ -1641,6 +2068,49 @@ function renderWorldLog() {
   const lines = state.game.worldLog.slice(-WORLD_LOG_LIMIT);
   els.worldLog.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
   els.worldLog.scrollTop = els.worldLog.scrollHeight;
+}
+
+function renderWorldSkillsPanel() {
+  if (!els.worldSkills || !state.game?.player) return;
+  const skills = ensurePlayerSkills(state.game.player);
+  const renderSkillRow = (skillName) => {
+    const entry = skills[skillName] || { level: 1, xp: 0 };
+    const nextXp = xpToNextSkillLevel(entry.level);
+    const capped = entry.level >= SKILL_CAP_LEVEL;
+    const progressValue = capped ? 100 : Math.floor((entry.xp / Math.max(1, nextXp)) * 100);
+    const xpText = capped ? "MAX" : `${entry.xp}/${nextXp} XP`;
+    return `
+      <div class="hub-skill-row">
+        <div class="hub-skill-head">
+          <span>${escapeHtml(skillName)}</span>
+          <strong>Lv ${entry.level}</strong>
+        </div>
+        <div class="hub-skill-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressValue}" aria-label="${escapeHtml(skillName)} experience">
+          <span class="hub-skill-fill" style="width:${progressValue}%"></span>
+        </div>
+        <div class="hub-skill-meta">
+          <span>${xpText}</span>
+          <span>${capped ? "Maxed" : `${progressValue}%`}</span>
+        </div>
+      </div>
+    `;
+  };
+  const gatheringRows = SKILL_ORDER
+    .filter((skillName) => SKILL_DEFS[skillName].role === "Gathering")
+    .map(renderSkillRow)
+    .join("");
+  const craftingRows = SKILL_ORDER
+    .filter((skillName) => SKILL_DEFS[skillName].role === "Crafting")
+    .map(renderSkillRow)
+    .join("");
+
+  els.worldSkills.innerHTML = `
+    <h4>Skills</h4>
+    <p class="hint">Gathering</p>
+    <div class="hub-skill-list">${gatheringRows}</div>
+    <p class="hint">Crafting</p>
+    <div class="hub-skill-list">${craftingRows}</div>
+  `;
 }
 
 function renderWorldContext() {
@@ -1662,10 +2132,19 @@ function renderWorldContext() {
       els.worldContext.textContent = `${biomeLabel} - ${feature.name}. Press Interact to travel to ${feature.targetName || "another region"}.`;
     } else if (feature.type === "npc") {
       els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.role}). Press Talk or Interact to speak. Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
+    } else if (feature.type === "resource") {
+      const def = getResourceNodeDef(feature.resourceKind);
+      const status = getResourceNodeStatus(feature, state.game.stepCount);
+      if (status.ready) {
+        const passText = `${status.charges} timing pass${status.charges === 1 ? "" : "es"}`;
+        els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${def.label}). ${status.charges}/${status.maxCharges} resources ready (${passText}). Press Interact to ${def.actionLabel.toLowerCase()}. Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
+      } else {
+        els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${def.label}). Depleted, respawns in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}. Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
+      }
     } else if (feature.type === "city" || feature.type === "town") {
       const shopText = feature.hasShop ? "Shop available." : "No shop.";
       const innText = feature.hasInn ? "Inn available." : "No inn services.";
-      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} ${innText} Press Shop, Character, or Interact.`;
+      els.worldContext.textContent = `${biomeLabel} - ${feature.name} (${feature.type}). Safe zone. ${shopText} ${innText} Crafting available. Press Shop, Character, or Interact.`;
     } else if (feature.type === "grave") {
       const count = Array.isArray(feature.items) ? feature.items.length : 0;
       els.worldContext.textContent = `${biomeLabel} - ${feature.name}. Dropped gear cache (${count} item${count === 1 ? "" : "s"}). Press Interact to recover equipment.`;
@@ -1679,9 +2158,6 @@ function renderWorldContext() {
 
 function setMapFullscreen(enabled) {
   state.map.fullscreen = !!enabled;
-  if (els.screens.world) {
-    els.screens.world.classList.toggle("map-fullscreen", state.map.fullscreen);
-  }
   updateMapUi();
   updateControlPromptUi();
 }
@@ -1689,6 +2165,30 @@ function setMapFullscreen(enabled) {
 function toggleMapFullscreen() {
   if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
   setMapFullscreen(!state.map.fullscreen);
+  renderWorld();
+}
+
+function toggleWorldHudLayout() {
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
+  state.map.hudLayout = state.map.hudLayout === "stacked" ? "side" : "stacked";
+  updateMapUi();
+  updateControlPromptUi();
+  renderWorld();
+}
+
+function cycleWorldViewportMode() {
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
+  state.map.viewportMode = state.map.viewportMode === "native" ? "fit" : "native";
+  updateMapUi();
+  updateControlPromptUi();
+  renderWorld();
+}
+
+function cycleWorldViewportOrientation() {
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
+  state.map.viewportOrientation = state.map.viewportOrientation === "portrait" ? "landscape" : "portrait";
+  updateMapUi();
+  updateControlPromptUi();
   renderWorld();
 }
 
@@ -1711,12 +2211,36 @@ function resetMapZoom() {
 }
 
 function updateMapUi() {
+  state.map = normalizeMapViewState(state.map);
+  if (els.app) {
+    els.app.dataset.viewportMode = state.map.viewportMode;
+    els.app.dataset.viewportOrientation = state.map.viewportOrientation;
+  }
+  if (els.screens.world) {
+    els.screens.world.classList.toggle("map-fullscreen", state.map.fullscreen);
+    els.screens.world.classList.toggle("hud-stacked", state.map.hudLayout === "stacked");
+    els.screens.world.classList.toggle("viewport-native-landscape", state.map.viewportMode === "native" && state.map.viewportOrientation === "landscape");
+    els.screens.world.classList.toggle("viewport-native-portrait", state.map.viewportMode === "native" && state.map.viewportOrientation === "portrait");
+  }
   if (els.worldMapToggle) {
-    els.worldMapToggle.textContent = state.map.fullscreen ? "Exit Fullscreen Map" : "Fullscreen Map";
+    els.worldMapToggle.textContent = state.map.fullscreen ? "Restore HUD View" : "Expand Viewport";
+  }
+  if (els.worldHudLayout) {
+    els.worldHudLayout.textContent = state.map.hudLayout === "stacked" ? "HUD: Stacked" : "HUD: Side";
+  }
+  if (els.worldViewportMode) {
+    els.worldViewportMode.textContent = state.map.viewportMode === "native" ? "Viewport: Native" : "Viewport: Fit";
+  }
+  if (els.worldViewportOrientation) {
+    els.worldViewportOrientation.textContent = `Orientation: ${state.map.viewportOrientation === "portrait" ? "Portrait" : "Landscape"}`;
   }
   if (els.mapLegend) {
     const zoomText = `${Math.round((state.map.zoom || 1) * 100)}%`;
-    els.mapLegend.textContent = `Map icons: City, House (town), Stairs, Chest, NPC, Boss, Shop badge ($), Inn badge (I). Zoom ${zoomText}.`;
+    const layoutText = state.map.hudLayout === "stacked" ? "stacked HUD" : "side HUD";
+    const viewportText = state.map.viewportMode === "native"
+      ? `Native ${state.map.viewportOrientation}`
+      : "Fit-to-window";
+    els.mapLegend.textContent = `Map icons: City, Town, Dungeon, Chest, NPC, Boss, resources (tree/herb/ore/hide/fish), Shop badge ($), Inn badge (I). Zoom ${zoomText}. ${viewportText} viewport with ${layoutText}.`;
   }
 }
 
@@ -1733,8 +2257,13 @@ function drawMap() {
   if (!state.game) return;
   ensureMapCanvasSize();
   const { world, player } = state.game;
-  const baseTilesX = state.map.fullscreen ? FULLSCREEN_VIEW_TILES_X : VIEW_TILES_X;
-  const baseTilesY = state.map.fullscreen ? FULLSCREEN_VIEW_TILES_Y : VIEW_TILES_Y;
+  const portraitViewport = state.map.viewportMode === "native" && state.map.viewportOrientation === "portrait";
+  const baseTilesX = portraitViewport
+    ? (state.map.fullscreen ? PORTRAIT_FULLSCREEN_VIEW_TILES_X : PORTRAIT_VIEW_TILES_X)
+    : (state.map.fullscreen ? FULLSCREEN_VIEW_TILES_X : VIEW_TILES_X);
+  const baseTilesY = portraitViewport
+    ? (state.map.fullscreen ? PORTRAIT_FULLSCREEN_VIEW_TILES_Y : PORTRAIT_VIEW_TILES_Y)
+    : (state.map.fullscreen ? FULLSCREEN_VIEW_TILES_Y : VIEW_TILES_Y);
   const zoom = clamp(state.map.zoom || 1, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
   const viewTilesX = clamp(Math.round(baseTilesX / zoom), 8, world.width);
   const viewTilesY = clamp(Math.round(baseTilesY / zoom), 6, world.height);
@@ -1867,6 +2396,76 @@ function drawFeatureSymbol(feature, sx, sy, tileSize = TILE_SIZE) {
     ctx.fillRect(size * 0.33, size * 0.42, size * 0.34, size * 0.34);
     ctx.fillRect(size * 0.22, size * 0.5, size * 0.12, size * 0.22);
     ctx.fillRect(size * 0.66, size * 0.5, size * 0.12, size * 0.22);
+  } else if (feature.type === "resource") {
+    refreshResourceNode(feature, state.game?.stepCount || 0);
+    if (feature.resourceKind === "tree") {
+      ctx.fillStyle = "#284d2f";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#86c980";
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.38, size * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5f3d1f";
+      ctx.fillRect(size * 0.44, size * 0.5, size * 0.12, size * 0.3);
+    } else if (feature.resourceKind === "herb") {
+      ctx.fillStyle = "#264d31";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#8ad987";
+      ctx.fillRect(size * 0.24, size * 0.48, size * 0.08, size * 0.32);
+      ctx.fillRect(size * 0.46, size * 0.38, size * 0.08, size * 0.42);
+      ctx.fillRect(size * 0.68, size * 0.46, size * 0.08, size * 0.34);
+      ctx.fillStyle = "#bde8a4";
+      ctx.fillRect(size * 0.2, size * 0.36, size * 0.16, size * 0.1);
+      ctx.fillRect(size * 0.42, size * 0.28, size * 0.16, size * 0.1);
+      ctx.fillRect(size * 0.64, size * 0.34, size * 0.16, size * 0.1);
+    } else if (feature.resourceKind === "ore") {
+      ctx.fillStyle = "#3b3f4a";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#a3adbc";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.2, size * 0.72);
+      ctx.lineTo(size * 0.34, size * 0.34);
+      ctx.lineTo(size * 0.56, size * 0.26);
+      ctx.lineTo(size * 0.78, size * 0.6);
+      ctx.lineTo(size * 0.6, size * 0.8);
+      ctx.lineTo(size * 0.3, size * 0.8);
+      ctx.closePath();
+      ctx.fill();
+    } else if (feature.resourceKind === "hide") {
+      ctx.fillStyle = "#5c4934";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#d5b48a";
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.58, size * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(size * 0.36, size * 0.38, size * 0.08, 0, Math.PI * 2);
+      ctx.arc(size * 0.5, size * 0.32, size * 0.08, 0, Math.PI * 2);
+      ctx.arc(size * 0.64, size * 0.38, size * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#24506a";
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = "#9fd2ef";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.14, size * 0.34);
+      ctx.quadraticCurveTo(size * 0.36, size * 0.24, size * 0.58, size * 0.34);
+      ctx.quadraticCurveTo(size * 0.78, size * 0.44, size * 0.92, size * 0.34);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(size * 0.1, size * 0.56);
+      ctx.quadraticCurveTo(size * 0.32, size * 0.46, size * 0.56, size * 0.56);
+      ctx.quadraticCurveTo(size * 0.76, size * 0.66, size * 0.9, size * 0.56);
+      ctx.stroke();
+      ctx.fillStyle = "#e2f7ff";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.28, size * 0.52);
+      ctx.lineTo(size * 0.48, size * 0.44);
+      ctx.lineTo(size * 0.6, size * 0.52);
+      ctx.lineTo(size * 0.48, size * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    }
   } else if (feature.type === "grave") {
     ctx.fillStyle = "#4a4355";
     ctx.fillRect(0, 0, size, size);
@@ -1889,6 +2488,14 @@ function drawFeatureSymbol(feature, sx, sy, tileSize = TILE_SIZE) {
   }
   if ((feature.type === "city" || feature.type === "town") && feature.hasShop) {
     drawFeatureBadge(sx, sy, tileSize, "$", "#6d5021", "top-right");
+  }
+  if (feature.type === "resource") {
+    const status = getResourceNodeStatus(feature, state.game?.stepCount || 0);
+    if (status.ready) {
+      drawFeatureBadge(sx, sy, tileSize, `${status.charges}`, "#2a6739", "bottom-right");
+    } else {
+      drawFeatureBadge(sx, sy, tileSize, "X", "#6d2b2b", "bottom-right");
+    }
   }
   if (isBossDungeon) {
     drawFeatureBadge(sx, sy, tileSize, "B", "#7a2525", "top-right");
@@ -1935,6 +2542,12 @@ function movePlayer(dx, dy) {
   if (feature?.type === "chest" && !feature.opened) addWorldLog(`A chest waits here. Press Interact.`);
   if (feature?.type === "transition") addWorldLog(`${feature.name} hums softly. Press Interact to travel.`);
   if (feature?.type === "npc") addWorldLog(`${feature.name} (${feature.role}) is here.`);
+  if (feature?.type === "resource") {
+    const def = getResourceNodeDef(feature.resourceKind);
+    const status = getResourceNodeStatus(feature, state.game.stepCount);
+    if (status.ready) addWorldLog(`${feature.name} is ready with ${status.charges} pull${status.charges === 1 ? "" : "s"}. Press Interact to ${def.actionLabel.toLowerCase()}.`);
+    else addWorldLog(`${feature.name} is depleted. It will recover in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}.`);
+  }
   if (feature?.type === "grave") addWorldLog("Your dropped gear cache is here. Press Interact to recover it.");
   if (feature?.type === "city" || feature?.type === "town" || feature?.type === "npc") {
     updateQuestProgress("visitFeature", { feature });
@@ -1954,7 +2567,15 @@ function describeCurrentTile() {
   const { world, player } = state.game;
   const tile = world.tiles[player.position.y][player.position.x];
   const feature = getFeatureAt(world, player.position.x, player.position.y);
-  if (feature) addWorldLog(`${feature.name}: a ${feature.type} in the ${BIOME_DATA[tile.biome].label}.`);
+  if (feature?.type === "resource") {
+    const def = getResourceNodeDef(feature.resourceKind);
+    const status = getResourceNodeStatus(feature, state.game.stepCount);
+    if (status.ready) {
+      addWorldLog(`${feature.name}: ${def.label} in the ${BIOME_DATA[tile.biome].label}. ${status.charges}/${status.maxCharges} resources ready (${status.charges} timing pass${status.charges === 1 ? "" : "es"}).`);
+    } else {
+      addWorldLog(`${feature.name}: ${def.label} in the ${BIOME_DATA[tile.biome].label}. Respawns in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}.`);
+    }
+  } else if (feature) addWorldLog(`${feature.name}: a ${feature.type} in the ${BIOME_DATA[tile.biome].label}.`);
   else addWorldLog(`You scout the ${BIOME_DATA[tile.biome].label}. The grass judges you silently.`);
   renderWorldLog();
 }
@@ -1997,6 +2618,16 @@ function getWorldInteractionActions(feature, allowInspect = false) {
     actions.push({ id: "use-transition", label: "Use Transition", description: `Travel via ${feature.name}` });
   } else if (feature.type === "npc") {
     actions.push({ id: "talk", label: "Talk", description: `${feature.name} (${feature.role || "npc"})` });
+  } else if (feature.type === "resource") {
+    const def = getResourceNodeDef(feature.resourceKind);
+    const status = getResourceNodeStatus(feature, state.game?.stepCount || 0);
+    actions.push({
+      id: "gather-resource",
+      label: status.ready ? def.actionLabel : `${def.actionLabel} (Depleted)`,
+      description: status.ready
+        ? `${feature.name} | ${def.skill} Lv ${(getPlayerSkillEntry(state.game?.player, def.skill)?.level || 1)} | ${status.charges} pass${status.charges === 1 ? "" : "es"}`
+        : `Respawns in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}`,
+    });
   } else if (feature.type === "grave") {
     actions.push({ id: "recover-gear", label: "Recover Gear", description: feature.name });
   } else if (feature.type === "dungeon") {
@@ -2007,6 +2638,7 @@ function getWorldInteractionActions(feature, allowInspect = false) {
     });
   } else if (feature.type === "city" || feature.type === "town") {
     actions.push({ id: "talk", label: "Talk To Locals", description: `${feature.name} gossip and rumors` });
+    actions.push({ id: "open-crafting", label: "Craft Gear", description: "Use local workshops for crafting" });
     if (feature.hasShop) actions.push({ id: "open-shop", label: "Visit Shop", description: `${feature.name} merchants` });
     if (feature.hasInn) actions.push({ id: "rest-inn", label: "Rest At Inn", description: "Restore HP for gold" });
   }
@@ -2039,9 +2671,19 @@ function executeWorldInteractionAction(actionId, feature = null) {
     talkToNpc();
     return;
   }
+  if (actionId === "gather-resource") {
+    if (!activeFeature || activeFeature.type !== "resource") return addWorldLog("No resource node here.");
+    gatherResourceNode(activeFeature);
+    return;
+  }
   if (actionId === "recover-gear") {
     if (!activeFeature || activeFeature.type !== "grave") return addWorldLog("No dropped gear cache here.");
     recoverDroppedGear(activeFeature);
+    return;
+  }
+  if (actionId === "open-crafting") {
+    if (!activeFeature || (activeFeature.type !== "city" && activeFeature.type !== "town")) return addWorldLog("Crafting stations are available in towns and cities.");
+    openCraftingMenu(activeFeature);
     return;
   }
   if (actionId === "open-shop") {
@@ -2109,6 +2751,16 @@ function openCurrentShop() {
   const feature = getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
   if (!feature) return addWorldLog("No shop here. Visit a town or city.");
   executeWorldInteractionAction("open-shop", feature);
+}
+
+function openCurrentCrafting() {
+  if (!state.game || state.combat) return;
+  const feature = getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
+  if (!feature || (feature.type !== "city" && feature.type !== "town")) {
+    addWorldLog("Crafting is available in towns and cities.");
+    return;
+  }
+  executeWorldInteractionAction("open-crafting", feature);
 }
 
 function maybeAutoTriggerFeatureEvent(feature) {
@@ -2267,8 +2919,11 @@ function renderCombat() {
   const { player } = state.game;
   const { enemy } = state.combat;
   const activeStyle = getActiveAttackStyle(player);
-  const unlocked = getUnlockedAbilitiesForStyle(player, activeStyle);
-  const activeSkill = unlocked[unlocked.length - 1];
+  const activeWeapon = player.equipment.Weapon;
+  const weaponFamily = getWeaponFamilyDefinition(activeWeapon, activeStyle);
+  const discipline = getWeaponDiscipline(activeWeapon, activeStyle);
+  const mastery = getWeaponMasterySnapshot(player, activeWeapon, activeStyle);
+  const activeSkill = mastery.unlocked[mastery.unlocked.length - 1] || null;
   const enemyEntry = getBestiaryEntry(enemy.speciesId);
   const knownWeaknesses = enemyEntry?.knownWeaknesses?.length ? enemyEntry.knownWeaknesses.join(", ") : "Unknown";
   const knownResistances = enemyEntry?.knownResistances?.length ? enemyEntry.knownResistances.join(", ") : "Unknown";
@@ -2282,9 +2937,12 @@ function renderCombat() {
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
     <p>Difficulty ${state.game.difficulty}</p>
     <p>Effects ${escapeHtml(effectText)}</p>
-    <p>Style ${player.style}</p>
+    <p>Style ${escapeHtml(activeStyle)} | Class ${escapeHtml(discipline)}</p>
+    <p>Weapon Class ${escapeHtml(weaponFamily.name)}</p>
     <p>Weapon ${escapeHtml(playerWeaponSummary)}</p>
-    <p>${activeStyle} ${activeStyle === "Magic" ? "Spell" : "Skill"} ${escapeHtml(activeSkill.name)}</p>
+    <p>Mastery ${mastery.masteryPoints} | Uses ${mastery.entry.uses} | Hits ${mastery.entry.hits}</p>
+    <p>${activeSkill ? `${escapeHtml(discipline)} ${activeStyle === "Magic" ? "Spell" : "Technique"} ${escapeHtml(activeSkill.name)}` : `${escapeHtml(discipline)} has no learned techniques yet.`}</p>
+    <p>${mastery.next ? `Next ${activeStyle === "Magic" ? "spell" : "technique"} ${escapeHtml(mastery.next.name)} at mastery ${mastery.nextRequirement}.` : "All weapon-class techniques learned. Mastery keeps climbing."}</p>
   `;
   els.combatEnemy.innerHTML = `
     <p><strong>${escapeHtml(enemy.name)}</strong> (Lv ${enemy.level})</p>
@@ -2304,6 +2962,11 @@ function renderCombat() {
   [...els.combatActions.querySelectorAll("button[data-action]")].forEach((button) => {
     button.disabled = !canAct;
   });
+  const swapButton = els.combatActions.querySelector("button[data-action='swap-weapon']");
+  if (swapButton) {
+    const swappable = state.game.player.bag.some((item) => item.kind === "equipment" && item.slot === "Weapon" && player.level >= (item.levelReq || 1));
+    swapButton.disabled = !canAct || !swappable;
+  }
 
   if (state.combat.result) {
     els.combatReturn.classList.remove("hidden");
@@ -2318,6 +2981,7 @@ function playerCombatAction(action) {
   if (!state.combat || !state.game || state.combat.phase !== "player") return;
   if (action === "attack") return resolvePlayerAttack({ kind: "attack" });
   if (action === "skill") return openCombatSkillSelection();
+  if (action === "swap-weapon") return openCombatWeaponSelection();
   if (action === "item") return openCombatItemSelection();
   if (action === "defend") {
     state.combat.playerDefending = true;
@@ -2344,6 +3008,10 @@ function resolvePlayerAttack({ kind, abilityOverride = null }) {
   const enemy = state.combat.enemy;
   const difficulty = getDifficulty();
   const profile = getPlayerAttackProfile(kind, abilityOverride);
+  if (!profile) {
+    pushCombatLog("You have not learned any techniques for this weapon class yet.");
+    return;
+  }
   const attackStats = ATTACK_TO_STATS[profile.attackType];
   const attackValue = player.derivedStats[attackStats.attack];
   const defenseValue = enemy.stats[attackStats.defense];
@@ -2351,7 +3019,15 @@ function resolvePlayerAttack({ kind, abilityOverride = null }) {
   const target = defenseValue + 10;
 
   if (hitRoll < target) {
-    pushCombatLog(`${profile.label} misses (${hitRoll} vs ${target}).`);
+    const masteryGain = awardWeaponMastery(player, player.equipment.Weapon, {
+      kind,
+      hit: false,
+      enemyLevel: enemy.level,
+      enemyBoss: enemy.isBoss,
+      style: profile.attackType,
+    });
+    pushCombatLog(`${profile.label} misses (${hitRoll} vs ${target}).${formatWeaponMasteryGain(masteryGain)}`);
+    announceWeaponMasteryUnlocks(masteryGain);
     queueEnemyTurn();
     return;
   }
@@ -2377,15 +3053,27 @@ function resolvePlayerAttack({ kind, abilityOverride = null }) {
   recordBestiaryAffinity(enemy, profile.damageKind, affinity.kind);
 
   enemy.currentHealth = clamp(enemy.currentHealth - damage, 0, enemy.stats.Health);
+  const defeatedEnemy = enemy.currentHealth <= 0;
+  const masteryGain = awardWeaponMastery(player, player.equipment.Weapon, {
+    kind,
+    hit: true,
+    critical,
+    affinityKind: affinity.kind,
+    killedEnemy: defeatedEnemy,
+    enemyLevel: enemy.level,
+    enemyBoss: enemy.isBoss,
+    style: profile.attackType,
+  });
   const damageTag = profile.damageKind ? ` ${profile.damageKind}` : "";
   const affinitySuffix = affinity.kind === "weak" ? " Weakness hit." : affinity.kind === "resist" ? " Enemy resisted." : "";
   if (state.options.verboseCombatLog) {
-    pushCombatLog(`${profile.label}${damageTag} hits for ${damage}.${affinitySuffix} [hit ${hitRoll}/${target}, crit ${critRoll}<=${critThreshold}${critical ? " YES" : ""}, x${affinity.multiplier.toFixed(2)}]`);
+    pushCombatLog(`${profile.label}${damageTag} hits for ${damage}.${affinitySuffix} [hit ${hitRoll}/${target}, crit ${critRoll}<=${critThreshold}${critical ? " YES" : ""}, x${affinity.multiplier.toFixed(2)}]${formatWeaponMasteryGain(masteryGain)}`);
   } else {
-    pushCombatLog(`${profile.label}${damageTag} hits for ${damage}${critical ? " (critical)" : ""}.${affinitySuffix}`);
+    pushCombatLog(`${profile.label}${damageTag} hits for ${damage}${critical ? " (critical)" : ""}.${affinitySuffix}${formatWeaponMasteryGain(masteryGain)}`);
   }
+  announceWeaponMasteryUnlocks(masteryGain);
   playSfx(critical ? "crit" : "hit");
-  if (enemy.currentHealth <= 0) finalizeCombat("won");
+  if (defeatedEnemy) finalizeCombat("won");
   else queueEnemyTurn();
 }
 
@@ -2410,8 +3098,9 @@ function getPlayerAttackProfile(kind, abilityOverride = null) {
       damageKind: weaponDamageKind,
     };
   }
-  const abilities = getUnlockedAbilitiesForStyle(player, attackType);
+  const abilities = getUnlockedAbilitiesForStyle(player, attackType, weapon);
   const chosen = abilityOverride || abilities[abilities.length - 1];
+  if (!chosen) return null;
   const abilityDice = [...chosen.damageDice];
   abilityDice[0] = Math.max(abilityDice[0], weaponDie);
   return {
@@ -2428,31 +3117,17 @@ function getPlayerAttackProfile(kind, abilityOverride = null) {
 
 function getActiveAttackStyle(player) {
   if (player.equipment.Weapon && player.equipment.Weapon.attackType) return player.equipment.Weapon.attackType;
-  return player.style;
+  return player.style || "Melee";
 }
 
-function getUnlockedAbilitiesForStyle(player, style) {
-  const abilities = WEAPON_ABILITY_SETS[style] || WEAPON_ABILITY_SETS[player.style] || WEAPON_ABILITY_SETS.Melee;
-  const unlocked = abilities.filter((ability) => player.level >= ability.level);
-  if (unlocked.length > 0) return unlocked;
-  return [abilities[0]];
+function getUnlockedAbilitiesForStyle(player, style, weapon = null) {
+  const snapshot = getWeaponMasterySnapshot(player, weapon || player?.equipment?.Weapon || getDefaultWeaponForStyle(style || player?.style || "Melee"), style || player?.style || "Melee");
+  return snapshot.unlocked;
 }
 
-function getNextAbilityForStyle(player, style) {
-  const abilities = WEAPON_ABILITY_SETS[style] || WEAPON_ABILITY_SETS[player.style] || WEAPON_ABILITY_SETS.Melee;
-  return abilities.find((ability) => ability.level > player.level) || null;
-}
-
-function announceAbilityUnlocks(previousLevel, currentLevel) {
-  if (!state.game || currentLevel <= previousLevel) return;
-  Object.entries(WEAPON_ABILITY_SETS).forEach(([style, abilities]) => {
-    abilities
-      .filter((ability) => ability.level > previousLevel && ability.level <= currentLevel)
-      .forEach((ability) => {
-        const type = style === "Magic" ? "spell" : "skill";
-        addWorldLog(`New ${style} ${type} unlocked: ${ability.name} (Lv ${ability.level}).`);
-      });
-  });
+function getNextAbilityForStyle(player, style, weapon = null) {
+  const snapshot = getWeaponMasterySnapshot(player, weapon || player?.equipment?.Weapon || getDefaultWeaponForStyle(style || player?.style || "Melee"), style || player?.style || "Melee");
+  return snapshot.next || null;
 }
 
 function getCurrentStoryChapter() {
@@ -2465,13 +3140,23 @@ function openCombatSkillSelection() {
   if (!state.combat || !state.game || state.combat.phase !== "player") return;
   const player = state.game.player;
   const style = getActiveAttackStyle(player);
-  const abilities = getUnlockedAbilitiesForStyle(player, style);
-  if (!abilities.length) {
-    pushCombatLog("No skills are available.");
+  const weapon = player.equipment.Weapon;
+  state.modal = "combatSkill";
+  state.modalData = { style, familyKey: getWeaponFamilyKey(weapon, style) };
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+}
+
+function openCombatWeaponSelection() {
+  if (!state.combat || !state.game || state.combat.phase !== "player") return;
+  const weapons = state.game.player.bag.filter((item) => item.kind === "equipment" && item.slot === "Weapon");
+  if (!weapons.length) {
+    pushCombatLog("No spare weapons are available.");
     return;
   }
-  state.modal = "combatSkill";
-  state.modalData = { style };
+  state.modal = "combatWeapon";
+  state.modalData = null;
   els.modalBackdrop.classList.remove("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "false");
   renderModal();
@@ -2834,6 +3519,7 @@ function dropEquippedGearCache(player, world, x, y) {
     player.equipment[slot] = null;
   });
   if (!dropped.length) return { count: 0, x, y };
+  syncPlayerStyleToWeapon(player);
   recalculatePlayerStats(player, true);
 
   const dropSpot = findNearestOpenFeatureTile(world, x, y, state.game?.runtimeRng);
@@ -2942,18 +3628,20 @@ function generateEquipmentDrop(playerLevel, rng, options = {}) {
   const rarity = rollEquipmentRarity(playerLevel, rng, options.boss);
   const rarityScale = RARITY_DATA[rarity].modScale;
   const attackType = slot === "Weapon" ? rng.pick(["Melee", "Ranged", "Magic"]) : null;
-  const damageKindPool = attackType ? getDamageKindsForAttackType(attackType) : [];
-  const damageKind = slot === "Weapon" ? rng.pick(damageKindPool) : null;
-  const damageDie = slot === "Weapon" ? rng.pick([4, 6, 8, 10, 12]) : 0;
-  const speedBase = slot === "Weapon" ? rng.int(3, 8) : 0;
-  const speed = slot === "Weapon" ? clamp(speedBase + (damageDie <= 6 ? 1 : 0) - (damageDie >= 10 ? 1 : 0), 2, 10) : 0;
-  const hitBonus = slot === "Weapon" ? rng.int(0, 2) : 0;
-  const critBonus = slot === "Weapon" ? rng.int(0, 3) : 0;
+  const chosenTemplate = slot === "Weapon" ? rng.pick(getWeaponsForStyle(attackType)) : null;
+  const tierBonus = Math.floor((tier - 1) / 3);
+  const damageKind = slot === "Weapon" ? chosenTemplate.damageKind : null;
+  const damageDie = slot === "Weapon" ? Math.max(3, chosenTemplate.damageDie + tierBonus) : 0;
+  const speed = slot === "Weapon" ? clamp(chosenTemplate.speed + rng.int(-1, 1), 2, 10) : 0;
+  const hitBonus = slot === "Weapon" ? Math.floor((chosenTemplate.hitBonus || 0) + rng.int(0, 2)) : 0;
+  const critBonus = slot === "Weapon" ? Math.floor((chosenTemplate.critBonus || 0) + Math.floor(rarityScale - 1) + rng.int(0, 2)) : 0;
   const item = {
     uid: createItemUid(),
     kind: "equipment",
     slot,
-    attackType,
+    attackType: slot === "Weapon" ? chosenTemplate.attackType : attackType,
+    weaponTemplateId: slot === "Weapon" ? chosenTemplate.id : null,
+    weaponFamily: slot === "Weapon" ? chosenTemplate.weaponFamily : null,
     damageDie,
     damageKind,
     speed,
@@ -2962,7 +3650,10 @@ function generateEquipmentDrop(playerLevel, rng, options = {}) {
     tier,
     rarity,
     levelReq: (tier - 1) * 10 + 1,
-    name: `${rarity} ${prefixes[clamp(tier - 1, 0, prefixes.length - 1)]} ${slotLabel} (${TIER_NAMES[tier - 1]})`,
+    name: slot === "Weapon"
+      ? `${rarity} ${prefixes[clamp(tier - 1, 0, prefixes.length - 1)]} ${chosenTemplate.name} (${TIER_NAMES[tier - 1]})`
+      : `${rarity} ${prefixes[clamp(tier - 1, 0, prefixes.length - 1)]} ${slotLabel} (${TIER_NAMES[tier - 1]})`,
+    summary: slot === "Weapon" ? chosenTemplate.summary || "" : "",
     modifiers: createZeroStats(),
   };
   item.modifiers.Health = Math.floor(rng.int(0, 5 + tier * 3) * rarityScale);
@@ -2975,6 +3666,7 @@ function generateEquipmentDrop(playerLevel, rng, options = {}) {
   item.modifiers.CriticalChance = Math.floor(rng.int(0, 1 + Math.ceil(tier / 2)) * rarityScale);
   item.modifiers.Luck = Math.floor(rng.int(0, 1 + Math.ceil(tier / 2)) * rarityScale);
   ensureEquipmentHasMeaningfulBonus(item, rng);
+  if (slot === "Weapon") normalizeWeaponItem(item);
   return item;
 }
 
@@ -3005,7 +3697,6 @@ function endCombatAndReturnToWorld() {
 }
 
 function gainXp(player, amount) {
-  const levelBefore = player.level;
   player.xp += amount;
   let levelsGained = 0;
   while (player.level < MAX_LEVEL) {
@@ -3032,7 +3723,6 @@ function gainXp(player, amount) {
       if (state.combat) pushCombatLog(`Level up! ${gainedPoints} stat points available.`);
       state.game.pendingLevelUp = true;
     }
-    announceAbilityUnlocks(levelBefore, player.level);
     updateQuestProgress("levelUp", { level: player.level });
     advanceStoryIfNeeded("level");
     checkAchievements();
@@ -3068,6 +3758,14 @@ function openModal(type) {
 }
 
 function closeModal() {
+  if (state.modal === "gathering") {
+    if (state.gathering && !state.gathering.completed) {
+      finalizeGatheringSequence({ canceled: true, closeAfter: true });
+    } else {
+      stopGatheringSequenceTimers();
+      state.gathering = null;
+    }
+  }
   state.modal = null;
   state.modalData = null;
   els.modalBackdrop.classList.add("hidden");
@@ -3089,10 +3787,22 @@ function cycleCharacterModalTab(direction) {
 function renderModal() {
   if (!state.modal || !state.game) return;
   const player = state.game.player;
+  els.modalClose.textContent = "Close";
+  els.modalClose.disabled = false;
 
   if (state.modal === "character") {
     els.modalTitle.textContent = "Character Menu";
     const chapter = getCurrentStoryChapter();
+    const skills = ensurePlayerSkills(player);
+    const masteryState = ensurePlayerWeaponMastery(player);
+    const gatheringLevel = SKILL_ORDER
+      .filter((name) => SKILL_DEFS[name].role === "Gathering")
+      .reduce((sum, name) => sum + (skills[name]?.level || 1), 0);
+    const craftingLevel = SKILL_ORDER
+      .filter((name) => SKILL_DEFS[name].role === "Crafting")
+      .reduce((sum, name) => sum + (skills[name]?.level || 1), 0);
+    const totalWeaponMastery = Object.values(masteryState).reduce((sum, entry) => sum + (entry.points || 0), 0);
+    const trainedWeaponClasses = Object.values(masteryState).filter((entry) => (entry.points || 0) > 0).length;
     const detailsRows = [
       `Level ${player.level} | XP ${player.xp}/${xpToNextLevel(player.level)}`,
       `Gold ${player.gold} | HP ${player.currentHealth}/${player.derivedStats.Health}`,
@@ -3101,12 +3811,16 @@ function renderModal() {
       `Quests Completed ${state.game.meta.questsCompleted} | NPC Talks ${state.game.meta.npcsTalked}`,
       `Chests Opened ${state.game.meta.chestsOpened} | Transitions ${state.game.meta.transitionsUsed}`,
       `Tiles Discovered ${state.game.meta.tilesDiscovered} | Gold Found ${state.game.meta.totalGoldFound}`,
+      `Gathering Skill Total ${gatheringLevel} | Crafting Skill Total ${craftingLevel}`,
+      `Weapon Mastery Total ${totalWeaponMastery} | Trained Classes ${trainedWeaponClasses}`,
       `Current Chapter: ${chapter.title}`,
     ].map((line) => `<li>${escapeHtml(line)}</li>`).join("");
     els.modalContent.innerHTML = `
       <div class="button-row">
         <button class="focusable" data-modal-action="open-character-section" data-target="inventory">Inventory</button>
         <button class="focusable" data-modal-action="open-character-section" data-target="equipment">Equipment</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="skills">Skills</button>
+        <button class="focusable" data-modal-action="open-character-section" data-target="mastery">Mastery</button>
         <button class="focusable" data-modal-action="open-character-section" data-target="levelup">Level Up</button>
         <button class="focusable" data-modal-action="open-character-section" data-target="quests">Quests</button>
         <button class="focusable" data-modal-action="open-character-section" data-target="bestiary">Bestiary</button>
@@ -3187,6 +3901,74 @@ function renderModal() {
       `;
     }).join("");
     els.modalContent.innerHTML = `<h4>Equipped Gear</h4><div class="modal-list">${equippedRows}</div>`;
+  } else if (state.modal === "skills") {
+    els.modalTitle.textContent = "Skills";
+    const skills = ensurePlayerSkills(player);
+    const rows = SKILL_ORDER.map((skillName) => {
+      const entry = skills[skillName] || { level: 1, xp: 0 };
+      const next = xpToNextSkillLevel(entry.level);
+      const progress = entry.level >= SKILL_CAP_LEVEL ? "MAX" : `${entry.xp}/${next}`;
+      const info = SKILL_DEFS[skillName];
+      return `
+        <div class="item-row">
+          <div>
+            <strong>${escapeHtml(skillName)} (${escapeHtml(info.role)})</strong>
+            <p>Level ${entry.level}/${SKILL_CAP_LEVEL} | XP ${progress}</p>
+            <p>${escapeHtml(info.summary)}</p>
+          </div>
+          <span>${entry.level >= SKILL_CAP_LEVEL ? "Maxed" : "Training"}</span>
+        </div>
+      `;
+    }).join("");
+    const gatheringTotal = SKILL_ORDER
+      .filter((name) => SKILL_DEFS[name].role === "Gathering")
+      .reduce((sum, name) => sum + (skills[name]?.level || 1), 0);
+    const craftingTotal = SKILL_ORDER
+      .filter((name) => SKILL_DEFS[name].role === "Crafting")
+      .reduce((sum, name) => sum + (skills[name]?.level || 1), 0);
+    els.modalContent.innerHTML = `
+      <p>Gathering total level: ${gatheringTotal} | Crafting total level: ${craftingTotal}</p>
+      <p>Weapon classes use a separate mastery system that grows from combat usage.</p>
+      <div class="modal-list">${rows}</div>
+    `;
+  } else if (state.modal === "mastery") {
+    els.modalTitle.textContent = "Weapon Mastery";
+    const renderMasteryRow = (familyKey) => {
+      const info = WEAPON_FAMILY_DEFS[familyKey];
+      const snapshot = getWeaponMasterySnapshot(player, familyKey, info.style);
+      const currentTechnique = snapshot.unlocked.length
+        ? snapshot.unlocked[snapshot.unlocked.length - 1].name
+        : "None learned yet";
+      const nextLine = snapshot.next
+        ? `${snapshot.next.name} at mastery ${snapshot.nextRequirement} (${snapshot.nextRequirement - snapshot.masteryPoints} to go)`
+        : "All techniques learned. Mastery keeps growing with no cap.";
+      return `
+        <div class="item-row">
+          <div>
+            <strong>${escapeHtml(info.name)} (${escapeHtml(info.discipline)})</strong>
+            <p>${escapeHtml(info.style)} | Mastery ${snapshot.masteryPoints} | Uses ${snapshot.entry.uses} | Hits ${snapshot.entry.hits} | Kills ${snapshot.entry.kills}</p>
+            <div class="hub-skill-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${snapshot.progressPercent}" aria-label="${escapeHtml(info.name)} mastery progress">
+              <span class="hub-skill-fill" style="width:${snapshot.progressPercent}%"></span>
+            </div>
+            <p>Current technique: ${escapeHtml(currentTechnique)}</p>
+            <p>${escapeHtml(nextLine)}</p>
+          </div>
+          <span>${snapshot.learnedCount}/${snapshot.totalCount}</span>
+        </div>
+      `;
+    };
+    const meleeRows = WEAPON_FAMILY_ORDER.filter((familyKey) => WEAPON_FAMILY_DEFS[familyKey].style === "Melee").map(renderMasteryRow).join("");
+    const rangedRows = WEAPON_FAMILY_ORDER.filter((familyKey) => WEAPON_FAMILY_DEFS[familyKey].style === "Ranged").map(renderMasteryRow).join("");
+    const magicRows = WEAPON_FAMILY_ORDER.filter((familyKey) => WEAPON_FAMILY_DEFS[familyKey].style === "Magic").map(renderMasteryRow).join("");
+    els.modalContent.innerHTML = `
+      <p>Weapon mastery grows from attacks, landed hits, criticals, weakness exploitation, and kill pressure. It never caps.</p>
+      <h4>Melee Classes</h4>
+      <div class="modal-list">${meleeRows}</div>
+      <h4>Ranged Classes</h4>
+      <div class="modal-list">${rangedRows}</div>
+      <h4>Magic Classes</h4>
+      <div class="modal-list">${magicRows}</div>
+    `;
   } else if (state.modal === "story") {
     els.modalTitle.textContent = "Story Journal";
     const chapters = state.game.storyline && state.game.storyline.length ? state.game.storyline : STORY_CHAPTERS;
@@ -3209,18 +3991,68 @@ function renderModal() {
   } else if (state.modal === "combatSkill") {
     const player = state.game.player;
     const style = state.modalData?.style || getActiveAttackStyle(player);
-    const abilities = getUnlockedAbilitiesForStyle(player, style);
-    const rows = abilities.map((ability, index) => `
+    const weapon = player.equipment.Weapon;
+    const snapshot = getWeaponMasterySnapshot(player, state.modalData?.familyKey || weapon, style);
+    const family = snapshot.family;
+    const discipline = family.discipline;
+    const rows = snapshot.abilities.map((ability, index) => {
+      const requirement = getAbilityMasteryRequirement(ability);
+      const unlocked = snapshot.masteryPoints >= requirement;
+      const status = unlocked ? "Ready" : `${requirement - snapshot.masteryPoints} mastery to go`;
+      return `
       <div class="item-row">
         <div>
           <strong>${escapeHtml(ability.name)}</strong>
-          <p>Unlock Lv ${ability.level} | Dice ${ability.damageDice.map((die) => `1d${die}`).join(" + ")} | Hit +${ability.hitBonus}${ability.damageKind ? ` | Type ${escapeHtml(ability.damageKind)}` : ""}</p>
+          <p>Requires Mastery ${requirement} | Dice ${ability.damageDice.map((die) => `1d${die}`).join(" + ")} | Hit +${ability.hitBonus}${ability.damageKind ? ` | Type ${escapeHtml(ability.damageKind)}` : ""}</p>
+          <p>${escapeHtml(status)}</p>
         </div>
-        <button class="focusable" data-modal-action="combat-use-skill" data-skill-index="${index}">Use</button>
+        <button class="focusable" data-modal-action="combat-use-skill" data-skill-index="${index}" ${unlocked ? "" : "disabled"}>${unlocked ? "Use" : "Locked"}</button>
       </div>
-    `).join("");
-    els.modalTitle.textContent = `${style === "Magic" ? "Spells" : "Skills"} (${style})`;
-    els.modalContent.innerHTML = `<div class="modal-list">${rows}</div>`;
+    `;
+    }).join("");
+    els.modalTitle.textContent = `${style === "Magic" ? "Spells" : "Techniques"} (${discipline})`;
+    els.modalContent.innerHTML = `
+      <p><strong>Style:</strong> ${escapeHtml(style)} | <strong>Weapon Class:</strong> ${escapeHtml(family.name)}</p>
+      <p><strong>Mastery:</strong> ${snapshot.masteryPoints} | <strong>Uses:</strong> ${snapshot.entry.uses} | <strong>Learned:</strong> ${snapshot.learnedCount}/${snapshot.totalCount}</p>
+      <div class="hub-skill-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${snapshot.progressPercent}" aria-label="${escapeHtml(family.name)} mastery progress">
+        <span class="hub-skill-fill" style="width:${snapshot.progressPercent}%"></span>
+      </div>
+      <p><strong>Strengths:</strong> ${escapeHtml(family.strengths)} <strong>Tradeoffs:</strong> ${escapeHtml(family.weaknesses)}</p>
+      <p>${snapshot.next ? `Next unlock: ${escapeHtml(snapshot.next.name)} at mastery ${snapshot.nextRequirement}.` : "All techniques learned. Mastery keeps climbing beyond the final unlock."}</p>
+      <div class="modal-list">${rows}</div>
+    `;
+  } else if (state.modal === "combatWeapon") {
+    const player = state.game.player;
+    const current = player.equipment.Weapon;
+    const currentStyle = getActiveAttackStyle(player);
+    const rows = player.bag
+      .filter((item) => item.kind === "equipment" && item.slot === "Weapon")
+      .map((item) => {
+        normalizeWeaponItem(item);
+        const family = getWeaponFamilyDefinition(item, item.attackType);
+        const mastery = getWeaponMasterySnapshot(player, item, item.attackType);
+        const disabled = player.level < (item.levelReq || 1) ? "disabled" : "";
+        const lockedText = player.level < (item.levelReq || 1) ? ` | Requires Lv ${item.levelReq}` : "";
+        return `
+          <div class="item-row">
+            <div>
+              <strong>${escapeHtml(item.name)}</strong>
+              <p>${escapeHtml(item.attackType)} | ${escapeHtml(family.discipline)} | ${escapeHtml(summarizeWeaponForUi(item))}${lockedText}</p>
+              <p>Mastery ${mastery.masteryPoints} | Learned ${mastery.learnedCount}/${mastery.totalCount}${mastery.next ? ` | Next ${escapeHtml(mastery.next.name)} at ${mastery.nextRequirement}` : " | All techniques learned"}</p>
+              <p>${escapeHtml(family.strengths)} Tradeoff: ${escapeHtml(family.weaknesses)}</p>
+            </div>
+            <button class="focusable" data-modal-action="combat-swap-weapon" data-item-id="${item.uid}" ${disabled}>Equip</button>
+          </div>
+        `;
+      }).join("");
+    const currentFamily = getWeaponFamilyDefinition(current, currentStyle);
+    const currentMastery = getWeaponMasterySnapshot(player, current, currentStyle);
+    els.modalTitle.textContent = "Swap Weapon";
+    els.modalContent.innerHTML = `
+      <p><strong>No turn cost.</strong> Equipping a different weapon updates your style and weapon class immediately.</p>
+      <p><strong>Current:</strong> ${escapeHtml(current?.name || "None")} | ${escapeHtml(currentStyle)} | ${escapeHtml(currentFamily.discipline)} | Mastery ${currentMastery.masteryPoints}</p>
+      <div class="modal-list">${rows || "<p>No extra weapons in the bag.</p>"}</div>
+    `;
   } else if (state.modal === "combatItem") {
     const combatItems = state.game.player.bag.filter((item) => {
       if (item.kind !== "consumable" || item.quantity <= 0) return false;
@@ -3258,6 +4090,96 @@ function renderModal() {
         <p><strong>Location:</strong> ${escapeHtml(locationName)}</p>
         <div class="modal-list">${rows}</div>
       `;
+    }
+  } else if (state.modal === "gathering") {
+    const gathering = state.gathering;
+    if (!gathering) {
+      els.modalTitle.textContent = "Gathering";
+      els.modalContent.innerHTML = "<p>No active gathering attempt.</p>";
+    } else {
+      const biomeLabel = BIOME_DATA[gathering.biome]?.label || "Unknown";
+      const round = gathering.round || {
+        zoneStart: 0.3,
+        zoneWidth: 0.24,
+        perfectStart: 0.39,
+        perfectWidth: 0.08,
+        prompt: "Time your gather.",
+      };
+      const resultChips = gathering.results.length
+        ? gathering.results.map((result) => `<span class="timing-chip" data-tier="${escapeHtml(result.key)}">#${result.roundNumber} ${escapeHtml(result.name)}</span>`).join("")
+        : '<span class="timing-chip" data-tier="pending">No passes completed yet.</span>';
+      if (gathering.completed) {
+        const rewardSummary = gathering.rewardSummary || {
+          rewardParts: [],
+          bonusParts: [],
+          bonusLabel: "",
+          xpTotal: 0,
+          resultSummary: "no successful passes",
+          roundsUsed: gathering.results.length,
+          roundsTotal: gathering.totalRounds,
+          earlyStop: false,
+        };
+        const rewardRows = rewardSummary.rewardParts.length
+          ? rewardSummary.rewardParts.map((part) => `<li>${escapeHtml(part)}</li>`).join("")
+          : "<li>No materials recovered.</li>";
+        const bonusText = rewardSummary.bonusParts.length
+          ? `<p class="timing-note"><strong>${escapeHtml(rewardSummary.bonusLabel || "Full clear bonus")}:</strong> ${escapeHtml(rewardSummary.bonusParts.join(", "))}</p>`
+          : "";
+        els.modalTitle.textContent = `${gathering.featureName} Results`;
+        els.modalClose.textContent = "Done";
+        els.modalContent.innerHTML = `
+          <div class="timing-minigame">
+            <div class="timing-meta">
+              <span><strong>${escapeHtml(gathering.skillName)}</strong> Lv ${gathering.skillLevel}</span>
+              <span>${escapeHtml(biomeLabel)}</span>
+            </div>
+            <p>${rewardSummary.earlyStop ? "Gathering ended early." : "Gathering complete."} Timing summary: ${escapeHtml(rewardSummary.resultSummary)}.</p>
+            <p>Passes cleared ${rewardSummary.roundsUsed}/${rewardSummary.roundsTotal} | XP ${rewardSummary.xpTotal}</p>
+            ${bonusText}
+            <div class="timing-chip-row">${resultChips}</div>
+            <h4>Yield</h4>
+            <ul class="log-list">${rewardRows}</ul>
+          </div>
+        `;
+      } else {
+        const zoneLeft = round.zoneStart * 100;
+        const zoneWidth = round.zoneWidth * 100;
+        const perfectLeft = round.perfectStart * 100;
+        const perfectWidth = round.perfectWidth * 100;
+        const statusText = gathering.waitingResult
+          ? `${gathering.lastResult?.name || "Locked"} timing recorded.`
+          : "Stop the marker inside the bright band for peak yield.";
+        const strikeLabel = gathering.resourceKind === "fishing" ? "Set Hook" : "Lock Timing";
+        const nodePrompt = gathering.totalRounds > 1
+          ? `This node has ${gathering.totalRounds} linked pulls; clear every pass for a full clear bonus.`
+          : "Single pull node. Better timing still improves yield and XP.";
+        els.modalTitle.textContent = `${gathering.featureName} Gathering`;
+        els.modalClose.textContent = "Cancel Gathering";
+        els.modalContent.innerHTML = `
+          <div class="timing-minigame">
+            <div class="timing-meta">
+              <span><strong>${escapeHtml(gathering.skillName)}</strong> Lv ${gathering.skillLevel}</span>
+              <span>Pass ${gathering.roundIndex + 1}/${gathering.totalRounds}</span>
+              <span>${gathering.totalRounds} pull${gathering.totalRounds === 1 ? "" : "s"} in node</span>
+              <span>${escapeHtml(biomeLabel)}</span>
+            </div>
+            <p>${escapeHtml(round.prompt)} Yield scales with timing quality and skill level. ${escapeHtml(nodePrompt)}</p>
+            <div class="timing-track" aria-label="${escapeHtml(gathering.featureName)} timing track">
+              <span class="timing-zone" style="left:${zoneLeft}%;width:${zoneWidth}%"></span>
+              <span class="timing-perfect" style="left:${perfectLeft}%;width:${perfectWidth}%"></span>
+              <span id="gathering-marker" class="timing-marker" style="left:${clamp(gathering.progress * 100, 0, 100)}%"></span>
+            </div>
+            <div class="timing-meta">
+              <span id="gathering-readout">${Math.round(gathering.progress * 100)}% sweep</span>
+              <span>${escapeHtml(statusText)}</span>
+            </div>
+            <div class="timing-chip-row">${resultChips}</div>
+            <div class="button-row">
+              <button class="focusable" data-modal-action="gathering-stop" ${gathering.waitingResult ? "disabled" : ""}>${strikeLabel}</button>
+            </div>
+          </div>
+        `;
+      }
     }
   } else if (state.modal === "levelup") {
     const player = state.game.player;
@@ -3359,6 +4281,41 @@ function renderModal() {
         <div class="modal-list">${rows}</div>
       `;
     }
+  } else if (state.modal === "crafting") {
+    const craftingFeature = state.modalData?.feature;
+    const locationLabel = craftingFeature?.name || "Field Kit";
+    els.modalTitle.textContent = `${locationLabel} Crafting`;
+    const recipeRows = CRAFTING_RECIPES.map((recipe) => {
+      const check = evaluateCraftingRecipe(player, recipe);
+      const costText = recipe.costs
+        .map((cost) => {
+          const owned = getMaterialCount(player, cost.id);
+          const def = MATERIAL_DEFS[cost.id];
+          return `${owned}/${cost.qty} ${def ? def.name : cost.id}`;
+        })
+        .join(", ");
+      const outputText = describeCraftingRecipeOutput(recipe);
+      const disabled = check.ok ? "" : "disabled";
+      return `
+        <div class="item-row">
+          <div>
+            <strong>${escapeHtml(recipe.name)} (${escapeHtml(recipe.skill)} Lv ${recipe.minLevel})</strong>
+            <p>${escapeHtml(recipe.description)}</p>
+            <p>Cost: ${escapeHtml(costText)}</p>
+            <p>Output: ${escapeHtml(outputText)} | ${check.ok ? "Ready" : escapeHtml(check.reason)}</p>
+          </div>
+          <button class="focusable" data-modal-action="craft-recipe" data-recipe-id="${recipe.id}" ${disabled}>Craft</button>
+        </div>
+      `;
+    }).join("");
+    const skillSummary = SKILL_ORDER
+      .filter((skillName) => SKILL_DEFS[skillName].role === "Crafting")
+      .map((skillName) => `${skillName} Lv ${getPlayerSkillEntry(player, skillName)?.level || 1}`)
+      .join(" | ");
+    els.modalContent.innerHTML = `
+      <p>${escapeHtml(skillSummary)}</p>
+      <div class="modal-list">${recipeRows}</div>
+    `;
   } else if (state.modal === "shop") {
     const shopFeature = state.modalData?.feature || null;
     els.modalTitle.textContent = shopFeature ? `${shopFeature.name} Shop` : "Shop";
@@ -3425,6 +4382,14 @@ function renderModal() {
   }
 
   updateFocusables();
+  if (state.modal === "gathering") {
+    if (state.gathering?.completed) {
+      state.focusIndex = Math.max(0, state.focusables.length - 1);
+      applyFocusStyles();
+    } else {
+      focusButtonByDataset("modalAction", "gathering-stop");
+    }
+  }
 }
 
 function onModalAction(event) {
@@ -3449,6 +4414,11 @@ function onModalAction(event) {
     state.modal = target;
     state.modalData = null;
     renderModal();
+    return;
+  }
+
+  if (action === "gathering-stop") {
+    resolveGatheringTimingInput();
     return;
   }
 
@@ -3483,12 +4453,37 @@ function onModalAction(event) {
   if (action === "combat-use-skill") {
     const player = state.game.player;
     const style = getActiveAttackStyle(player);
-    const abilities = getUnlockedAbilitiesForStyle(player, style);
+    const weapon = player.equipment.Weapon;
+    const snapshot = getWeaponMasterySnapshot(player, weapon, style);
     const index = Number(button.dataset.skillIndex);
-    const selected = Number.isFinite(index) ? abilities[index] : null;
-    if (!selected) return;
+    const selected = Number.isFinite(index) ? snapshot.abilities[index] : null;
+    const requirement = selected ? getAbilityMasteryRequirement(selected) : Infinity;
+    if (!selected || snapshot.masteryPoints < requirement) {
+      addWorldLog("That technique is not mastered yet.");
+      renderModal();
+      return;
+    }
     closeModal();
     resolvePlayerAttack({ kind: "skill", abilityOverride: selected });
+    return;
+  }
+
+  if (action === "combat-swap-weapon") {
+    const uid = button.dataset.itemId;
+    const item = player.bag.find((entry) => entry.uid === uid && entry.kind === "equipment" && entry.slot === "Weapon");
+    if (!item) return;
+    if (player.level < (item.levelReq || 1)) {
+      pushCombatLog(`Level ${item.levelReq} required to equip ${item.name}.`);
+      renderModal();
+      return;
+    }
+    const result = equipFromBag(player, uid);
+    if (!result) return;
+    closeModal();
+    const family = getWeaponFamilyDefinition(result.item, result.nextStyle);
+    const styleLine = result.previousStyle !== result.nextStyle ? ` Style shifts to ${result.nextStyle}.` : "";
+    pushCombatLog(`Weapon swap: ${result.item.name} equipped. Class is now ${family.discipline}.${styleLine} No turn spent.`);
+    renderCombat();
     return;
   }
 
@@ -3572,6 +4567,15 @@ function onModalAction(event) {
     return;
   }
 
+  if (action === "craft-recipe") {
+    const recipeId = button.dataset.recipeId;
+    if (!recipeId) return;
+    craftRecipeById(recipeId);
+    renderWorld();
+    renderModal();
+    return;
+  }
+
   if (action === "equip-item") {
     const uid = button.dataset.itemId;
     const item = player.bag.find((entry) => entry.uid === uid && entry.kind === "equipment");
@@ -3581,8 +4585,15 @@ function onModalAction(event) {
       renderWorldLog();
       return;
     }
-    equipFromBag(player, uid);
-    addWorldLog(`Equipped ${item.name}.`);
+    const result = equipFromBag(player, uid);
+    if (!result) return;
+    if (item.slot === "Weapon") {
+      const family = getWeaponFamilyDefinition(item, result.nextStyle);
+      const styleShift = result.previousStyle !== result.nextStyle ? ` Style shifted to ${result.nextStyle}.` : "";
+      addWorldLog(`Equipped ${item.name}. Class is now ${family.discipline}.${styleShift}`);
+    } else {
+      addWorldLog(`Equipped ${item.name}.`);
+    }
     renderWorld();
     renderModal();
     return;
@@ -3594,6 +4605,7 @@ function onModalAction(event) {
     if (!slot || !item) return;
     player.equipment[slot] = null;
     addItemToBag(player, item);
+    syncPlayerStyleToWeapon(player);
     recalculatePlayerStats(player, true);
     addWorldLog(`Unequipped ${item.name}.`);
     renderWorld();
@@ -3603,13 +4615,17 @@ function onModalAction(event) {
 
 function equipFromBag(player, uid) {
   const index = player.bag.findIndex((entry) => entry.uid === uid && entry.kind === "equipment");
-  if (index < 0) return;
+  if (index < 0) return null;
   const item = player.bag[index];
   player.bag.splice(index, 1);
+  if (item.slot === "Weapon") normalizeWeaponItem(item);
+  const previousStyle = getActiveAttackStyle(player);
   const previous = player.equipment[item.slot];
   player.equipment[item.slot] = item;
   if (previous) addItemToBag(player, previous);
+  const nextStyle = syncPlayerStyleToWeapon(player);
   recalculatePlayerStats(player, true);
+  return { item, previous, previousStyle, nextStyle };
 }
 
 function addItemToBag(player, item) {
@@ -3663,6 +4679,598 @@ function addStackableLoot(player, kind, definition, quantity) {
     description: definition.description,
     quantity,
   });
+}
+
+function getResourceNodeBiome(feature) {
+  if (!state.game || !feature) return "plains";
+  return state.game.world?.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+}
+
+function getGatheringEfficiencyProfile(resultKey, skillLevel) {
+  const base = GATHERING_TIMING_TIERS[resultKey] || GATHERING_TIMING_TIERS.good;
+  const skillFactor = clamp(skillLevel, 1, SKILL_CAP_LEVEL);
+  return {
+    ...base,
+    quantityScale: Math.max(0.45, base.quantityScale + skillFactor * (resultKey === "miss" ? 0.001 : 0.0024)),
+    xpScale: base.xpScale + skillFactor * 0.0016,
+    chanceBonus: base.chanceBonus + clamp(skillFactor * 0.0008, 0, 0.08),
+    flatBonus: base.flatBonus + (resultKey !== "miss" && skillFactor >= 45 ? 1 : 0) + (resultKey === "perfect" && skillFactor >= 85 ? 1 : 0),
+  };
+}
+
+function getGatheringTimingProfile(feature, roundIndex, skillLevel) {
+  const biome = getResourceNodeBiome(feature);
+  const biomeTuning = GATHERING_BIOME_TUNING[biome] || GATHERING_BIOME_TUNING.plains;
+  const resourceTuning = GATHERING_RESOURCE_TUNING[feature.resourceKind] || GATHERING_RESOURCE_TUNING.tree;
+  const roundRng = createRng(hashString(`${state.game?.seed || "gather"}|${feature.id}|${feature.resourceKind}|${biome}|${roundIndex}`));
+  const skillEase = clamp(skillLevel * 0.0014, 0, 0.09);
+  const zoneWidth = clamp(biomeTuning.zoneWidth * resourceTuning.zoneWidth + skillEase, 0.12, 0.34);
+  const perfectWidth = clamp(zoneWidth * (0.28 + skillLevel * 0.0006), 0.035, zoneWidth * 0.52);
+  const zoneStart = clamp(0.05 + roundRng.next() * Math.max(0.08, 0.9 - zoneWidth), 0.04, 0.96 - zoneWidth);
+  const perfectStart = zoneStart + roundRng.next() * Math.max(0.01, zoneWidth - perfectWidth);
+  const direction = roundRng.next() < 0.5 ? 1 : -1;
+  const startProgress = direction > 0 ? 0 : 1;
+  const speed = clamp(
+    biomeTuning.speed * resourceTuning.speed * (1 + roundIndex * 0.035) * (1 - clamp((skillLevel - 1) * 0.0018, 0, 0.16)),
+    0.5,
+    1.45,
+  );
+  return {
+    biome,
+    zoneStart,
+    zoneWidth,
+    perfectStart,
+    perfectWidth,
+    direction,
+    startProgress,
+    speed,
+    prompt: resourceTuning.prompt,
+  };
+}
+
+function stopGatheringSequenceTimers() {
+  if (!state.gathering) return;
+  if (state.gathering.frameId) {
+    window.cancelAnimationFrame(state.gathering.frameId);
+    state.gathering.frameId = 0;
+  }
+  if (state.gathering.advanceTimeoutId) {
+    window.clearTimeout(state.gathering.advanceTimeoutId);
+    state.gathering.advanceTimeoutId = 0;
+  }
+}
+
+function updateGatheringMinigameUi() {
+  if (!state.gathering) return;
+  const marker = document.getElementById("gathering-marker");
+  if (marker) marker.style.left = `${clamp(state.gathering.progress * 100, 0, 100)}%`;
+  const readout = document.getElementById("gathering-readout");
+  if (readout) readout.textContent = `${Math.round(state.gathering.progress * 100)}% sweep`;
+}
+
+function startGatheringSequenceLoop() {
+  stopGatheringSequenceTimers();
+  if (!state.gathering || state.modal !== "gathering" || state.gathering.completed || state.gathering.waitingResult) return;
+  const tick = (timestamp) => {
+    if (!state.gathering || state.modal !== "gathering" || state.gathering.completed || state.gathering.waitingResult) return;
+    const previous = state.gathering.lastFrameAt || timestamp;
+    const deltaSeconds = Math.max(0.001, Math.min(0.04, (timestamp - previous) / 1000));
+    state.gathering.lastFrameAt = timestamp;
+    state.gathering.progress += state.gathering.direction * deltaSeconds * state.gathering.speed;
+    if (state.gathering.progress >= 1) {
+      state.gathering.progress = 1;
+      state.gathering.direction = -1;
+    } else if (state.gathering.progress <= 0) {
+      state.gathering.progress = 0;
+      state.gathering.direction = 1;
+    }
+    updateGatheringMinigameUi();
+    state.gathering.frameId = window.requestAnimationFrame(tick);
+  };
+  state.gathering.lastFrameAt = 0;
+  state.gathering.frameId = window.requestAnimationFrame(tick);
+}
+
+function setupGatheringSequenceRound() {
+  if (!state.gathering) return;
+  const round = getGatheringTimingProfile(state.gathering.feature, state.gathering.roundIndex, state.gathering.skillLevel);
+  state.gathering.round = round;
+  state.gathering.progress = round.startProgress;
+  state.gathering.direction = round.direction;
+  state.gathering.speed = round.speed;
+  state.gathering.waitingResult = false;
+  state.gathering.lastResult = null;
+  state.gathering.lastFrameAt = 0;
+}
+
+function evaluateGatheringTimingResult() {
+  if (!state.gathering?.round) return GATHERING_TIMING_TIERS.miss;
+  const { progress, round } = state.gathering;
+  const zoneEnd = round.zoneStart + round.zoneWidth;
+  const perfectEnd = round.perfectStart + round.perfectWidth;
+  let key = "miss";
+  if (progress >= round.perfectStart && progress <= perfectEnd) {
+    key = "perfect";
+  } else if (progress >= round.zoneStart && progress <= zoneEnd) {
+    const zoneCenter = round.zoneStart + round.zoneWidth / 2;
+    const normalizedOffset = Math.abs(progress - zoneCenter) / Math.max(0.0001, round.zoneWidth / 2);
+    key = normalizedOffset <= 0.38 ? "great" : "good";
+  }
+  const tier = GATHERING_TIMING_TIERS[key] || GATHERING_TIMING_TIERS.miss;
+  return {
+    ...tier,
+    progress,
+    roundNumber: state.gathering.roundIndex + 1,
+    score: tier.score || 0,
+  };
+}
+
+function summarizeGatheringTiming(results) {
+  if (!results?.length) return "no successful passes";
+  return results.map((result) => `#${result.roundNumber} ${result.name}`).join(", ");
+}
+
+function getGatheringTimingScore(result) {
+  if (!result) return GATHERING_TIMING_TIERS.miss.score;
+  if (typeof result.score === "number" && Number.isFinite(result.score)) return result.score;
+  return GATHERING_TIMING_TIERS[result.key]?.score || GATHERING_TIMING_TIERS.miss.score;
+}
+
+function getGatheringSfxType(resourceKind) {
+  return `gather-${resourceKind || "tree"}`;
+}
+
+function getGatheringResultSfxType(resultKey) {
+  const key = GATHERING_TIMING_TIERS[resultKey] ? resultKey : "good";
+  return `gather-${key}`;
+}
+
+function getCraftingSfxType(skillName) {
+  const key = String(skillName || "").toLowerCase();
+  if (!key) return "craft-generic";
+  return `craft-${key}`;
+}
+
+function rollResourceNodeDrops(definition, skillLevel, rng, efficiency = null) {
+  const outcome = efficiency || { chanceBonus: 0, quantityScale: 1, flatBonus: 0, guaranteedPrimary: 0, key: "good" };
+  const drops = [];
+  (definition.drops || []).forEach((drop) => {
+    const chanceBonus = clamp(skillLevel * 0.0018 + (outcome.chanceBonus || 0), -0.18, 0.32);
+    const dropChance = clamp((drop.chance ?? 1) + chanceBonus, 0, 1);
+    if (rng.next() > dropChance) return;
+    let quantity = rng.int(drop.min || 1, drop.max || 1);
+    if (skillLevel >= 35 && rng.next() < 0.16) quantity += 1;
+    if (skillLevel >= 70 && rng.next() < 0.1) quantity += 1;
+    quantity = Math.max(1, Math.round(quantity * Math.max(0.45, outcome.quantityScale || 1)));
+    if ((outcome.flatBonus || 0) > 0 && ((drop.chance ?? 1) >= 1 || rng.next() < 0.24 + Math.min(0.24, Math.max(0, outcome.chanceBonus || 0)))) {
+      quantity += outcome.flatBonus;
+    }
+    drops.push({ id: drop.id, quantity });
+  });
+  if (!drops.length && (outcome.guaranteedPrimary || 0) > 0 && definition.drops?.length) {
+    const primary = definition.drops[0];
+    drops.push({
+      id: primary.id,
+      quantity: Math.max(1, (outcome.guaranteedPrimary || 1) + (outcome.key === "perfect" ? 1 : 0) + (skillLevel >= 60 && outcome.key !== "miss" ? 1 : 0)),
+    });
+  }
+  return drops;
+}
+
+function resolveFishingAttempt(attempt, rng, efficiency = null) {
+  // Hook point for a future active fishing minigame.
+  if (attempt?.useMinigame && typeof window.runFishingMinigame === "function") {
+    const minigameResult = window.runFishingMinigame(attempt);
+    if (minigameResult && typeof minigameResult === "object") return minigameResult;
+  }
+  const skillLevel = clamp(Math.floor(attempt?.skillLevel || 1), 1, SKILL_CAP_LEVEL);
+  const outcome = efficiency || getGatheringEfficiencyProfile("good", skillLevel);
+  const catchChance = clamp(0.58 + skillLevel * 0.0032 + (outcome.chanceBonus || 0) * 0.75, 0.38, 0.97);
+  if (rng.next() > catchChance) {
+    const pityCatch = outcome.key === "perfect" || (outcome.key === "great" && rng.next() < 0.42);
+    if (pityCatch) {
+      const pityCount = Math.max(1, 1 + (outcome.key === "perfect" ? 1 : 0) + (skillLevel >= 55 ? 1 : 0));
+      return {
+        drops: [{ id: "fresh_fish", quantity: pityCount }],
+        xp: Math.max(4, Math.round((8 + rng.int(0, 4)) * outcome.xpScale)),
+        message: `Late hook still lands ${pityCount} fish.`,
+      };
+    }
+    return {
+      drops: [],
+      xp: Math.max(3, Math.round((6 + rng.int(0, 3)) * outcome.xpScale)),
+      message: "The line slips free before the catch commits.",
+    };
+  }
+  let fishCount = 1 + (rng.next() < 0.28 ? 1 : 0);
+  if (skillLevel >= 60 && rng.next() < 0.15) fishCount += 1;
+  fishCount = Math.max(1, Math.round(fishCount * Math.max(0.55, outcome.quantityScale || 1))) + Math.max(0, outcome.flatBonus || 0);
+  const drops = [{ id: "fresh_fish", quantity: fishCount }];
+  if (rng.next() < clamp(0.12 + skillLevel * 0.0016 + Math.max(0, outcome.chanceBonus || 0) * 0.7, 0.12, 0.48)) {
+    drops.push({ id: "river_scale", quantity: 1 });
+  }
+  return {
+    drops,
+    xp: Math.max(1, Math.round((12 + rng.int(0, 5)) * outcome.xpScale)),
+    message: `${outcome.name} catch: ${fishCount} fish.`,
+  };
+}
+
+function buildGatheringRoundRewards(feature, roundResult, skillLevel, rng) {
+  const def = getResourceNodeDef(feature.resourceKind);
+  const efficiency = getGatheringEfficiencyProfile(roundResult.key, skillLevel);
+  if (feature.resourceKind === "fishing") {
+    return resolveFishingAttempt({
+      featureId: feature.id,
+      minigameId: feature.fishingState?.minigameId || def.minigameId || "fishing_basic_v1",
+      useMinigame: false,
+      skillLevel,
+    }, rng, efficiency);
+  }
+  return {
+    drops: rollResourceNodeDrops(def, skillLevel, rng, efficiency),
+    xp: Math.max(1, Math.round(rng.int(def.xpMin || 6, def.xpMax || 12) * efficiency.xpScale)),
+    message: `${roundResult.name} timing on pass ${roundResult.roundNumber}.`,
+  };
+}
+
+function buildGatheringCompletionBonus(feature, results, skillLevel, rng, totalRounds) {
+  const roundsCleared = Math.max(0, results?.length || 0);
+  const expectedRounds = Math.max(1, Math.floor(totalRounds || roundsCleared || 1));
+  if (!feature || roundsCleared <= 0 || expectedRounds <= 1 || roundsCleared < expectedRounds) return null;
+  const def = getResourceNodeDef(feature.resourceKind);
+  const averageScore = results.reduce((sum, result) => sum + getGatheringTimingScore(result), 0) / roundsCleared;
+  const perfectCount = results.filter((result) => result.key === "perfect").length;
+  const greatOrBetterCount = results.filter((result) => result.key === "great" || result.key === "perfect").length;
+  const skillFactor = clamp(skillLevel, 1, SKILL_CAP_LEVEL);
+  const baseBonusFactor = clamp(0.28 + averageScore * 0.42 + skillFactor * 0.0045, 0.35, 1.75);
+  const drops = [];
+
+  if (feature.resourceKind === "fishing") {
+    const fishBonus = Math.max(1, Math.round(roundsCleared * baseBonusFactor));
+    drops.push({ id: "fresh_fish", quantity: fishBonus });
+    const scaleChance = clamp(0.18 + averageScore * 0.16 + greatOrBetterCount * 0.08 + skillFactor * 0.0018, 0.18, 0.92);
+    if (rng.next() < scaleChance) {
+      drops.push({ id: "river_scale", quantity: 1 + (perfectCount >= 2 ? 1 : 0) });
+    }
+  } else {
+    const primary = def.drops?.[0];
+    if (primary) {
+      const primaryQty = Math.max(1, Math.round(roundsCleared * baseBonusFactor));
+      drops.push({ id: primary.id, quantity: primaryQty });
+    }
+    const secondary = def.drops?.[1];
+    if (secondary) {
+      let secondaryQty = 0;
+      const secondaryChance = clamp(0.12 + averageScore * 0.14 + greatOrBetterCount * 0.09 + skillFactor * 0.0016, 0.14, 0.88);
+      if (rng.next() < secondaryChance) secondaryQty += 1;
+      if (perfectCount > 0 && rng.next() < 0.4) secondaryQty += 1;
+      if (secondaryQty > 0) drops.push({ id: secondary.id, quantity: secondaryQty });
+    }
+  }
+
+  const qualityLabel = perfectCount === roundsCleared
+    ? "Perfect sweep"
+    : greatOrBetterCount >= Math.ceil(roundsCleared * 0.6)
+      ? "Clean sweep"
+      : "Full clear";
+  return {
+    drops,
+    xp: Math.max(2, Math.round(roundsCleared * (3 + averageScore * 2.4 + skillFactor * 0.03))),
+    label: `${qualityLabel} bonus`,
+    message: `${qualityLabel} bonus secured for clearing all ${roundsCleared} pull${roundsCleared === 1 ? "" : "s"}.`,
+  };
+}
+
+function finalizeGatheringSequence({ canceled = false, closeAfter = false } = {}) {
+  if (!state.game || !state.gathering) return;
+  stopGatheringSequenceTimers();
+  const gathering = state.gathering;
+  if (gathering.appliedRewards) {
+    if (closeAfter) state.gathering = null;
+    return;
+  }
+  const { player, runtimeRng } = state.game;
+  const feature = state.game.world.features.find((entry) => entry.id === gathering.featureId);
+  const completedRounds = gathering.results.length;
+  if (!feature || feature.type !== "resource" || completedRounds <= 0) {
+    if (canceled) addWorldLog("Gathering canceled before any yield was collected.");
+    if (closeAfter) state.gathering = null;
+    return;
+  }
+  const def = getResourceNodeDef(feature.resourceKind);
+  const totals = {};
+  const bonusTotals = {};
+  const roundMessages = [];
+  let xpTotal = 0;
+  gathering.results.forEach((result) => {
+    const reward = buildGatheringRoundRewards(feature, result, gathering.skillLevel, runtimeRng);
+    xpTotal += Math.max(1, Math.floor(reward.xp || 0));
+    if (reward.message) roundMessages.push(reward.message);
+    (reward.drops || []).forEach((drop) => {
+      totals[drop.id] = (totals[drop.id] || 0) + Math.max(1, Math.floor(drop.quantity || 1));
+    });
+  });
+  const completionBonus = buildGatheringCompletionBonus(feature, gathering.results, gathering.skillLevel, runtimeRng, gathering.totalRounds);
+  if (completionBonus) {
+    xpTotal += Math.max(1, Math.floor(completionBonus.xp || 0));
+    if (completionBonus.message) roundMessages.push(completionBonus.message);
+    (completionBonus.drops || []).forEach((drop) => {
+      const quantity = Math.max(1, Math.floor(drop.quantity || 1));
+      totals[drop.id] = (totals[drop.id] || 0) + quantity;
+      bonusTotals[drop.id] = (bonusTotals[drop.id] || 0) + quantity;
+    });
+  }
+
+  const rewardParts = Object.entries(totals).map(([materialId, quantity]) => {
+    const matDef = MATERIAL_DEFS[materialId];
+    if (!matDef) return null;
+    addStackableLoot(player, "material", matDef, quantity);
+    return `${quantity}x ${matDef.name}`;
+  }).filter(Boolean);
+  const bonusParts = Object.entries(bonusTotals).map(([materialId, quantity]) => {
+    const matDef = MATERIAL_DEFS[materialId];
+    if (!matDef) return null;
+    return `${quantity}x ${matDef.name}`;
+  }).filter(Boolean);
+
+  feature.charges = Math.max(0, feature.charges - completedRounds);
+  state.game.stepCount += 1;
+  if (feature.charges <= 0) {
+    feature.depletedUntil = state.game.stepCount + feature.respawnSteps;
+  }
+
+  const skillGain = gainSkillXp(player, def.skill, xpTotal, feature.name);
+  const resultSummary = summarizeGatheringTiming(gathering.results);
+  const earlyStopText = canceled && completedRounds < gathering.totalRounds ? " ended early" : "";
+  if (roundMessages.length) addWorldLog(`${feature.name}: ${roundMessages.join(" ")}`);
+  if (rewardParts.length) addWorldLog(`${def.actionLabel}${earlyStopText}: ${rewardParts.join(", ")}. Timing ${resultSummary}.`);
+  else addWorldLog(`${def.actionLabel}${earlyStopText}: no useful materials this cycle. Timing ${resultSummary}.`);
+  if (bonusParts.length) addWorldLog(`${feature.name} ${(completionBonus?.label || "clear bonus").toLowerCase()}: ${bonusParts.join(", ")}.`);
+  if (feature.charges <= 0) addWorldLog(`${feature.name} is depleted for ${feature.respawnSteps} steps.`);
+  logSkillXpProgress(player, def.skill, skillGain);
+  maybeTriggerDynamicWorldEvent(feature);
+  renderWorld();
+
+  gathering.appliedRewards = true;
+  gathering.completed = true;
+  gathering.rewardSummary = {
+    rewardParts,
+    bonusParts,
+    bonusLabel: completionBonus?.label || "",
+    xpTotal,
+    resultSummary,
+    roundsUsed: completedRounds,
+    roundsTotal: gathering.totalRounds,
+    earlyStop: canceled && completedRounds < gathering.totalRounds,
+  };
+  if (closeAfter) {
+    state.gathering = null;
+    return;
+  }
+  renderModal();
+}
+
+function resolveGatheringTimingInput() {
+  if (!state.gathering || state.gathering.completed || state.gathering.waitingResult) return;
+  stopGatheringSequenceTimers();
+  const result = evaluateGatheringTimingResult();
+  state.gathering.results.push(result);
+  state.gathering.waitingResult = true;
+  state.gathering.lastResult = result;
+  playSfx(getGatheringSfxType(state.gathering.resourceKind));
+  playSfx(getGatheringResultSfxType(result.key));
+  renderModal();
+  state.gathering.advanceTimeoutId = window.setTimeout(() => {
+    if (!state.gathering) return;
+    if (state.gathering.results.length >= state.gathering.totalRounds) {
+      finalizeGatheringSequence();
+      return;
+    }
+    state.gathering.roundIndex += 1;
+    setupGatheringSequenceRound();
+    renderModal();
+    startGatheringSequenceLoop();
+  }, 520);
+}
+
+function gatherResourceNode(feature) {
+  if (!state.game || !feature || feature.type !== "resource") return;
+  const { player } = state.game;
+  refreshResourceNode(feature, state.game.stepCount);
+  const def = getResourceNodeDef(feature.resourceKind);
+  const status = getResourceNodeStatus(feature, state.game.stepCount);
+  if (!status.ready) {
+    addWorldLog(`${feature.name} is depleted. Respawns in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}.`);
+    return;
+  }
+  const skillLevel = getPlayerSkillEntry(player, def.skill)?.level || 1;
+  stopGatheringSequenceTimers();
+  state.gathering = {
+    featureId: feature.id,
+    feature,
+    featureName: feature.name,
+    resourceKind: feature.resourceKind,
+    skillName: def.skill,
+    skillLevel,
+    biome: getResourceNodeBiome(feature),
+    totalRounds: Math.max(1, status.charges),
+    roundIndex: 0,
+    results: [],
+    progress: 0,
+    direction: 1,
+    speed: 1,
+    waitingResult: false,
+    completed: false,
+    appliedRewards: false,
+    round: null,
+    frameId: 0,
+    advanceTimeoutId: 0,
+    lastFrameAt: 0,
+    rewardSummary: null,
+    lastResult: null,
+  };
+  setupGatheringSequenceRound();
+  state.modal = "gathering";
+  state.modalData = { featureId: feature.id };
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+  startGatheringSequenceLoop();
+}
+
+function getMaterialCount(player, materialId) {
+  if (!player || !materialId) return 0;
+  return player.bag
+    .filter((item) => item.kind === "material" && item.id === materialId)
+    .reduce((sum, item) => sum + Math.max(0, item.quantity || 0), 0);
+}
+
+function consumeMaterialFromBag(player, materialId, quantity) {
+  if (!player || !materialId || quantity <= 0) return false;
+  let remaining = Math.max(0, Math.floor(quantity));
+  for (let i = player.bag.length - 1; i >= 0 && remaining > 0; i -= 1) {
+    const item = player.bag[i];
+    if (item.kind !== "material" || item.id !== materialId) continue;
+    const spend = Math.min(remaining, Math.max(0, item.quantity || 0));
+    item.quantity -= spend;
+    remaining -= spend;
+    if (item.quantity <= 0) player.bag.splice(i, 1);
+  }
+  return remaining <= 0;
+}
+
+function evaluateCraftingRecipe(player, recipe) {
+  if (!player || !recipe) return { ok: false, reason: "Recipe unavailable." };
+  const skillLevel = getPlayerSkillEntry(player, recipe.skill)?.level || 1;
+  if (skillLevel < recipe.minLevel) {
+    return { ok: false, reason: `Requires ${recipe.skill} Lv ${recipe.minLevel}.` };
+  }
+  for (const cost of recipe.costs || []) {
+    if (getMaterialCount(player, cost.id) < cost.qty) {
+      const matDef = MATERIAL_DEFS[cost.id];
+      return { ok: false, reason: `Missing ${matDef ? matDef.name : cost.id}.` };
+    }
+  }
+  return { ok: true, reason: "Ready." };
+}
+
+function describeCraftingRecipeOutput(recipe) {
+  const output = recipe?.output || {};
+  if (output.kind === "consumable") {
+    const def = CONSUMABLE_DEFS[output.id];
+    return `${output.quantity || 1}x ${def ? def.name : output.id}`;
+  }
+  if (output.kind === "equipment") {
+    return output.equipment?.name || "Crafted Equipment";
+  }
+  if (output.kind === "material") {
+    const def = MATERIAL_DEFS[output.id];
+    return `${output.quantity || 1}x ${def ? def.name : output.id}`;
+  }
+  return "Unknown";
+}
+
+function createCraftedEquipmentFromRecipe(recipe, player) {
+  const template = recipe?.output?.equipment;
+  if (!template) return null;
+  const skillLevel = getPlayerSkillEntry(player, recipe.skill)?.level || 1;
+  const qualityTier = clamp(1 + Math.floor(skillLevel / 12), 1, 10);
+  let rarity = "Common";
+  if (skillLevel >= 70) rarity = "Legendary";
+  else if (skillLevel >= 55) rarity = "Epic";
+  else if (skillLevel >= 40) rarity = "Rare";
+  else if (skillLevel >= 25) rarity = "Uncommon";
+  const statBonus = Math.floor(skillLevel / 30);
+  const modifiers = createZeroStats();
+  Object.entries(template.modifiers || {}).forEach(([stat, value]) => {
+    if (!ALL_STATS.includes(stat)) return;
+    modifiers[stat] = Math.max(0, Math.floor(value + statBonus));
+  });
+  const levelReq = clamp((template.levelReqBase || 1) + Math.floor(skillLevel / 18), 1, MAX_LEVEL);
+  const item = {
+    uid: createItemUid(),
+    kind: "equipment",
+    slot: template.slot || "Accessory1",
+    name: template.name || "Crafted Gear",
+    levelReq,
+    tier: qualityTier,
+    rarity,
+    modifiers,
+  };
+  if (item.slot === "Weapon") {
+    item.attackType = template.attackType || inferAttackTypeFromModifiers({ modifiers });
+    item.weaponTemplateId = template.id || null;
+    item.weaponFamily = getWeaponFamilyKey(template, item.attackType);
+    item.damageDie = Math.max(3, Math.floor((template.damageDie || 6) + Math.floor(skillLevel / 40)));
+    item.damageKind = template.damageKind || defaultDamageKindForAttackType(item.attackType);
+    item.speed = clamp(Math.floor(template.speed || 6), 1, 10);
+    item.hitBonus = Math.floor(template.hitBonus || 0);
+    item.critBonus = Math.floor((template.critBonus || 0) + Math.floor(skillLevel / 50));
+    item.summary = template.summary || "";
+    const key = `${item.attackType}Attack`;
+    if (ALL_STATS.includes(key)) modifiers[key] = Math.max(1, modifiers[key] || 1);
+    normalizeWeaponItem(item);
+  }
+  return item;
+}
+
+function craftRecipeById(recipeId) {
+  if (!state.game || !recipeId) return;
+  const player = state.game.player;
+  const recipe = CRAFTING_RECIPES.find((entry) => entry.id === recipeId);
+  if (!recipe) return;
+  const check = evaluateCraftingRecipe(player, recipe);
+  if (!check.ok) {
+    addWorldLog(check.reason);
+    return;
+  }
+  const output = recipe.output || {};
+  let craftedName = describeCraftingRecipeOutput(recipe);
+  let craftedItem = null;
+
+  if (output.kind === "consumable") {
+    craftedName = `${output.quantity || 1}x ${CONSUMABLE_DEFS[output.id]?.name || output.id}`;
+  } else if (output.kind === "equipment") {
+    craftedItem = createCraftedEquipmentFromRecipe(recipe, player);
+    if (!craftedItem) {
+      addWorldLog("Crafting failed: invalid recipe output.");
+      return;
+    }
+    craftedName = craftedItem.name;
+  } else if (output.kind === "material") {
+    const matDef = MATERIAL_DEFS[output.id];
+    if (!matDef) {
+      addWorldLog("Crafting failed: unknown material output.");
+      return;
+    }
+    craftedName = `${output.quantity || 1}x ${matDef.name}`;
+  } else {
+    addWorldLog("Crafting failed: unsupported output.");
+    return;
+  }
+
+  (recipe.costs || []).forEach((cost) => consumeMaterialFromBag(player, cost.id, cost.qty));
+  if (output.kind === "consumable") {
+    addConsumableToBag(player, output.id, output.quantity || 1);
+  } else if (output.kind === "equipment" && craftedItem) {
+    addItemToBag(player, craftedItem);
+  } else if (output.kind === "material") {
+    addStackableLoot(player, "material", MATERIAL_DEFS[output.id], output.quantity || 1);
+  }
+
+  const recipeXp = recipe.xp || 12;
+  const skillGain = gainSkillXp(player, recipe.skill, recipeXp, recipe.name);
+  const craftingGain = recipe.skill === "Crafting"
+    ? null
+    : gainSkillXp(player, "Crafting", Math.max(1, Math.floor(recipeXp * 0.75)), recipe.name);
+  state.game.stepCount += 1;
+  addWorldLog(`Crafted ${craftedName} using ${recipe.name}.`);
+  logSkillXpProgress(player, recipe.skill, skillGain);
+  logSkillXpProgress(player, "Crafting", craftingGain);
+  playSfx(getCraftingSfxType(recipe.skill));
+  playSfx("craft-finish");
+  maybeTriggerDynamicWorldEvent(state.modalData?.feature || null);
 }
 
 function recalculatePlayerStats(player, keepHealthRatio = false) {
@@ -3722,6 +5330,8 @@ function createStarterWeapon(template) {
     kind: "equipment",
     slot: "Weapon",
     attackType,
+    weaponTemplateId: chosen.id || null,
+    weaponFamily: getWeaponFamilyKey(chosen, attackType),
     damageDie: chosen.damageDie || 6,
     damageKind: chosen.damageKind || defaultDamageKindForAttackType(attackType),
     speed: getWeaponSpeed(chosen),
@@ -3731,12 +5341,359 @@ function createStarterWeapon(template) {
     rarity: "Common",
     levelReq: 1,
     name: chosen.name || "Rusty Weapon",
+    summary: chosen.summary || "",
     modifiers,
   };
 }
 
 function createItemUid() {
   return `itm_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+}
+
+function createDefaultSkillState() {
+  const result = {};
+  SKILL_ORDER.forEach((skillName) => {
+    result[skillName] = { level: 1, xp: 0 };
+  });
+  return result;
+}
+
+function normalizeSkillState(savedSkills) {
+  const normalized = createDefaultSkillState();
+  SKILL_ORDER.forEach((skillName) => {
+    const incoming = savedSkills && typeof savedSkills === "object" ? savedSkills[skillName] : null;
+    if (!incoming || typeof incoming !== "object") return;
+    const level = clamp(Math.floor(incoming.level || 1), 1, SKILL_CAP_LEVEL);
+    const nextXp = xpToNextSkillLevel(level);
+    normalized[skillName] = {
+      level,
+      xp: level >= SKILL_CAP_LEVEL ? 0 : clamp(Math.floor(incoming.xp || 0), 0, Math.max(0, nextXp - 1)),
+    };
+  });
+  return normalized;
+}
+
+function xpToNextSkillLevel(level) {
+  if (level >= SKILL_CAP_LEVEL) return 0;
+  return 40 + level * 16;
+}
+
+function ensurePlayerSkills(player) {
+  if (!player) return createDefaultSkillState();
+  if (!player.skills || typeof player.skills !== "object") {
+    player.skills = createDefaultSkillState();
+    return player.skills;
+  }
+  player.skills = normalizeSkillState(player.skills);
+  return player.skills;
+}
+
+function getPlayerSkillEntry(player, skillName) {
+  if (!player || !skillName || !SKILL_DEFS[skillName]) return null;
+  const skills = ensurePlayerSkills(player);
+  if (!skills[skillName]) skills[skillName] = { level: 1, xp: 0 };
+  return skills[skillName];
+}
+
+function gainSkillXp(player, skillName, amount, sourceLabel = "") {
+  const entry = getPlayerSkillEntry(player, skillName);
+  if (!entry) return null;
+  const gained = Math.max(0, Math.floor(amount || 0));
+  if (gained <= 0 || entry.level >= SKILL_CAP_LEVEL) return { gained: 0, levels: 0, level: entry.level, xp: entry.xp };
+  entry.xp += gained;
+  let levels = 0;
+  while (entry.level < SKILL_CAP_LEVEL) {
+    const need = xpToNextSkillLevel(entry.level);
+    if (entry.xp < need) break;
+    entry.xp -= need;
+    entry.level += 1;
+    levels += 1;
+  }
+  if (entry.level >= SKILL_CAP_LEVEL) {
+    entry.level = SKILL_CAP_LEVEL;
+    entry.xp = 0;
+  }
+  if (levels > 0 && state.game) {
+    const source = sourceLabel ? ` from ${sourceLabel}` : "";
+    addWorldLog(`${skillName} leveled to ${entry.level}${source}.`);
+  }
+  return { gained, levels, level: entry.level, xp: entry.xp };
+}
+
+function logSkillXpProgress(player, skillName, skillGain) {
+  if (!skillGain?.gained) return;
+  const entry = getPlayerSkillEntry(player, skillName);
+  if (!entry) return;
+  const next = xpToNextSkillLevel(entry.level);
+  const xpText = entry.level >= SKILL_CAP_LEVEL ? "MAX" : `${entry.xp}/${next}`;
+  addWorldLog(`${skillName} +${skillGain.gained} XP (Lv ${entry.level}, ${xpText}).`);
+}
+
+function createWeaponMasteryEntry(points = 0, uses = 0, hits = 0, kills = 0) {
+  return {
+    points: Math.max(0, Math.floor(points || 0)),
+    uses: Math.max(0, Math.floor(uses || 0)),
+    hits: Math.max(0, Math.floor(hits || 0)),
+    kills: Math.max(0, Math.floor(kills || 0)),
+  };
+}
+
+function createDefaultWeaponMasteryState(initialPointsByFamily = {}) {
+  const result = {};
+  WEAPON_FAMILY_ORDER.forEach((familyKey) => {
+    const startingPoints = initialPointsByFamily && typeof initialPointsByFamily === "object"
+      ? initialPointsByFamily[familyKey]
+      : 0;
+    result[familyKey] = createWeaponMasteryEntry(startingPoints);
+  });
+  return result;
+}
+
+function normalizeWeaponMasteryState(savedMastery, legacyLevel = 0) {
+  const hasSaved = !!(savedMastery && typeof savedMastery === "object" && Object.keys(savedMastery).length);
+  const fallbackPoints = !hasSaved && legacyLevel > 0 ? Math.max(1, Math.floor(legacyLevel)) : 0;
+  const normalized = {};
+  WEAPON_FAMILY_ORDER.forEach((familyKey) => {
+    const incoming = hasSaved ? savedMastery[familyKey] : null;
+    if (incoming && typeof incoming === "object") {
+      normalized[familyKey] = createWeaponMasteryEntry(
+        incoming.points ?? incoming.mastery ?? incoming.level ?? 0,
+        incoming.uses,
+        incoming.hits,
+        incoming.kills,
+      );
+      return;
+    }
+    normalized[familyKey] = createWeaponMasteryEntry(fallbackPoints);
+  });
+  return normalized;
+}
+
+function ensurePlayerWeaponMastery(player) {
+  if (!player) return createDefaultWeaponMasteryState();
+  if (!player.weaponMastery || typeof player.weaponMastery !== "object") {
+    player.weaponMastery = createDefaultWeaponMasteryState();
+    return player.weaponMastery;
+  }
+  player.weaponMastery = normalizeWeaponMasteryState(player.weaponMastery);
+  return player.weaponMastery;
+}
+
+function getWeaponMasteryEntry(player, weaponOrFamily, fallbackStyle = "Melee") {
+  if (!player) return createWeaponMasteryEntry();
+  const familyKey = typeof weaponOrFamily === "string" && WEAPON_FAMILY_DEFS[weaponOrFamily]
+    ? weaponOrFamily
+    : getWeaponFamilyKey(weaponOrFamily, fallbackStyle);
+  const mastery = ensurePlayerWeaponMastery(player);
+  if (!mastery[familyKey]) mastery[familyKey] = createWeaponMasteryEntry();
+  return mastery[familyKey];
+}
+
+function getAbilityMasteryRequirement(ability) {
+  return Math.max(1, Math.floor(ability?.mastery ?? ability?.level ?? 1));
+}
+
+function getWeaponMasterySnapshot(player, weaponOrFamily, fallbackStyle = "Melee") {
+  const familyKey = typeof weaponOrFamily === "string" && WEAPON_FAMILY_DEFS[weaponOrFamily]
+    ? weaponOrFamily
+    : getWeaponFamilyKey(weaponOrFamily, fallbackStyle);
+  const family = getWeaponFamilyDefinition(familyKey, fallbackStyle);
+  const style = family.style || fallbackStyle || "Melee";
+  const entry = getWeaponMasteryEntry(player, familyKey, style);
+  const abilities = getWeaponAbilitySet(familyKey, style);
+  const masteryPoints = Math.max(0, entry.points || 0);
+  const unlocked = abilities.filter((ability) => masteryPoints >= getAbilityMasteryRequirement(ability));
+  const next = abilities.find((ability) => getAbilityMasteryRequirement(ability) > masteryPoints) || null;
+  const previousRequirement = unlocked.length ? getAbilityMasteryRequirement(unlocked[unlocked.length - 1]) : 0;
+  const nextRequirement = next ? getAbilityMasteryRequirement(next) : null;
+  const progressPercent = nextRequirement
+    ? clamp(Math.floor(((masteryPoints - previousRequirement) / Math.max(1, nextRequirement - previousRequirement)) * 100), 0, 100)
+    : 100;
+  return {
+    familyKey,
+    family,
+    style,
+    entry,
+    masteryPoints,
+    abilities,
+    unlocked,
+    next,
+    previousRequirement,
+    nextRequirement,
+    progressPercent,
+    learnedCount: unlocked.length,
+    totalCount: abilities.length,
+  };
+}
+
+function awardWeaponMastery(player, weapon, options = {}) {
+  if (!player || !weapon) return null;
+  const style = weapon.attackType || options.style || "Melee";
+  const familyKey = getWeaponFamilyKey(weapon, style);
+  const entry = getWeaponMasteryEntry(player, familyKey, style);
+  const beforePoints = Math.max(0, entry.points || 0);
+  let gained = 1;
+  if (options.kind === "skill") gained += 1;
+  if (options.hit) gained += 1;
+  if (options.critical) gained += 1;
+  if (options.affinityKind === "weak") gained += 1;
+  if (options.killedEnemy) gained += 2;
+  if (options.enemyBoss) gained += 2;
+  if (Number.isFinite(options.enemyLevel) && options.enemyLevel >= 20) gained += Math.floor(options.enemyLevel / 20);
+  gained = Math.max(1, Math.floor(gained));
+
+  entry.points = beforePoints + gained;
+  entry.uses += 1;
+  if (options.hit) entry.hits += 1;
+  if (options.killedEnemy) entry.kills += 1;
+
+  const snapshot = getWeaponMasterySnapshot(player, familyKey, style);
+  const unlockedNow = snapshot.abilities.filter((ability) => {
+    const requirement = getAbilityMasteryRequirement(ability);
+    return requirement > beforePoints && requirement <= snapshot.masteryPoints;
+  });
+  return {
+    familyKey,
+    gained,
+    beforePoints,
+    afterPoints: snapshot.masteryPoints,
+    entry,
+    unlockedNow,
+    snapshot,
+  };
+}
+
+function appendCombatLogSilently(line) {
+  if (!state.combat || !line) return;
+  state.combat.log.push(line);
+  if (state.combat.log.length > COMBAT_LOG_LIMIT) {
+    state.combat.log = state.combat.log.slice(-COMBAT_LOG_LIMIT);
+  }
+}
+
+function announceWeaponMasteryUnlocks(gainInfo) {
+  if (!gainInfo?.unlockedNow?.length) return;
+  const family = gainInfo.snapshot?.family || getWeaponFamilyDefinition(gainInfo.familyKey, gainInfo.snapshot?.style || "Melee");
+  const style = gainInfo.snapshot?.style || family.style || "Melee";
+  gainInfo.unlockedNow.forEach((ability) => {
+    const requirement = getAbilityMasteryRequirement(ability);
+    const type = style === "Magic" ? "spell" : "technique";
+    addWorldLog(`${family.discipline} ${type} learned: ${ability.name} (${family.name} mastery ${requirement}).`);
+    appendCombatLogSilently(`Mastery learned: ${ability.name} (${family.name} ${requirement}).`);
+  });
+}
+
+function formatWeaponMasteryGain(gainInfo) {
+  if (!gainInfo?.gained || !gainInfo.snapshot?.family) return "";
+  return ` ${gainInfo.snapshot.family.name} mastery +${gainInfo.gained}.`;
+}
+
+function getResourceNodeDef(resourceKind) {
+  return RESOURCE_NODE_DEFS[resourceKind] || RESOURCE_NODE_DEFS.tree;
+}
+
+function normalizeResourceNode(feature) {
+  if (!feature || feature.type !== "resource") return;
+  feature.resourceKind = RESOURCE_NODE_DEFS[feature.resourceKind] ? feature.resourceKind : "tree";
+  const def = getResourceNodeDef(feature.resourceKind);
+  feature.name = feature.name || def.label;
+  feature.skill = SKILL_DEFS[feature.skill] ? feature.skill : def.skill;
+  const minCharges = Math.max(1, def.minCharges || 1);
+  const maxCharges = Math.max(minCharges, def.maxCharges || minCharges);
+  feature.maxCharges = clamp(Math.floor(feature.maxCharges || maxCharges), minCharges, Math.max(12, maxCharges));
+  feature.charges = clamp(Math.floor(feature.charges ?? feature.maxCharges), 0, feature.maxCharges);
+  feature.respawnSteps = Math.max(6, Math.floor(feature.respawnSteps || def.respawnSteps || 18));
+  feature.depletedUntil = Math.max(0, Math.floor(feature.depletedUntil || 0));
+  if (feature.resourceKind === "fishing") {
+    if (!feature.fishingState || typeof feature.fishingState !== "object") feature.fishingState = {};
+    feature.fishingState.minigameId = feature.fishingState.minigameId || def.minigameId || "fishing_basic_v1";
+    feature.fishingState.minigameReady = feature.fishingState.minigameReady !== false;
+    feature.fishingState.useMinigame = !!feature.fishingState.useMinigame;
+  }
+}
+
+function refreshResourceNode(feature, stepCount = state.game?.stepCount || 0) {
+  if (!feature || feature.type !== "resource") return null;
+  normalizeResourceNode(feature);
+  if (feature.charges <= 0 && stepCount >= feature.depletedUntil) {
+    feature.charges = feature.maxCharges;
+    feature.depletedUntil = 0;
+  }
+  return feature;
+}
+
+function getResourceNodeStatus(feature, stepCount = state.game?.stepCount || 0) {
+  const node = refreshResourceNode(feature, stepCount);
+  if (!node) return { ready: false, charges: 0, maxCharges: 0, stepsRemaining: 0 };
+  if (node.charges > 0) {
+    return { ready: true, charges: node.charges, maxCharges: node.maxCharges, stepsRemaining: 0 };
+  }
+  return {
+    ready: false,
+    charges: 0,
+    maxCharges: node.maxCharges,
+    stepsRemaining: Math.max(0, node.depletedUntil - stepCount),
+  };
+}
+
+function findPlacementForBiomes(rng, occupied, tiles, biomes, minDistance = 2) {
+  const biomeSet = new Set(biomes || []);
+  for (let attempts = 0; attempts < 1200; attempts += 1) {
+    const x = rng.int(1, MAP_WIDTH - 2);
+    const y = rng.int(1, MAP_HEIGHT - 2);
+    if (biomeSet.size > 0 && !biomeSet.has(tiles[y][x].biome)) continue;
+    const key = featureKey(x, y);
+    if (occupied.has(key)) continue;
+    let tooClose = false;
+    for (const existing of occupied) {
+      const [ex, ey] = existing.split(",").map(Number);
+      if (Math.abs(ex - x) + Math.abs(ey - y) < minDistance) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (!tooClose) return { x, y };
+  }
+  return findPlacementSpot(rng, occupied, tiles, true);
+}
+
+function addResourceNodesToWorld(rng, tiles, features, occupied) {
+  const plans = [
+    { kind: "tree", count: rng.int(28, 40), minDistance: 2 },
+    { kind: "herb", count: rng.int(20, 32), minDistance: 2 },
+    { kind: "ore", count: rng.int(20, 30), minDistance: 2 },
+    { kind: "hide", count: rng.int(18, 28), minDistance: 2 },
+    { kind: "fishing", count: rng.int(18, 28), minDistance: 2 },
+  ];
+  plans.forEach((plan) => {
+    const def = getResourceNodeDef(plan.kind);
+    for (let i = 0; i < plan.count; i += 1) {
+      const spot = findPlacementForBiomes(rng, occupied, tiles, def.placementBiomes || [], plan.minDistance || 2);
+      const charges = rng.int(def.minCharges || 1, def.maxCharges || 1);
+      const node = {
+        id: `resource_${plan.kind}_${i}`,
+        type: "resource",
+        resourceKind: plan.kind,
+        name: `${def.label} ${i + 1}`,
+        skill: def.skill,
+        x: spot.x,
+        y: spot.y,
+        maxCharges: charges,
+        charges,
+        respawnSteps: def.respawnSteps || 18,
+        depletedUntil: 0,
+      };
+      if (plan.kind === "fishing") {
+        node.fishingState = {
+          minigameId: def.minigameId || "fishing_basic_v1",
+          minigameReady: true,
+          useMinigame: false,
+        };
+      }
+      features.push(node);
+      occupied.add(featureKey(spot.x, spot.y));
+    }
+  });
 }
 
 function generateWorld(seedText) {
@@ -3893,6 +5850,8 @@ function generateWorld(seedText) {
       targetName: `${label} A`,
     });
   }
+
+  addResourceNodesToWorld(rng, tiles, features, occupied);
 
   features.forEach((feature) => {
     if ((feature.type === "city" || feature.type === "town") && feature.hasShop) {
@@ -4076,6 +6035,20 @@ function openShopAtFeature(feature) {
   }
   state.modal = "shop";
   state.modalData = { feature };
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+}
+
+function openCraftingMenu(feature = null) {
+  if (!state.game) return;
+  const activeFeature = feature || getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
+  if (!activeFeature || (activeFeature.type !== "city" && activeFeature.type !== "town")) {
+    addWorldLog("Crafting stations are available in towns and cities.");
+    return;
+  }
+  state.modal = "crafting";
+  state.modalData = { feature: activeFeature };
   els.modalBackdrop.classList.remove("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "false");
   renderModal();
@@ -4646,6 +6619,7 @@ function saveGame() {
     version: 1,
     savedAt: new Date().toISOString(),
     options: state.options,
+    ui: { map: state.map },
     game: serializeGame(state.game),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -4663,6 +6637,7 @@ function loadGame() {
   }
   if (!parsed || !parsed.game) return false;
   state.options = normalizeOptions({ ...state.options, ...(parsed.options || {}) });
+  state.map = normalizeMapViewState({ ...state.map, ...(parsed.ui?.map || {}) });
   updateOptionsUi();
   applyAudioMixLevels();
   state.game = hydrateGame(parsed.game);
@@ -4720,8 +6695,16 @@ function hydrateGame(saved) {
       feature.hasShop = feature.hasShop !== false;
       feature.hasInn = feature.hasInn !== false;
       feature.shopTier = feature.shopTier || 1;
-      feature.shopStock = feature.shopStock || [];
+      feature.shopStock = (feature.shopStock || []).map((entry) => {
+        if (entry?.kind === "equipment" && entry.item) {
+          entry.item.modifiers = copyStats(entry.item.modifiers || {});
+          normalizeWeaponItem(entry.item);
+        }
+        return entry;
+      });
       feature.lastRestockStep = Number.isFinite(feature.lastRestockStep) ? feature.lastRestockStep : 0;
+    } else if (feature.type === "resource") {
+      normalizeResourceNode(feature);
     } else if (feature.type === "grave") {
       feature.items = Array.isArray(feature.items) ? feature.items : [];
       feature.items = feature.items
@@ -4742,6 +6725,8 @@ function hydrateGame(saved) {
   player.activeEffects = player.activeEffects || [];
   player.gold = Number.isFinite(player.gold) ? player.gold : 0;
   player.unspentStatPoints = Number.isFinite(player.unspentStatPoints) ? player.unspentStatPoints : 0;
+  player.skills = normalizeSkillState(player.skills);
+  player.weaponMastery = normalizeWeaponMasteryState(player.weaponMastery, player.level);
   EQUIPMENT_SLOTS.forEach((slot) => {
     if (!player.equipment[slot]) return;
     player.equipment[slot].modifiers = copyStats(player.equipment[slot].modifiers || {});
@@ -4752,6 +6737,7 @@ function hydrateGame(saved) {
     item.modifiers = copyStats(item.modifiers || {});
     normalizeWeaponItem(item);
   });
+  syncPlayerStyleToWeapon(player);
   recalculatePlayerStats(player, true);
   return {
     seed: saved.seed,
@@ -4796,6 +6782,14 @@ function hydrateGame(saved) {
 function usesFocusNavigation() {
   if (state.modal) return true;
   return ["menu", "intro", "create", "options", "combat"].includes(state.screen);
+}
+
+function focusButtonByDataset(key, value) {
+  if (!key || value == null) return;
+  const index = state.focusables.findIndex((button) => button?.dataset?.[key] === value);
+  if (index < 0) return;
+  state.focusIndex = index;
+  applyFocusStyles();
 }
 
 function updateFocusables() {
@@ -4846,7 +6840,8 @@ function activateFocused() {
 
 function handleBackAction() {
   if (state.modal) return closeModal();
-  if (state.screen === "intro" || state.screen === "create" || state.screen === "options") return showScreen("menu");
+  if (state.screen === "options") return closeOptionsScreen();
+  if (state.screen === "intro" || state.screen === "create") return showScreen("menu");
   if (state.screen === "combat" && state.combat?.result) return endCombatAndReturnToWorld();
   if (state.screen === "world") requestMainMenuReturn();
 }
@@ -4922,6 +6917,7 @@ function pollGamepad(now) {
     }
     if (edge(3)) openCharacterMenu();
     if (edge(0)) handleWorldInteract();
+    if (edge(8)) openOptionsScreen("world");
     if (edge(9)) saveGame();
     if (edge(1)) requestMainMenuReturn();
   }
@@ -5137,6 +7133,15 @@ function getWeaponsForStyle(style) {
   return WEAPON_LIBRARY[style] || WEAPON_LIBRARY.Melee || [];
 }
 
+function findWeaponTemplateById(weaponId) {
+  if (!weaponId) return null;
+  for (const list of Object.values(WEAPON_LIBRARY)) {
+    const found = list.find((entry) => entry.id === weaponId);
+    if (found) return found;
+  }
+  return null;
+}
+
 function getDefaultWeaponIdForStyle(style) {
   const styleData = COMBAT_STYLES[style] || COMBAT_STYLES.Melee;
   if (styleData?.defaultWeaponId) return styleData.defaultWeaponId;
@@ -5178,6 +7183,83 @@ function inferAttackTypeFromModifiers(item) {
   return attackValues[0].key;
 }
 
+function getWeaponFamilyKey(weapon, fallbackStyle = "Melee") {
+  const style = weapon?.attackType || fallbackStyle || "Melee";
+  if (weapon?.weaponFamily && WEAPON_FAMILY_DEFS[weapon.weaponFamily]) return weapon.weaponFamily;
+  const template = weapon?.weaponTemplateId ? findWeaponTemplateById(weapon.weaponTemplateId) : weapon?.id ? findWeaponTemplateById(weapon.id) : null;
+  if (template?.weaponFamily) return template.weaponFamily;
+
+  const name = String(weapon?.name || "").toLowerCase();
+  if (style === "Melee") {
+    if (name.includes("dagger") || name.includes("stiletto")) return "dagger";
+    if (name.includes("rapier") || name.includes("scimitar") || name.includes("sword") || name.includes("falchion") || name.includes("blade")) return "sword";
+    if (name.includes("axe")) return "axe";
+    if (name.includes("flail") || name.includes("morningstar")) return "flail";
+    if (name.includes("glaive") || name.includes("halberd")) return "polearm";
+    if (name.includes("spear") || name.includes("trident") || name.includes("pike") || weapon?.damageKind === "Pierce") {
+      return weapon?.speed >= 8 && (weapon?.damageDie || 0) <= 5 ? "dagger" : "spear";
+    }
+    if (name.includes("staff")) return "quarterstaff";
+    if (name.includes("hammer") || name.includes("mace") || name.includes("maul") || name.includes("club") || weapon?.damageKind === "Blunt") {
+      return weapon?.speed >= 7 && (weapon?.damageDie || 0) <= 7 ? "quarterstaff" : "hammer";
+    }
+  }
+
+  if (style === "Ranged") {
+    if (name.includes("crossbow")) return "crossbow";
+    if (name.includes("sling")) return "sling";
+    if (name.includes("knife") || name.includes("chakram") || name.includes("javelin") || name.includes("dart") || name.includes("throw")) return "thrown";
+    if (name.includes("bow")) return "bow";
+    if (weapon?.damageKind === "Blunt") return "sling";
+    if (weapon?.damageKind === "Slash") return "thrown";
+    if ((weapon?.damageDie || 0) >= 10 || (weapon?.speed || 5) <= 4) return "crossbow";
+    return "bow";
+  }
+
+  if (style === "Magic") {
+    if (name.includes("wand")) return "wand";
+    if (name.includes("staff")) return "magic_staff";
+    if (name.includes("rod")) return "rod";
+    if (name.includes("tome") || name.includes("grimoire") || name.includes("codex") || name.includes("book")) return "tome";
+    if (name.includes("focus")) return "focus";
+    if (name.includes("scepter")) return "scepter";
+    if (name.includes("orb")) return "orb";
+    if (weapon?.damageKind === "Lightning" || weapon?.damageKind === "Wind") return "focus";
+    if (weapon?.damageKind === "Earth" || weapon?.damageKind === "Water") return (weapon?.damageDie || 0) >= 8 ? "scepter" : "tome";
+    if (weapon?.damageKind === "Fire" || weapon?.damageKind === "Ice") return "rod";
+    if ((weapon?.critBonus || 0) >= 3) return "orb";
+    if ((weapon?.speed || 5) >= 8) return "wand";
+    if ((weapon?.damageDie || 0) >= 8) return "magic_staff";
+  }
+
+  return DEFAULT_WEAPON_FAMILY_BY_STYLE[style] || DEFAULT_WEAPON_FAMILY_BY_STYLE.Melee;
+}
+
+function getWeaponFamilyDefinition(weaponOrFamily, fallbackStyle = "Melee") {
+  const familyKey = typeof weaponOrFamily === "string"
+    ? weaponOrFamily
+    : getWeaponFamilyKey(weaponOrFamily, fallbackStyle);
+  const fallbackKey = DEFAULT_WEAPON_FAMILY_BY_STYLE[fallbackStyle] || DEFAULT_WEAPON_FAMILY_BY_STYLE.Melee;
+  return WEAPON_FAMILY_DEFS[familyKey] || WEAPON_FAMILY_DEFS[fallbackKey] || WEAPON_FAMILY_DEFS.sword;
+}
+
+function getWeaponDiscipline(weapon, fallbackStyle = "Melee") {
+  return getWeaponFamilyDefinition(weapon, fallbackStyle).discipline || fallbackStyle;
+}
+
+function syncPlayerStyleToWeapon(player) {
+  if (!player) return "Melee";
+  const weaponStyle = player.equipment?.Weapon?.attackType;
+  if (weaponStyle && ATTACK_TO_STATS[weaponStyle]) player.style = weaponStyle;
+  if (!ATTACK_TO_STATS[player.style]) player.style = "Melee";
+  return player.style;
+}
+
+function getWeaponAbilitySet(familyKey, fallbackStyle = "Melee") {
+  const fallbackFamily = DEFAULT_WEAPON_FAMILY_BY_STYLE[fallbackStyle] || DEFAULT_WEAPON_FAMILY_BY_STYLE.Melee;
+  return WEAPON_ABILITY_SETS[familyKey] || WEAPON_ABILITY_SETS[fallbackFamily] || WEAPON_ABILITY_SETS.sword;
+}
+
 function normalizeWeaponItem(item) {
   if (!item || item.slot !== "Weapon") return item;
   item.attackType = item.attackType || inferAttackTypeFromModifiers(item);
@@ -5186,6 +7268,11 @@ function normalizeWeaponItem(item) {
   item.speed = Number.isFinite(item.speed) ? clamp(Math.floor(item.speed), 1, 10) : 5;
   item.hitBonus = Number.isFinite(item.hitBonus) ? Math.floor(item.hitBonus) : 0;
   item.critBonus = Number.isFinite(item.critBonus) ? Math.floor(item.critBonus) : 0;
+  item.weaponFamily = getWeaponFamilyKey(item, item.attackType);
+  const template = item.weaponTemplateId ? findWeaponTemplateById(item.weaponTemplateId) : item.id ? findWeaponTemplateById(item.id) : null;
+  if (!item.summary) {
+    item.summary = template?.summary || `${getWeaponDiscipline(item, item.attackType)} weapon. ${getWeaponFamilyDefinition(item, item.attackType).strengths}`;
+  }
   return item;
 }
 
@@ -5219,7 +7306,8 @@ function summarizeWeaponForUi(weapon) {
   normalizeWeaponItem(weapon);
   const hit = getWeaponHitModifier(weapon);
   const hitText = hit >= 0 ? `+${hit}` : `${hit}`;
-  return `1d${weapon.damageDie} ${weapon.attackType} ${weapon.damageKind} SPD ${weapon.speed} HIT ${hitText} CRIT +${weapon.critBonus}`;
+  const family = getWeaponFamilyDefinition(weapon, weapon.attackType).name;
+  return `${family} | 1d${weapon.damageDie} ${weapon.damageKind} SPD ${weapon.speed} HIT ${hitText} CRIT +${weapon.critBonus}`;
 }
 
 function getEnemyAffinityResult(enemy, damageKind) {
@@ -5368,6 +7456,7 @@ function updateControlPromptUi() {
   if (els.worldShop) els.worldShop.textContent = prompts.shop;
   if (els.worldTalk) els.worldTalk.textContent = prompts.talk;
   if (els.worldSave) els.worldSave.textContent = prompts.save;
+  if (els.worldOptions) els.worldOptions.textContent = prompts.options;
   if (els.worldMenu) els.worldMenu.textContent = prompts.menu;
   if (els.worldControlsHint) {
     const modeLabel = state.inputMode === "controller" ? "Controller detected" : "Keyboard detected";
@@ -5377,9 +7466,22 @@ function updateControlPromptUi() {
     const shoulderHint = state.inputMode === "controller" ? " Use LB/RB to switch character tabs." : "";
     const autoHint = state.options.autoLevelUp ? " Auto-level is ON." : "";
     const debugHint = state.options.debugMode ? " Debug hotkeys: Ctrl+Shift+L/G/H/X." : "";
-    const mapHint = ` Map ${state.map.fullscreen ? "fullscreen" : "windowed"} at ${Math.round((state.map.zoom || 1) * 100)}% zoom.`;
-    els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Level Up, Quests, Bestiary, Story, Achievements, and journey stats.${shoulderHint}${mapHint}${autoHint}${debugHint}`;
+    const mapHint = ` Viewport ${state.map.fullscreen ? "expanded" : "standard"} at ${Math.round((state.map.zoom || 1) * 100)}% zoom.`;
+    const layoutHint = ` HUD ${state.map.hudLayout === "stacked" ? "stacked" : "side"} layout. ${state.map.viewportMode === "native" ? `Native ${state.map.viewportOrientation}` : "Fit"} viewport mode.`;
+    const quickLayoutHint = " Quick layout keys: [B] HUD layout, [X] viewport mode, [Z] orientation.";
+    els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Skills, Mastery, Level Up, Quests, Bestiary, Story, Achievements, and journey stats. Craft in towns/cities via Interact or [R]. Open options anytime with [N].${shoulderHint}${mapHint}${layoutHint}${quickLayoutHint}${autoHint}${debugHint}`;
   }
+}
+
+function normalizeMapViewState(mapState) {
+  const next = { ...(mapState || {}) };
+  next.fullscreen = !!next.fullscreen;
+  const zoom = Number(next.zoom);
+  next.zoom = clamp(Number.isFinite(zoom) ? zoom : DEFAULT_MAP_ZOOM, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  next.hudLayout = next.hudLayout === "stacked" ? "stacked" : "side";
+  next.viewportMode = next.viewportMode === "native" ? "native" : "fit";
+  next.viewportOrientation = next.viewportOrientation === "portrait" ? "portrait" : "landscape";
+  return next;
 }
 
 function normalizeOptions(options) {
@@ -5563,6 +7665,69 @@ function playSfx(type) {
   } else if (normalizedType === "shop") {
     pulse(520, 0.09, 0.05, "sine");
     pulse(740, 0.08, 0.05, "sine", 0.07);
+  } else if (normalizedType === "gather-tree") {
+    pulse(180, 0.11, 0.07, "square");
+    pulse(130, 0.13, 0.05, "triangle", 0.04);
+    noiseBurst(0.06, 0.018, 0.02, 850);
+  } else if (normalizedType === "gather-herb") {
+    pulse(610, 0.08, 0.045, "triangle");
+    pulse(760, 0.1, 0.03, "sine", 0.04);
+    noiseBurst(0.05, 0.015, 0.01, 1600);
+  } else if (normalizedType === "gather-ore") {
+    pulse(310, 0.07, 0.06, "square");
+    pulse(920, 0.12, 0.045, "triangle", 0.03);
+    pulse(1180, 0.1, 0.03, "sine", 0.08);
+  } else if (normalizedType === "gather-hide") {
+    pulse(210, 0.1, 0.055, "triangle");
+    pulse(280, 0.08, 0.038, "square", 0.05);
+    noiseBurst(0.04, 0.012, 0.02, 1100);
+  } else if (normalizedType === "gather-fishing") {
+    pulse(440, 0.05, 0.04, "sine");
+    pulse(210, 0.14, 0.045, "triangle", 0.05);
+    noiseBurst(0.07, 0.02, 0.03, 320);
+  } else if (normalizedType === "gather-miss") {
+    pulse(120, 0.08, 0.03, "square");
+    noiseBurst(0.05, 0.012, 0.01, 720);
+  } else if (normalizedType === "gather-good") {
+    pulse(520, 0.06, 0.03, "triangle");
+    pulse(660, 0.05, 0.02, "sine", 0.03);
+  } else if (normalizedType === "gather-great") {
+    pulse(640, 0.07, 0.04, "triangle");
+    pulse(860, 0.08, 0.03, "sine", 0.04);
+  } else if (normalizedType === "gather-perfect") {
+    pulse(720, 0.09, 0.055, "sine");
+    pulse(980, 0.1, 0.05, "triangle", 0.05);
+    pulse(1240, 0.12, 0.04, "sine", 0.11);
+  } else if (normalizedType === "craft-smithing") {
+    pulse(230, 0.08, 0.065, "square");
+    pulse(870, 0.12, 0.05, "triangle", 0.04);
+    noiseBurst(0.05, 0.018, 0.01, 1300);
+  } else if (normalizedType === "craft-woodworking") {
+    pulse(170, 0.11, 0.06, "triangle");
+    pulse(240, 0.09, 0.04, "square", 0.05);
+    noiseBurst(0.05, 0.012, 0.03, 950);
+  } else if (normalizedType === "craft-cooking") {
+    pulse(340, 0.1, 0.04, "sine");
+    pulse(430, 0.1, 0.04, "triangle", 0.06);
+    noiseBurst(0.06, 0.012, 0.02, 500);
+  } else if (normalizedType === "craft-leatherworking") {
+    pulse(210, 0.09, 0.05, "triangle");
+    pulse(330, 0.08, 0.035, "square", 0.05);
+    noiseBurst(0.04, 0.01, 0.03, 1450);
+  } else if (normalizedType === "craft-clothier") {
+    pulse(560, 0.1, 0.04, "sine");
+    pulse(780, 0.12, 0.035, "triangle", 0.05);
+    noiseBurst(0.04, 0.01, 0.03, 1700);
+  } else if (normalizedType === "craft-alchemy") {
+    pulse(460, 0.12, 0.045, "sine");
+    pulse(690, 0.11, 0.04, "triangle", 0.07);
+    pulse(910, 0.14, 0.03, "sine", 0.14);
+  } else if (normalizedType === "craft-finish") {
+    pulse(660, 0.08, 0.035, "sine");
+    pulse(880, 0.1, 0.03, "triangle", 0.04);
+  } else if (normalizedType === "craft-crafting" || normalizedType === "craft-generic") {
+    pulse(500, 0.1, 0.045, "triangle");
+    pulse(660, 0.1, 0.04, "sine", 0.06);
   } else if (normalizedType === "transition") {
     pulse(300, 0.2, 0.07, "sine");
     pulse(900, 0.22, 0.05, "triangle", 0.08);

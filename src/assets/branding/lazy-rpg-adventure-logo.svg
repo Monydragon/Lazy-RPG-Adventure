@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">Lazy RPG Adventure Logo</title>
+  <desc id="logoDesc">A fantasy logo with a sword, bow, and staff arranged inside a glowing triangle crest.</desc>
+
+  <defs>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7df9a"/>
+      <stop offset="55%" stop-color="#f0bb5c"/>
+      <stop offset="100%" stop-color="#d08b2f"/>
+    </linearGradient>
+    <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5f9ff"/>
+      <stop offset="100%" stop-color="#9eb3cf"/>
+    </linearGradient>
+    <linearGradient id="staffGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c68a49"/>
+      <stop offset="100%" stop-color="#7c4b23"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f6e0a6"/>
+      <stop offset="55%" stop-color="#f1b95a"/>
+      <stop offset="100%" stop-color="#ea9a37"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#050a11" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="360" fill="none"/>
+
+  <g transform="translate(40 26)" filter="url(#softShadow)">
+    <path d="M150 14L271 258H29Z" fill="rgba(22,33,48,0.52)" stroke="url(#goldGrad)" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M150 44L245 236H55Z" fill="none" stroke="#8fb0d6" stroke-opacity="0.35" stroke-width="2"/>
+
+    <g transform="translate(150 146)">
+      <path d="M-11-66L0-102L11-66V72H-11Z" fill="url(#steelGrad)"/>
+      <rect x="-32" y="68" width="64" height="11" rx="5.5" fill="#ddb468"/>
+      <rect x="-8" y="76" width="16" height="34" rx="7" fill="#8a5a2f"/>
+      <circle cx="0" cy="114" r="7" fill="#ddb468"/>
+    </g>
+
+    <g transform="translate(93 156)">
+      <path d="M0-78C-28-33-28 33 0 78" fill="none" stroke="#d8a55a" stroke-width="8" stroke-linecap="round"/>
+      <line x1="-2" y1="-74" x2="-2" y2="74" stroke="#e4edf9" stroke-width="2.5"/>
+      <line x1="-4" y1="-36" x2="30" y2="0" stroke="#e4edf9" stroke-width="2.5"/>
+      <line x1="-4" y1="36" x2="30" y2="0" stroke="#e4edf9" stroke-width="2.5"/>
+    </g>
+
+    <g transform="translate(208 156)">
+      <rect x="-4" y="-84" width="8" height="168" rx="4" fill="url(#staffGrad)"/>
+      <circle cx="0" cy="-95" r="13" fill="#80d2ff" stroke="#c4edff" stroke-width="4"/>
+      <path d="M0-114V-128M-16-100H-30M16-100H30M-11-116L-21-126M11-116L21-126" stroke="#9fe1ff" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <circle cx="150" cy="160" r="10" fill="#f5f8ff" opacity="0.9"/>
+  </g>
+
+  <g transform="translate(356 70)">
+    <text x="0" y="90" fill="url(#titleGrad)" font-family="Trebuchet MS, Segoe UI, sans-serif" font-size="94" font-weight="800" letter-spacing="3">LAZY RPG</text>
+    <text x="2" y="168" fill="#edf3fe" font-family="Trebuchet MS, Segoe UI, sans-serif" font-size="80" font-weight="700" letter-spacing="4.5">ADVENTURE</text>
+    <rect x="6" y="188" width="740" height="4" rx="2" fill="#7ea8db" opacity="0.72"/>
+    <text x="8" y="236" fill="#a8bdd8" font-family="Trebuchet MS, Segoe UI, sans-serif" font-size="30" letter-spacing="1.1">Sword. Bow. Staff. One Lazy Legend.</text>
+  </g>
+</svg>
