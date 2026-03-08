@@ -162,6 +162,7 @@
           <div class="map-toolbar">
             <button id="world-map-toggle">Expand Viewport</button>
             <button id="world-hud-layout">HUD: Side</button>
+            <button id="world-actions-layout">Actions: Scene</button>
             <button id="world-viewport-mode">Viewport: Fit</button>
             <button id="world-viewport-orientation">Orientation: Landscape</button>
             <button id="world-map-zoom-out">- Zoom</button>
@@ -173,8 +174,15 @@
             <div id="world-interact-popup" class="world-interact-popup hidden" aria-hidden="true"></div>
             <div id="world-log-popup" class="world-log-popup hidden" aria-hidden="true" role="status" aria-live="polite"></div>
           </div>
-          <p id="map-legend" class="hint"></p>
-          <p id="world-context" class="hint"></p>
+          <div id="world-controls-scene-slot" class="world-controls-slot world-controls-slot-scene"></div>
+          <div class="map-zoom-strip">
+            <p id="map-zoom-readout" class="hint map-zoom-readout">Zoom 250%</p>
+            <label class="map-zoom-step-control" for="world-map-zoom-step">
+              <span>Step</span>
+              <input id="world-map-zoom-step" class="map-zoom-step-input" type="number" min="1" max="100" step="1" value="10" inputmode="numeric" />
+              <span>%</span>
+            </label>
+          </div>
         </main>
 
         <aside class="panel">
@@ -185,15 +193,17 @@
         </aside>
       </div>
 
-      <div class="button-row world-controls">
-        <button id="world-interact">Interact</button>
-        <button id="world-debug" class="hidden">Debug</button>
-        <button id="world-character">Character</button>
-        <button id="world-shop">Shop</button>
-        <button id="world-talk">Talk</button>
-        <button id="world-save">Save Game</button>
-        <button id="world-options">Options</button>
-        <button id="world-menu">Main Menu</button>
+      <div id="world-controls-bottom-slot" class="world-controls-slot world-controls-slot-bottom">
+        <div id="world-controls" class="button-row world-controls">
+          <button id="world-interact">Interact</button>
+          <button id="world-debug" class="hidden">Debug</button>
+          <button id="world-character">Character</button>
+          <button id="world-shop">Shop</button>
+          <button id="world-talk">Talk</button>
+          <button id="world-save">Save Game</button>
+          <button id="world-options">Options</button>
+          <button id="world-menu">Main Menu</button>
+        </div>
       </div>
       <p id="world-controls-hint" class="hint"></p>
       <p id="world-shortcuts-hint" class="hint"></p>

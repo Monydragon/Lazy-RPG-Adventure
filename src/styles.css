@@ -376,6 +376,40 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.map-zoom-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.map-zoom-readout {
+  margin: 0;
+  color: #dfe9f7;
+  font-weight: 700;
+}
+
+.map-zoom-step-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.map-zoom-step-input {
+  width: 4.5rem;
+  border-radius: 8px;
+  border: 1px solid #5f738d;
+  background: #121922;
+  color: var(--text);
+  padding: 0.35rem 0.45rem;
+  text-align: right;
+}
+
 .map-scene {
   position: relative;
   isolation: isolate;
@@ -540,6 +574,24 @@ button:disabled {
 .world-controls {
   margin-top: 0.8rem;
   gap: 0.4rem;
+}
+
+.world-controls-slot {
+  display: none;
+}
+
+.world-controls-slot.active-slot {
+  display: block;
+}
+
+.world-controls-slot-scene .world-controls {
+  margin-top: 0.55rem;
+}
+
+.world-controls-slot-scene .world-controls button {
+  min-width: 86px;
+  padding: 0.36rem 0.56rem;
+  font-size: 0.86rem;
 }
 
 .world-controls button {
@@ -1054,6 +1106,65 @@ button:disabled {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.4rem;
+}
+
+.equipment-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.6rem;
+}
+
+.equipment-slot-row {
+  align-items: flex-start;
+}
+
+.equipment-slot-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.equipment-slot-select-row {
+  display: grid;
+  gap: 0.28rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.equipment-slot-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.equipment-slot-picker .focusable {
+  min-width: 4.4rem;
+}
+
+.equipment-slot-select {
+  width: 100%;
+  border: 1px solid #5b6c82;
+  border-radius: 8px;
+  background: #121a24;
+  color: var(--text);
+  padding: 0.48rem 0.55rem;
+}
+
+.equipment-slot-select:disabled {
+  opacity: 0.72;
+}
+
+.item-level-req {
+  display: inline-block;
+  font-size: 1.03rem;
+  font-weight: 800;
+  color: #f1d18e;
+}
+
+.item-level-req.is-locked {
+  color: #f09b9b;
 }
 
 .hidden {

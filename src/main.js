@@ -19,8 +19,8 @@ const WORLD_LOG_POPUP_QUEUE_LIMIT = 8;
 const COMBAT_LOG_LIMIT = 16;
 const MAP_ZOOM_MIN = 0.35;
 const MAP_ZOOM_MAX = 4.2;
-const MAP_ZOOM_STEP = 0.25;
-const DEFAULT_MAP_ZOOM = 3.2;
+const DEFAULT_MAP_ZOOM_STEP = 0.1;
+const DEFAULT_MAP_ZOOM = 2.5;
 const WEAPON_MASTERY_REQUIREMENT_MULTIPLIER = 5;
 const GATHERING_BIOME_TUNING = {
   road: { zoneWidth: 0.28, speed: 0.92 },
@@ -106,7 +106,7 @@ const ATTACK_TO_STATS = {
   Magic: { attack: "MagicAttack", defense: "MagicDefense" },
 };
 
-function weaponTemplate(id, name, attackType, weaponFamily, damageDie, speed, damageKind, hitBonus, critBonus, summary) {
+function weaponTemplate(id, name, attackType, weaponFamily, damageDie, speed, damageKind, hitBonus, critBonus, summary, strengths = "", tradeoffs = "") {
   return {
     id,
     name,
@@ -119,6 +119,8 @@ function weaponTemplate(id, name, attackType, weaponFamily, damageDie, speed, da
     hitBonus,
     critBonus,
     summary,
+    strengths,
+    tradeoffs,
   };
 }
 
@@ -366,86 +368,86 @@ const DEFAULT_WEAPON_FAMILY_BY_STYLE = {
 };
 
 const WEAPON_FAMILY_DEFS = {
-  dagger: { name: "Dagger", style: "Melee", discipline: "Rogue", strengths: "Fast crit chains and precise piercing.", weaknesses: "Lower reach and lighter base impact." },
-  sword: { name: "Sword", style: "Melee", discipline: "Swordmaster", strengths: "Balanced slashing combos and all-around control.", weaknesses: "Less specialized than hammers or polearms." },
-  axe: { name: "Axe", style: "Melee", discipline: "Marauder", strengths: "Heavy cleaves and armor-breaking pressure.", weaknesses: "Lower accuracy and slower recovery." },
-  hammer: { name: "Hammer/Mace", style: "Melee", discipline: "Breaker", strengths: "Crushing blunt damage and strong anti-armor hits.", weaknesses: "Slow tempo against nimble foes." },
-  flail: { name: "Flail", style: "Melee", discipline: "Chainwarden", strengths: "Mixed blunt and piercing coverage with tricky angles.", weaknesses: "Less stable timing than straight blades." },
-  spear: { name: "Spear", style: "Melee", discipline: "Lancer", strengths: "Reach, accuracy, and precise piercing pressure.", weaknesses: "Less effective when enemies shrug off pierce." },
-  polearm: { name: "Polearm", style: "Melee", discipline: "Dragoon", strengths: "Wide sweeps and long reach.", weaknesses: "Heavier commitment per swing." },
-  quarterstaff: { name: "Quarterstaff", style: "Melee", discipline: "Staff Adept", strengths: "Quick blunt chains and safe control patterns.", weaknesses: "Lower burst than the heaviest melee arms." },
-  bow: { name: "Bow", style: "Ranged", discipline: "Archer", strengths: "Accurate sustained fire and strong piercing pressure.", weaknesses: "Less burst than crossbows." },
-  crossbow: { name: "Crossbow", style: "Ranged", discipline: "Marksman", strengths: "Heavy bolts and excellent single-hit burst.", weaknesses: "Slower reload cycle." },
-  thrown: { name: "Thrown", style: "Ranged", discipline: "Skirmisher", strengths: "Flexible damage types and high crit pressure.", weaknesses: "Lower base power than dedicated launchers." },
-  sling: { name: "Sling", style: "Ranged", discipline: "Stonecaller", strengths: "Reliable blunt ranged damage and control shots.", weaknesses: "Lower piercing access." },
-  wand: { name: "Wand", style: "Magic", discipline: "Arcanist", strengths: "Fast precise casting and strong arcane crit chains.", weaknesses: "Lighter base spell impact." },
-  magic_staff: { name: "Staff", style: "Magic", discipline: "Invoker", strengths: "Stable channels and heavy ritual spell scaling.", weaknesses: "Slower wind-up than wands or foci." },
-  rod: { name: "Rod", style: "Magic", discipline: "Elementalist", strengths: "Direct elemental damage and clear weakness coverage.", weaknesses: "Can stall when the element is resisted." },
-  tome: { name: "Tome", style: "Magic", discipline: "Runesage", strengths: "Layered prepared spells and flexible elements.", weaknesses: "More setup-heavy than fast catalysts." },
-  focus: { name: "Focus", style: "Magic", discipline: "Stormcaller", strengths: "Quick multi-hit casting and precise lightning or wind pressure.", weaknesses: "Lower single-hit force than staves or scepters." },
-  scepter: { name: "Scepter", style: "Magic", discipline: "Geomancer", strengths: "Heavy earth and water force with crushing finishes.", weaknesses: "Slow tempo and lower crit reliability." },
-  orb: { name: "Orb", style: "Magic", discipline: "Voidbinder", strengths: "Versatile spell rotation and high ceiling finishers.", weaknesses: "Less straightforward than rods or wands." },
+  dagger: { name: "Dagger", style: "Melee", discipline: "Rogue", strengths: "Fast hand weapons built for close precision, weak-point thrusts, and opportunistic counters.", weaknesses: "Short reach and light stopping power if you cannot stay inside the guard." },
+  sword: { name: "Sword", style: "Melee", discipline: "Swordmaster", strengths: "Versatile blades with balanced reach, point control, and cutting ability.", weaknesses: "Usually lacks the raw anti-armor force of hammers or the reach of polearms." },
+  axe: { name: "Axe", style: "Melee", discipline: "Marauder", strengths: "Forward-weighted heads deliver punishing cuts and strong chopping power.", weaknesses: "Recover slower than swords and are easier to evade if they miss." },
+  hammer: { name: "Hammer/Mace", style: "Melee", discipline: "Breaker", strengths: "Mass-driven strikes transfer force well through armor, shields, and bone.", weaknesses: "Shorter reach and slower recovery than lighter sidearms." },
+  flail: { name: "Flail", style: "Melee", discipline: "Chainwarden", strengths: "Chain-linked heads can wrap around shields and strike from awkward angles.", weaknesses: "Timing and recovery are less predictable than rigid weapons." },
+  spear: { name: "Spear", style: "Melee", discipline: "Lancer", strengths: "Excellent reach, line control, and efficient thrusting.", weaknesses: "Best when you keep distance and a clear line to the target." },
+  polearm: { name: "Polearm", style: "Melee", discipline: "Dragoon", strengths: "Long-shafted battlefield weapons combine reach with heavier cuts or hooks.", weaknesses: "Need space and commitment, making cramped fights less forgiving." },
+  quarterstaff: { name: "Quarterstaff", style: "Melee", discipline: "Staff Adept", strengths: "Two-ended blunt weapon with fast recovery, leverage, and strong defensive control.", weaknesses: "Lower armor penetration and killing power than steel-headed war arms." },
+  bow: { name: "Bow", style: "Ranged", discipline: "Archer", strengths: "Quiet, accurate sustained fire with faster follow-up shots than crossbows.", weaknesses: "Demands draw strength and delivers less punch per shot than heavier launchers." },
+  crossbow: { name: "Crossbow", style: "Ranged", discipline: "Marksman", strengths: "High draw force and efficient armor-piercing bolts with less strain at aim.", weaknesses: "Slower reload and less flexible tempo once committed." },
+  thrown: { name: "Thrown", style: "Ranged", discipline: "Skirmisher", strengths: "Quick skirmish weapons that deploy fast and cover several damage profiles.", weaknesses: "Shorter effective reach and lower sustained power than bows or crossbows." },
+  sling: { name: "Sling", style: "Ranged", discipline: "Stonecaller", strengths: "Simple ranged blunt force that scales well with practiced timing and heavy shot.", weaknesses: "Steeper learning curve and less direct armor penetration than arrows or bolts." },
+  wand: { name: "Wand", style: "Magic", discipline: "Arcanist", strengths: "Light catalyst for quick, precise casting and rapid spell changes.", weaknesses: "Lower raw spell mass than a staff or scepter." },
+  magic_staff: { name: "Staff", style: "Magic", discipline: "Invoker", strengths: "Long focus for stable channels, wider arcs, and heavier spell output.", weaknesses: "Slower handling than a wand or focus." },
+  rod: { name: "Rod", style: "Magic", discipline: "Elementalist", strengths: "Direct elemental conduit tuned to one element at a time.", weaknesses: "Less flexible if the current element is resisted." },
+  tome: { name: "Tome", style: "Magic", discipline: "Runesage", strengths: "Prepared casting tool that trades speed for breadth, control, and layered effects.", weaknesses: "Requires more setup than lighter catalysts." },
+  focus: { name: "Focus", style: "Magic", discipline: "Stormcaller", strengths: "Compact focus for quick casts, chaining, and reactive elemental play.", weaknesses: "Usually sacrifices single-hit force and staying power." },
+  scepter: { name: "Scepter", style: "Magic", discipline: "Geomancer", strengths: "Heavier ceremonial focus that favors dense, forceful elemental projections.", weaknesses: "Slower cadence and lower precision under pressure." },
+  orb: { name: "Orb", style: "Magic", discipline: "Voidbinder", strengths: "Floating or held core suited to fluid rotations and volatile high-skill casting.", weaknesses: "Harder to use efficiently than specialized catalysts." },
 };
 const WEAPON_FAMILY_ORDER = Object.keys(WEAPON_FAMILY_DEFS);
 
 const WEAPON_LIBRARY = {
   Melee: [
-    weaponTemplate("melee_dagger", "Dagger", "Melee", "dagger", 4, 9, "Pierce", 2, 4, "Very fast and precise. Lower base damage, strong crit pressure."),
-    weaponTemplate("melee_stiletto", "Stiletto", "Melee", "dagger", 5, 9, "Pierce", 3, 4, "Needle-thin duelist blade built to pierce weak points."),
-    weaponTemplate("melee_short_sword", "Short Sword", "Melee", "sword", 6, 7, "Slash", 1, 2, "Balanced starter blade with reliable tempo."),
-    weaponTemplate("melee_longsword", "Longsword", "Melee", "sword", 8, 6, "Slash", 0, 1, "Solid reach and damage, slower than light swords."),
-    weaponTemplate("melee_rapier", "Rapier", "Melee", "sword", 7, 8, "Pierce", 2, 3, "Fencing blade with strong hit rate and dueling crits."),
-    weaponTemplate("melee_scimitar", "Scimitar", "Melee", "sword", 7, 8, "Slash", 1, 3, "Curved blade that favors fast slashing strings."),
-    weaponTemplate("melee_greatsword", "2H Sword", "Melee", "sword", 10, 4, "Slash", 0, 2, "Heavy hits with slower swings and lower accuracy."),
-    weaponTemplate("melee_falchion", "Falchion", "Melee", "sword", 9, 5, "Slash", 0, 3, "Wide slashes with high crit finish potential."),
-    weaponTemplate("melee_battleaxe", "Battleaxe", "Melee", "axe", 9, 5, "Slash", 0, 2, "Brutal chopping axe that rewards committed swings."),
-    weaponTemplate("melee_greataxe", "Greataxe", "Melee", "axe", 11, 3, "Slash", -1, 3, "Massive cleaver with huge hits and risky timing."),
-    weaponTemplate("melee_club", "Club", "Melee", "hammer", 6, 7, "Blunt", 1, 0, "Simple blunt weapon that batters fragile targets."),
-    weaponTemplate("melee_mace", "Mace", "Melee", "hammer", 7, 6, "Blunt", 1, 1, "Steady crushing strikes tuned for armored enemies."),
-    weaponTemplate("melee_warhammer", "Warhammer", "Melee", "hammer", 9, 4, "Blunt", 0, 2, "Heavy blunt force with excellent stagger potential."),
-    weaponTemplate("melee_maul", "Maul", "Melee", "hammer", 11, 3, "Blunt", -1, 2, "Two-handed crusher built for devastating impact."),
-    weaponTemplate("melee_flail", "Flail", "Melee", "flail", 8, 5, "Blunt", 1, 1, "Crushing blunt strikes. Excellent into armored targets."),
-    weaponTemplate("melee_morningstar", "Morningstar", "Melee", "flail", 8, 5, "Pierce", 0, 2, "Spiked head trades smoother arcs for nastier punctures."),
-    weaponTemplate("melee_spear", "Spear", "Melee", "spear", 7, 7, "Pierce", 1, 1, "Reach-focused thrusting weapon with strong accuracy."),
-    weaponTemplate("melee_trident", "Trident", "Melee", "spear", 8, 6, "Pierce", 1, 2, "Three-pronged piercer with stronger catch-and-twist damage."),
-    weaponTemplate("melee_pike", "Pike", "Melee", "spear", 9, 5, "Pierce", 1, 1, "Long battlefield lance that favors precise heavy thrusts."),
-    weaponTemplate("melee_glaive", "Glaive", "Melee", "polearm", 9, 5, "Slash", 0, 2, "Long sweeping blade with broad zone control."),
-    weaponTemplate("melee_halberd", "Halberd", "Melee", "polearm", 10, 4, "Slash", 0, 2, "Polearm that mixes chop, hook, and thrust pressure."),
-    weaponTemplate("melee_quarterstaff", "Quarterstaff", "Melee", "quarterstaff", 7, 7, "Blunt", 1, 1, "Disciplined blunt style with strong flow and mobility."),
+    weaponTemplate("melee_dagger", "Dagger", "Melee", "dagger", 4, 9, "Pierce", 2, 4, "Common sidearm built for fast thrusts and close pressure.", "Very quick point work with strong crit potential against exposed targets.", "Tiny reach and low base damage if you cannot stay in close."),
+    weaponTemplate("melee_stiletto", "Stiletto", "Melee", "dagger", 5, 9, "Pierce", 3, 4, "Rigid thrusting dagger made to slip through gaps in armor.", "Excellent precision and armor-gap thrusts with elite hit rate.", "Poor cutting ability and almost no room for crowd control."),
+    weaponTemplate("melee_short_sword", "Short Sword", "Melee", "sword", 6, 7, "Slash", 1, 2, "Compact one-handed sword that balances speed, cuts, and thrusts.", "Reliable all-purpose tempo with easy handling in tight spaces.", "Less reach and finishing force than longer swords or polearms."),
+    weaponTemplate("melee_longsword", "Longsword", "Melee", "sword", 8, 6, "Slash", 0, 1, "Hand-and-a-half blade with reach, leverage, and adaptable guards.", "Strong measure control with solid cuts and thrust-capable reach.", "Slower to recover than lighter swords and less crushing against armor."),
+    weaponTemplate("melee_rapier", "Rapier", "Melee", "sword", 7, 8, "Pierce", 2, 3, "Civilian dueling sword centered on fast thrusts and point control.", "Exceptional accuracy, reach for its weight, and precise piercing.", "Poor at heavy cuts and weaker against dense armor or packed groups."),
+    weaponTemplate("melee_scimitar", "Scimitar", "Melee", "sword", 7, 8, "Slash", 1, 3, "Curved saber built to draw through targets with flowing cuts.", "Fast slicing arcs and strong follow-through on moving targets.", "Less authority on straight thrusts and hard armor than a rapier or mace."),
+    weaponTemplate("melee_greatsword", "2H Sword", "Melee", "sword", 10, 4, "Slash", 0, 2, "Large two-handed blade that turns reach and leverage into heavy cuts.", "Wide coverage, strong stopping power, and commanding reach.", "Needs committed swings and leaves fewer openings for quick corrections."),
+    weaponTemplate("melee_falchion", "Falchion", "Melee", "sword", 9, 5, "Slash", 0, 3, "Forward-weighted single-edged sword tuned for brutal chopping cuts.", "Hits harder than most swords while handling better than an axe.", "Shorter point control and less versatility than a longsword."),
+    weaponTemplate("melee_battleaxe", "Battleaxe", "Melee", "axe", 9, 5, "Slash", 0, 2, "One-handed war axe with a concentrated edge for deep chopping blows.", "Punishing cuts and shield-battering leverage from a compact head.", "Less forgiving aim and weaker point work than sword or spear play."),
+    weaponTemplate("melee_greataxe", "Greataxe", "Melee", "axe", 11, 3, "Slash", -1, 3, "Two-handed axe that bets everything on reach, leverage, and impact.", "Massive cleaving power with excellent burst when swings connect.", "Slow recovery and obvious wind-up make misses costly."),
+    weaponTemplate("melee_club", "Club", "Melee", "hammer", 6, 7, "Blunt", 1, 0, "Rough cudgel that relies on simple, direct blunt force.", "Cheap, dependable impact that rattles lightly protected foes.", "Crude balance, short reach, and poor finishing power."),
+    weaponTemplate("melee_mace", "Mace", "Melee", "hammer", 7, 6, "Blunt", 1, 1, "Metal-headed blunt weapon built to punish armor and bone.", "Strong concentrated impact against helmets, shields, and plate.", "Shorter reach and less cutting versatility than bladed arms."),
+    weaponTemplate("melee_warhammer", "Warhammer", "Melee", "hammer", 9, 4, "Blunt", 0, 2, "Dedicated anti-armor hammer combining crushing weight with focused force.", "Excellent against armored or shielded targets with strong stagger.", "Deliberate swings punish missed timing and demand closer range."),
+    weaponTemplate("melee_maul", "Maul", "Melee", "hammer", 11, 3, "Blunt", -1, 2, "Heavy two-handed hammer meant to overwhelm through sheer force.", "Extreme blunt trauma and shield-breaking pressure.", "Very slow tempo and awkward in reactive duels."),
+    weaponTemplate("melee_flail", "Flail", "Melee", "flail", 8, 5, "Blunt", 1, 1, "Chain weapon whose free-swinging head strikes around guards and shields.", "Awkward angles, disruptive impact, and tricky defensive bypasses.", "Harder to control cleanly and less precise than rigid weapons."),
+    weaponTemplate("melee_morningstar", "Morningstar", "Melee", "flail", 8, 5, "Blunt", 0, 2, "Spiked striking head that concentrates impact into tearing blows.", "Crushing hits with extra bite into mail gaps and exposed flesh.", "Still swings less cleanly than a mace and lacks spear-like reach."),
+    weaponTemplate("melee_spear", "Spear", "Melee", "spear", 7, 7, "Pierce", 1, 1, "Straight thrusting pole weapon built around reach and economy of motion.", "Excellent distance control, accuracy, and efficient piercing pressure.", "Relies on line control and offers less cutting coverage in close scrambles."),
+    weaponTemplate("melee_trident", "Trident", "Melee", "spear", 8, 6, "Pierce", 1, 2, "Forked spear that trades some penetration for trapping and control.", "Good reach with strong catch-and-control potential.", "Less clean penetration and battlefield efficiency than a true spear."),
+    weaponTemplate("melee_pike", "Pike", "Melee", "spear", 9, 5, "Pierce", 1, 1, "Long formation spear designed to keep enemies far outside sword range.", "Outstanding reach and first-strike control in open ground.", "Cumbersome up close and slow to redirect in cramped fighting."),
+    weaponTemplate("melee_glaive", "Glaive", "Melee", "polearm", 9, 5, "Slash", 0, 2, "Polearm with a long edged blade for sweeping cuts beyond sword range.", "Wide slashes and strong zone control at medium-long reach.", "Less nimble in tight quarters and not as direct on the thrust as a spear."),
+    weaponTemplate("melee_halberd", "Halberd", "Melee", "polearm", 10, 4, "Slash", 0, 2, "Combined axe-and-spike polearm suited to chopping, hooking, and thrusting.", "Versatile reach with powerful chops and useful anti-armor leverage.", "Heavy head demands commitment and more space than shorter arms."),
+    weaponTemplate("melee_quarterstaff", "Quarterstaff", "Melee", "quarterstaff", 7, 7, "Blunt", 1, 1, "Two-handed staff that uses leverage, footwork, and rapid end changes.", "Fast recovery, solid defense, and fluid blunt combinations.", "Limited armor penetration and lower lethality than bladed war arms."),
   ],
   Ranged: [
-    weaponTemplate("ranged_shortbow", "Shortbow", "Ranged", "bow", 6, 8, "Pierce", 2, 2, "Fast arrows and reliable hit rate at all times."),
-    weaponTemplate("ranged_longbow", "Longbow", "Ranged", "bow", 8, 6, "Pierce", 1, 3, "Higher damage and crit pressure with slower draw speed."),
-    weaponTemplate("ranged_recurve_bow", "Recurve Bow", "Ranged", "bow", 7, 8, "Pierce", 2, 2, "Responsive bow with strong sustained accuracy."),
-    weaponTemplate("ranged_greatbow", "Greatbow", "Ranged", "bow", 10, 4, "Pierce", 0, 4, "Towering bow tuned for brutal single-arrow damage."),
-    weaponTemplate("ranged_crossbow", "Crossbow", "Ranged", "crossbow", 10, 4, "Pierce", 0, 2, "Hard-hitting bolts with lower attack tempo."),
-    weaponTemplate("ranged_hand_crossbow", "Hand Crossbow", "Ranged", "crossbow", 6, 8, "Pierce", 2, 3, "Compact bolt launcher with fast draw and finishers."),
-    weaponTemplate("ranged_heavy_crossbow", "Heavy Crossbow", "Ranged", "crossbow", 12, 3, "Pierce", -1, 3, "Siege-grade bolt power with a slower cadence."),
-    weaponTemplate("ranged_repeating", "Repeating Crossbow", "Ranged", "crossbow", 6, 7, "Pierce", 2, 1, "Rapid shots and smooth handling over raw bolt force."),
-    weaponTemplate("ranged_throwing_knives", "Throwing Knives", "Ranged", "thrown", 5, 9, "Slash", 2, 4, "Very fast style with high crit chance and flexible damage type."),
-    weaponTemplate("ranged_throwing_axes", "Throwing Axes", "Ranged", "thrown", 7, 7, "Slash", 1, 3, "Heavier thrown blades with nastier cleaving hits."),
-    weaponTemplate("ranged_javelins", "Javelins", "Ranged", "thrown", 7, 7, "Pierce", 1, 2, "Thrown spears that reward accurate punctures."),
-    weaponTemplate("ranged_chakram", "Chakram", "Ranged", "thrown", 6, 8, "Slash", 2, 3, "Circular blades that chain cleanly through skirmishes."),
-    weaponTemplate("ranged_throwing_hammers", "Throwing Hammers", "Ranged", "thrown", 7, 6, "Blunt", 1, 2, "Compact blunt projectiles that crack tough targets."),
-    weaponTemplate("ranged_darts", "Darts", "Ranged", "thrown", 5, 9, "Pierce", 3, 2, "Needle-fast missiles for relentless pressure."),
-    weaponTemplate("ranged_sling", "Sling", "Ranged", "sling", 7, 7, "Blunt", 1, 1, "Blunt ranged damage that can punish skeleton-like foes."),
-    weaponTemplate("ranged_staff_sling", "Staff Sling", "Ranged", "sling", 9, 5, "Blunt", 1, 1, "Longer sling with heavier stones and deeper knockback."),
+    weaponTemplate("ranged_shortbow", "Shortbow", "Ranged", "bow", 6, 8, "Pierce", 2, 2, "Compact bow tuned for quick draws and mobile shooting.", "Fast rate of fire and easy handling while moving.", "Lower power and reach than a longbow or heavy crossbow."),
+    weaponTemplate("ranged_longbow", "Longbow", "Ranged", "bow", 8, 6, "Pierce", 1, 3, "Tall self bow that rewards strength with deep shooting power.", "Strong draw weight, good range, and hard-hitting arrows.", "Slower draw and more physical demand than shorter bows."),
+    weaponTemplate("ranged_recurve_bow", "Recurve Bow", "Ranged", "bow", 7, 8, "Pierce", 2, 2, "Reflexed bow that stores power efficiently in a shorter frame.", "Responsive shooting with strong speed-to-power efficiency.", "Still depends on user draw strength and lacks crossbow punch per shot."),
+    weaponTemplate("ranged_greatbow", "Greatbow", "Ranged", "bow", 10, 4, "Pierce", 0, 4, "Massive war bow built for heavy arrows and punishing volleys.", "Exceptional shot power and long-range pressure.", "Slow to draw, physically demanding, and unforgiving under pressure."),
+    weaponTemplate("ranged_crossbow", "Crossbow", "Ranged", "crossbow", 10, 4, "Pierce", 0, 2, "Stock-and-latch bow that delivers hard bolts with steady aim.", "High shot power and easier aim hold than hand-drawn bows.", "Reloads slower and cannot match a bow's firing rhythm."),
+    weaponTemplate("ranged_hand_crossbow", "Hand Crossbow", "Ranged", "crossbow", 6, 8, "Pierce", 2, 3, "Compact crossbow meant for quick shots at shorter range.", "Fast handling and good close skirmish pressure.", "Shorter reach and less bolt force than a full crossbow."),
+    weaponTemplate("ranged_heavy_crossbow", "Heavy Crossbow", "Ranged", "crossbow", 12, 3, "Pierce", -1, 3, "Cranked war crossbow built to drive bolts with brutal force.", "Excellent armor-punching power and single-shot burst.", "Very slow reload and clumsy tempo in prolonged exchanges."),
+    weaponTemplate("ranged_repeating", "Repeating Crossbow", "Ranged", "crossbow", 6, 7, "Pierce", 2, 1, "Magazine-fed crossbow that favors volume over bolt strength.", "Rapid follow-up shots and forgiving sustained pressure.", "Weaker penetration and per-shot damage than standard crossbows."),
+    weaponTemplate("ranged_throwing_knives", "Throwing Knives", "Ranged", "thrown", 5, 9, "Pierce", 2, 4, "Light throwing blades built for fast point-first releases.", "Quick throws, high precision, and strong finishing pressure on exposed targets.", "Short reach and light impact against heavy armor or large foes."),
+    weaponTemplate("ranged_throwing_axes", "Throwing Axes", "Ranged", "thrown", 7, 7, "Slash", 1, 3, "Weighted throwing axes that hit harder than lighter thrown blades.", "Strong chopping impact with better burst than knives.", "Heavier flight and lower volume than lighter thrown weapons."),
+    weaponTemplate("ranged_javelins", "Javelins", "Ranged", "thrown", 7, 7, "Pierce", 1, 2, "Light throwing spears designed for straight, powerful casts.", "Good range, solid penetration, and clean point-first hits.", "Slower follow-up tempo than knives or darts."),
+    weaponTemplate("ranged_chakram", "Chakram", "Ranged", "thrown", 6, 8, "Slash", 2, 3, "Razor-edged throwing disc used to slice from off-angle arcs.", "Fast release with curving attack lines and broad cutting coverage.", "More situational and less penetrative than javelins or bolts."),
+    weaponTemplate("ranged_throwing_hammers", "Throwing Hammers", "Ranged", "thrown", 7, 6, "Blunt", 1, 2, "Dense throwing heads that rely on blunt shock more than speed.", "Good concussive force against tough or armored targets.", "Shorter range and a slower, heavier throw pattern."),
+    weaponTemplate("ranged_darts", "Darts", "Ranged", "thrown", 5, 9, "Pierce", 3, 2, "Small war darts built for quick release and repeated harassment.", "Very fast, accurate point attacks with little commitment per throw.", "Low individual damage and limited stopping power."),
+    weaponTemplate("ranged_sling", "Sling", "Ranged", "sling", 7, 7, "Blunt", 1, 1, "Cord sling that hurls stones or lead shot with crushing speed.", "Solid blunt force, cheap shot material, and deceptively strong range.", "Demands practiced timing and offers little edge against dense armor."),
+    weaponTemplate("ranged_staff_sling", "Staff Sling", "Ranged", "sling", 9, 5, "Blunt", 1, 1, "Levered sling staff built to launch heavier stones farther.", "Heavier missiles and stronger knockback than a hand sling.", "Slower setup and less nimble tempo than a normal sling."),
   ],
   Magic: [
-    weaponTemplate("magic_apprentice_wand", "Apprentice Wand", "Magic", "wand", 4, 8, "Arcane", 1, 2, "Stable focus for fast casting and arcane pressure."),
-    weaponTemplate("magic_crystal_wand", "Crystal Wand", "Magic", "wand", 5, 9, "Arcane", 2, 3, "Refined wand that sharpens precise arcane bursts."),
-    weaponTemplate("magic_oak_staff", "Oak Staff", "Magic", "magic_staff", 6, 6, "Arcane", 1, 1, "Balanced spell focus with stronger base power."),
-    weaponTemplate("magic_archmage_staff", "Archmage Staff", "Magic", "magic_staff", 8, 5, "Arcane", 1, 2, "Long ritual staff for heavier channeling magic."),
-    weaponTemplate("magic_fire_rod", "Fire Rod", "Magic", "rod", 7, 5, "Fire", 1, 1, "Elemental focus specialized for fire-based pressure."),
-    weaponTemplate("magic_frost_rod", "Frost Rod", "Magic", "rod", 7, 6, "Ice", 1, 2, "Cold-aligned rod that rewards steady elemental pressure."),
-    weaponTemplate("magic_frost_tome", "Frost Tome", "Magic", "tome", 7, 5, "Ice", 1, 1, "Steady ice focus with controlled, durable damage output."),
-    weaponTemplate("magic_runebound_grimoire", "Runebound Grimoire", "Magic", "tome", 8, 4, "Arcane", 1, 2, "Prepared spellbook built for layered magical barrages."),
-    weaponTemplate("magic_storm_focus", "Storm Focus", "Magic", "focus", 6, 7, "Lightning", 2, 1, "Quick-cast catalyst tuned for lightning techniques."),
-    weaponTemplate("magic_gale_focus", "Gale Focus", "Magic", "focus", 6, 8, "Wind", 2, 2, "Swift focus that turns movement into sharp spell tempo."),
-    weaponTemplate("magic_earth_scepter", "Earth Scepter", "Magic", "scepter", 8, 4, "Earth", 0, 2, "Slow but heavy elemental focus with strong base impact."),
-    weaponTemplate("magic_tide_scepter", "Tide Scepter", "Magic", "scepter", 8, 5, "Water", 1, 1, "Regal focus that batters foes with tidal force."),
-    weaponTemplate("magic_astral_orb", "Astral Orb", "Magic", "orb", 7, 6, "Arcane", 1, 3, "Floating catalyst with flexible astral spell patterns."),
-    weaponTemplate("magic_void_orb", "Void Orb", "Magic", "orb", 8, 5, "Arcane", 0, 3, "Dense orb that trades speed for volatile finishers."),
+    weaponTemplate("magic_apprentice_wand", "Apprentice Wand", "Magic", "wand", 4, 8, "Arcane", 1, 2, "Basic casting wand meant for quick single-target spellwork.", "Fast arcane release and easy precision for reactive casting.", "Lower spell weight and weaker finishers than larger foci."),
+    weaponTemplate("magic_crystal_wand", "Crystal Wand", "Magic", "wand", 5, 9, "Arcane", 2, 3, "Refined wand that sharpens mana flow into fast precise bolts.", "Excellent cast speed, accuracy, and crit-friendly arcane bursts.", "Light spell mass compared with staffs, tomes, or scepters."),
+    weaponTemplate("magic_oak_staff", "Oak Staff", "Magic", "magic_staff", 6, 6, "Arcane", 1, 1, "Balanced wooden staff suited to steady channels and measured casting.", "Stable spell control with better raw power than a wand.", "Slower handling and less burst tempo than lighter catalysts."),
+    weaponTemplate("magic_archmage_staff", "Archmage Staff", "Magic", "magic_staff", 8, 5, "Arcane", 1, 2, "Large ritual staff built to anchor longer, heavier spell channels.", "High base spell force and strong scaling on deliberate casts.", "Needs wind-up and gives up some reactive speed."),
+    weaponTemplate("magic_fire_rod", "Fire Rod", "Magic", "rod", 7, 5, "Fire", 1, 1, "Elemental rod tuned to forceful fire projection and burning pressure.", "Direct fire damage with strong offensive coverage against cold or frail foes.", "Predictable element choice can stall against fire-resistant enemies."),
+    weaponTemplate("magic_frost_rod", "Frost Rod", "Magic", "rod", 7, 6, "Ice", 1, 2, "Cold-aspected rod built for steady ice lances and controlled tempo.", "Reliable ice pressure with cleaner control than more explosive rods.", "Specialized element loses value when ice is resisted."),
+    weaponTemplate("magic_frost_tome", "Frost Tome", "Magic", "tome", 7, 5, "Ice", 1, 1, "Scripted ice grimoire that trades speed for planned control magic.", "Measured casting with layered ice pressure and good spell discipline.", "Heavier setup than a rod or wand."),
+    weaponTemplate("magic_runebound_grimoire", "Runebound Grimoire", "Magic", "tome", 8, 4, "Arcane", 1, 2, "Prepared spellbook for stacked runes and broader arcane patterns.", "Flexible spell sequencing and strong sustained arcane setups.", "Slower to bring online than direct-cast catalysts."),
+    weaponTemplate("magic_storm_focus", "Storm Focus", "Magic", "focus", 6, 7, "Lightning", 2, 1, "Compact focus that channels lightning through rapid, precise bursts.", "Fast multi-hit lightning output and sharp reactive tempo.", "Less single-hit force than a staff or scepter."),
+    weaponTemplate("magic_gale_focus", "Gale Focus", "Magic", "focus", 6, 8, "Wind", 2, 2, "Air-tuned focus built for swift casts and evasive spell rhythm.", "Very quick wind casting with excellent flow between actions.", "Lower raw damage per cast than heavier elemental tools."),
+    weaponTemplate("magic_earth_scepter", "Earth Scepter", "Magic", "scepter", 8, 4, "Earth", 0, 2, "Heavy scepter that drives dense earth magic through forceful releases.", "High-impact earth spells with sturdy single-hit power.", "Slow cadence and limited forgiveness when timing slips."),
+    weaponTemplate("magic_tide_scepter", "Tide Scepter", "Magic", "scepter", 8, 5, "Water", 1, 1, "Ceremonial scepter that shapes water into battering waves and surges.", "Solid water damage with heavier impacts than lighter catalysts.", "Less agile and less crit-focused than wands or orbs."),
+    weaponTemplate("magic_astral_orb", "Astral Orb", "Magic", "orb", 7, 6, "Arcane", 1, 3, "Floating orb that supports fluid arcane rotations and high-crit paths.", "Flexible spell routing with strong finisher potential.", "Takes more judgment to optimize than simple rods or staffs."),
+    weaponTemplate("magic_void_orb", "Void Orb", "Magic", "orb", 8, 5, "Arcane", 0, 3, "Dense orb that compresses unstable arcane power into heavy casts.", "Potent burst finishers and strong ceiling for aggressive casters.", "Slower and less straightforward than faster arcane foci."),
   ],
 };
 
@@ -2275,6 +2277,7 @@ function createWeaponCraftingBlueprint(template) {
     output: {
       kind: "equipment",
       equipment: {
+        id: template.id,
         slot: "Weapon",
         attackType: template.attackType,
         weaponFamily: template.weaponFamily,
@@ -2766,6 +2769,15 @@ const CRAFTING_BROWSER_NAV = {
   },
 };
 const CRAFTING_ENCOUNTER_NAV_SCOPE = "crafting-encounter";
+const EQUIPMENT_MODAL_NAV = {
+  scope: "equipment-modal",
+  layers: {
+    character: 0,
+    toolbar: 1,
+    slotStart: 2,
+    close: 2 + EQUIPMENT_SLOTS.length,
+  },
+};
 
 const els = {
   app: document.getElementById("app"),
@@ -2812,13 +2824,17 @@ const els = {
   optionsBack: document.getElementById("options-back"),
   mapCanvas: document.getElementById("map-canvas"),
   worldInteractPopup: document.getElementById("world-interact-popup"),
-  mapLegend: document.getElementById("map-legend"),
+  mapZoomReadout: document.getElementById("map-zoom-readout"),
   playerSummary: document.getElementById("player-summary"),
   playerStats: document.getElementById("player-stats"),
-  worldContext: document.getElementById("world-context"),
+  worldMapZoomStep: document.getElementById("world-map-zoom-step"),
   worldLog: document.getElementById("world-log"),
   worldSkills: document.getElementById("world-skills"),
   worldHudLayout: document.getElementById("world-hud-layout"),
+  worldActionsLayout: document.getElementById("world-actions-layout"),
+  worldControls: document.getElementById("world-controls"),
+  worldControlsSceneSlot: document.getElementById("world-controls-scene-slot"),
+  worldControlsBottomSlot: document.getElementById("world-controls-bottom-slot"),
   worldInteract: document.getElementById("world-interact"),
   worldDebug: document.getElementById("world-debug"),
   worldCharacter: document.getElementById("world-character"),
@@ -2884,6 +2900,7 @@ const state = {
     craftingSkill: CRAFTING_SKILL_TABS[0]?.id || "Clothier",
     craftingFilter: CRAFTING_RECIPE_FILTER_TABS[0].id,
     craftingTierScope: CRAFTING_RECIPE_TIER_TABS[0].id,
+    equipmentFocus: null,
   },
   gathering: null,
   craftingRun: null,
@@ -2897,7 +2914,9 @@ const state = {
   map: {
     fullscreen: false,
     zoom: DEFAULT_MAP_ZOOM,
+    zoomStep: DEFAULT_MAP_ZOOM_STEP,
     hudLayout: "side",
+    actionBarPosition: "scene",
     viewportMode: "fit",
     viewportOrientation: "landscape",
   },
@@ -3092,11 +3111,22 @@ function bindEvents() {
   els.worldMenu.addEventListener("click", requestMainMenuReturn);
   if (els.worldMapToggle) els.worldMapToggle.addEventListener("click", toggleMapFullscreen);
   if (els.worldHudLayout) els.worldHudLayout.addEventListener("click", toggleWorldHudLayout);
+  if (els.worldActionsLayout) els.worldActionsLayout.addEventListener("click", toggleWorldActionBarPosition);
   if (els.worldViewportMode) els.worldViewportMode.addEventListener("click", cycleWorldViewportMode);
   if (els.worldViewportOrientation) els.worldViewportOrientation.addEventListener("click", cycleWorldViewportOrientation);
-  if (els.worldMapZoomOut) els.worldMapZoomOut.addEventListener("click", () => changeMapZoom(-MAP_ZOOM_STEP));
-  if (els.worldMapZoomIn) els.worldMapZoomIn.addEventListener("click", () => changeMapZoom(MAP_ZOOM_STEP));
+  if (els.worldMapZoomOut) els.worldMapZoomOut.addEventListener("click", () => changeMapZoom(-getMapZoomStep()));
+  if (els.worldMapZoomIn) els.worldMapZoomIn.addEventListener("click", () => changeMapZoom(getMapZoomStep()));
   if (els.worldMapZoomReset) els.worldMapZoomReset.addEventListener("click", resetMapZoom);
+  if (els.worldMapZoomStep) {
+    els.worldMapZoomStep.addEventListener("input", () => {
+      const percent = Number(els.worldMapZoomStep.value);
+      if (!Number.isFinite(percent) || percent <= 0) return;
+      setMapZoomStepPercent(percent);
+    });
+    els.worldMapZoomStep.addEventListener("change", () => {
+      if (!setMapZoomStepPercent(els.worldMapZoomStep.value)) updateMapZoomUi();
+    });
+  }
 
   els.combatActions.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action]");
@@ -3128,6 +3158,7 @@ function onKeyDown(event) {
   }
 
   if (state.modal) {
+    const activeTag = document.activeElement?.tagName || "";
     if (handleCraftingEncounterHotkey(key)) {
       event.preventDefault();
       return;
@@ -3137,6 +3168,8 @@ function onKeyDown(event) {
       event.preventDefault();
       return;
     }
+    if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+    if (activeTag === "SELECT") return;
     if (key === "ArrowUp") {
       moveFocus("up");
       event.preventDefault();
@@ -3218,12 +3251,12 @@ function onKeyDown(event) {
     return;
   }
   if (key === "+" || key === "=") {
-    changeMapZoom(MAP_ZOOM_STEP);
+    changeMapZoom(getMapZoomStep());
     event.preventDefault();
     return;
   }
   if (key === "-" || key === "_") {
-    changeMapZoom(-MAP_ZOOM_STEP);
+    changeMapZoom(-getMapZoomStep());
     event.preventDefault();
     return;
   }
@@ -3433,8 +3466,8 @@ function renderCreationSelectors() {
           <span class="weapon-pill">Crit +${getWeaponCritBonus(selectedWeapon)}</span>
         </div>
         <p>${escapeHtml(selectedWeapon.summary || "No description.")}</p>
-        <p><strong>Strengths:</strong> ${escapeHtml(family.strengths)}</p>
-        <p><strong>Tradeoffs:</strong> ${escapeHtml(family.weaknesses)}</p>
+        <p><strong>Strengths:</strong> ${escapeHtml(getWeaponStrengths(selectedWeapon, selectedWeapon.attackType))}</p>
+        <p><strong>Tradeoffs:</strong> ${escapeHtml(getWeaponTradeoffs(selectedWeapon, selectedWeapon.attackType))}</p>
       `;
     } else {
       els.weaponInfo.innerHTML = "<p>No weapon selected.</p>";
@@ -4325,74 +4358,7 @@ function renderWorldInteractPopup() {
 }
 
 function renderWorldContext() {
-  const { world, player } = state.game;
-  const tile = world.tiles[player.position.y][player.position.x];
-  const feature = getFeatureAt(world, player.position.x, player.position.y);
-  const biomeLabel = BIOME_DATA[tile.biome].label;
-  const threat = state.game.dynamic?.threat || 0;
-  const inDebugArea = isInDebugCraftingArea(world, player.position.x, player.position.y);
-  const suppression = getEncounterSuppressionState(world, player, feature);
-  const encounterChance = getWorldEncounterChance(world, player, feature);
-  const areaPrefix = inDebugArea && feature?.type !== "debug" ? `${getDebugCraftingArea(world)?.name || DEBUG_CRAFTING_AREA_ID} - ` : "";
-  const safetyText = encounterChance <= 0
-    ? `${suppression.reason || "No random encounters."} Threat ${threat}`
-    : `Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
-  if (feature) {
-    if (feature.type === "dungeon") {
-      const summary = getDungeonEncounterSummary(feature);
-      const dungeonState = summary.remainingCount > 0
-        ? `${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain. Next ${summary.nextEncounter?.name || "guardian"}.`
-        : feature.bossDefeated
-          ? `Boss defeated. ${summary.delvesCleared} random delve${summary.delvesCleared === 1 ? "" : "s"} cleared so far.`
-          : `Boss ${feature.bossName} is waiting deeper inside.`;
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (dungeon). ${dungeonState} Press Interact to push in. ${safetyText}`;
-    } else if (feature.type === "chest") {
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. ${feature.opened ? "Opened already." : "Press Interact to open."} ${safetyText}`;
-    } else if (feature.type === "transition") {
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. Press Interact to travel to ${feature.targetName || "another region"}. ${safetyText}`;
-    } else if (feature.type === "npc") {
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (${feature.role}). Press Talk or Interact to speak. ${safetyText}`;
-    } else if (feature.type === "resource") {
-      const def = getResourceNodeDef(feature.resourceKind);
-      const status = getResourceNodeStatus(feature, state.game.stepCount);
-      const requirement = getResourceRequirementState(feature, player);
-      if (status.ready) {
-        const passText = `${status.charges} timing pass${status.charges === 1 ? "" : "es"}`;
-        const actionText = requirement.met
-          ? `Press Interact to ${def.actionLabel.toLowerCase()}.`
-          : "Your gathering level is too low right now.";
-        els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (${def.label}). ${status.charges}/${status.maxCharges} resources ready (${passText}). ${formatResourceRequirementLine(requirement)}. ${actionText} ${safetyText}`;
-      } else {
-        els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (${def.label}). Depleted, respawns in ${status.stepsRemaining} step${status.stepsRemaining === 1 ? "" : "s"}. ${formatResourceRequirementLine(requirement)}. ${safetyText}`;
-      }
-    } else if (feature.type === "crafting") {
-      const workshopType = feature.isDebug ? "debug workshop" : "field workshop";
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. ${feature.skillFocus} ${workshopType}. Press Interact to craft with encounter rules and workshop bonuses. ${safetyText}`;
-    } else if (feature.type === "event") {
-      const definition = getWorldEventSiteDef(feature.eventKind);
-      els.worldContext.textContent = feature.resolved
-        ? `${areaPrefix}${biomeLabel} - ${feature.name}. ${definition.label} already resolved. Safe tile.`
-        : `${areaPrefix}${biomeLabel} - ${feature.name}. ${definition.label}. Press Interact to trigger the encounter. Safe tile until you choose to engage.`;
-    } else if (feature.type === "debug") {
-      const debugText = state.options.debugMode
-        ? "Press Interact or use the Debug button to open tester tools."
-        : "Enable Debug Mode in Options to unlock tester tools.";
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. Safe debug yard with every gathering node tier and all crafting workshops. ${debugText} ${safetyText}`;
-    } else if (feature.type === "city" || feature.type === "town") {
-      const shopText = feature.hasShop ? "Shop available." : "No shop.";
-      const innText = feature.hasInn ? "Inn available." : "No inn services.";
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (${feature.type}). ${safetyText} ${shopText} ${innText} Crafting available. Press Shop, Character, or Interact.`;
-    } else if (feature.type === "grave") {
-      const count = Array.isArray(feature.items) ? feature.items.length : 0;
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. Dropped gear cache (${count} item${count === 1 ? "" : "s"}). Press Interact to recover equipment. ${safetyText}`;
-    } else {
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (${feature.type}). ${safetyText}`;
-    }
-  } else if (inDebugArea) {
-    els.worldContext.textContent = `${areaPrefix}${biomeLabel}. Safe debug yard. No encounters. Every gatherable resource and every crafting workshop is laid out here for testing.`;
-  } else {
-    els.worldContext.textContent = `${biomeLabel}. ${safetyText}`;
-  }
+  updateMapZoomUi();
 }
 
 function setMapFullscreen(enabled) {
@@ -4415,6 +4381,43 @@ function toggleWorldHudLayout() {
   renderWorld();
 }
 
+function toggleWorldActionBarPosition() {
+  if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
+  state.map.actionBarPosition = state.map.actionBarPosition === "bottom" ? "scene" : "bottom";
+  updateMapUi();
+  updateControlPromptUi();
+  renderWorld();
+}
+
+function getMapZoomStep() {
+  return clamp(Number(state.map.zoomStep) || DEFAULT_MAP_ZOOM_STEP, 0.01, 1);
+}
+
+function getMapZoomStepPercent() {
+  return Math.round(getMapZoomStep() * 100);
+}
+
+function updateMapZoomUi() {
+  if (els.mapZoomReadout) {
+    els.mapZoomReadout.textContent = `Zoom ${Math.round((state.map.zoom || DEFAULT_MAP_ZOOM) * 100)}%`;
+  }
+  if (els.worldMapZoomStep) {
+    const stepPercent = String(getMapZoomStepPercent());
+    if (els.worldMapZoomStep.value !== stepPercent) {
+      els.worldMapZoomStep.value = stepPercent;
+    }
+  }
+}
+
+function setMapZoomStepPercent(value) {
+  const rawPercent = Number(value);
+  if (!Number.isFinite(rawPercent) || rawPercent <= 0) return false;
+  const percent = clamp(Math.round(rawPercent), 1, 100);
+  state.map.zoomStep = percent / 100;
+  updateMapZoomUi();
+  return true;
+}
+
 function cycleWorldViewportMode() {
   if (state.screen !== "world" || !state.game || state.combat || state.modal) return;
   state.map.viewportMode = state.map.viewportMode === "native" ? "fit" : "native";
@@ -4433,7 +4436,7 @@ function cycleWorldViewportOrientation() {
 
 function changeMapZoom(delta) {
   if (!state.game) return;
-  const next = clamp(Number(state.map.zoom || 1) + delta, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  const next = clamp(Math.round((Number(state.map.zoom || 1) + delta) * 100) / 100, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
   if (Math.abs(next - state.map.zoom) < 0.0001) return;
   state.map.zoom = next;
   updateMapUi();
@@ -4458,6 +4461,7 @@ function updateMapUi() {
   if (els.screens.world) {
     els.screens.world.classList.toggle("map-fullscreen", state.map.fullscreen);
     els.screens.world.classList.toggle("hud-stacked", state.map.hudLayout === "stacked");
+    els.screens.world.classList.toggle("actions-in-scene", state.map.actionBarPosition === "scene");
     els.screens.world.classList.toggle("viewport-native-landscape", state.map.viewportMode === "native" && state.map.viewportOrientation === "landscape");
     els.screens.world.classList.toggle("viewport-native-portrait", state.map.viewportMode === "native" && state.map.viewportOrientation === "portrait");
   }
@@ -4467,20 +4471,30 @@ function updateMapUi() {
   if (els.worldHudLayout) {
     els.worldHudLayout.textContent = state.map.hudLayout === "stacked" ? "HUD: Stacked" : "HUD: Side";
   }
+  if (els.worldActionsLayout) {
+    els.worldActionsLayout.textContent = state.map.actionBarPosition === "scene" ? "Actions: Scene" : "Actions: Bottom";
+  }
+  if (els.worldControlsSceneSlot) {
+    els.worldControlsSceneSlot.classList.toggle("active-slot", state.map.actionBarPosition === "scene");
+  }
+  if (els.worldControlsBottomSlot) {
+    els.worldControlsBottomSlot.classList.toggle("active-slot", state.map.actionBarPosition === "bottom");
+  }
+  if (els.worldControls) {
+    const targetSlot = state.map.actionBarPosition === "scene"
+      ? els.worldControlsSceneSlot
+      : els.worldControlsBottomSlot;
+    if (targetSlot && els.worldControls.parentElement !== targetSlot) {
+      targetSlot.appendChild(els.worldControls);
+    }
+  }
   if (els.worldViewportMode) {
     els.worldViewportMode.textContent = state.map.viewportMode === "native" ? "Viewport: Native" : "Viewport: Fit";
   }
   if (els.worldViewportOrientation) {
     els.worldViewportOrientation.textContent = `Orientation: ${state.map.viewportOrientation === "portrait" ? "Portrait" : "Landscape"}`;
   }
-  if (els.mapLegend) {
-    const zoomText = `${Math.round((state.map.zoom || 1) * 100)}%`;
-    const layoutText = state.map.hudLayout === "stacked" ? "stacked HUD" : "side HUD";
-    const viewportText = state.map.viewportMode === "native"
-      ? `Native ${state.map.viewportOrientation}`
-      : "Fit-to-window";
-    els.mapLegend.textContent = `Map icons: City, Town, Dungeon, Chest, NPC, Event, Boss, Workshop, DEBUG_CRAFTING, resources (tree/herb/leafhide/ore/crystal/fish/tidepool). Resource top-left badge shows required level, bottom-right shows charges or depletion. Shop badge ($), Inn badge (I). Zoom ${zoomText}. ${viewportText} viewport with ${layoutText}.`;
-  }
+  updateMapZoomUi();
 }
 
 function ensureMapCanvasSize() {
@@ -5813,6 +5827,7 @@ function resolvePlayerAttack({ kind, abilityOverride = null }) {
     });
     pushCombatLog(`${profile.label} misses (${hitRoll} vs ${target}).${formatWeaponMasteryGain(masteryGain)}`);
     announceWeaponMasteryUnlocks(masteryGain);
+    playCombatAttackSfx(profile, { outcome: "miss", isSkill: kind === "skill" });
     queueEnemyTurn();
     return;
   }
@@ -5857,7 +5872,7 @@ function resolvePlayerAttack({ kind, abilityOverride = null }) {
     pushCombatLog(`${profile.label}${damageTag} hits for ${damage}${critical ? " (critical)" : ""}.${affinitySuffix}${formatWeaponMasteryGain(masteryGain)}`);
   }
   announceWeaponMasteryUnlocks(masteryGain);
-  playSfx(critical ? "crit" : "hit");
+  playCombatAttackSfx(profile, { critical, isSkill: kind === "skill" });
   if (defeatedEnemy) finalizeCombat("won");
   else queueEnemyTurn();
 }
@@ -5875,6 +5890,7 @@ function getPlayerAttackProfile(kind, abilityOverride = null) {
     return {
       label: "Attack",
       attackType,
+      weaponFamily: getWeaponFamilyKey(weapon, attackType),
       damageDice: [weaponDie],
       hitBonus: Math.floor(player.derivedStats.Luck / 6) + weaponHitBonus,
       attackScale: 0.52 + weaponSpeed * 0.008,
@@ -5891,6 +5907,7 @@ function getPlayerAttackProfile(kind, abilityOverride = null) {
   return {
     label: chosen.name,
     attackType,
+    weaponFamily: getWeaponFamilyKey(weapon, attackType),
     damageDice: abilityDice,
     hitBonus: chosen.hitBonus + Math.floor(weaponHitBonus / 2),
     attackScale: chosen.attackScale + weaponSpeed * 0.003,
@@ -6162,10 +6179,16 @@ function resolveEnemyTurn() {
   const attackStats = ATTACK_TO_STATS[enemy.attackType];
   const attackValue = enemy.stats[attackStats.attack];
   const defenseValue = player.derivedStats[attackStats.defense];
+  const enemySfxProfile = {
+    attackType: enemy.attackType,
+    damageKind: enemy.damageKind || defaultDamageKindForAttackType(enemy.attackType),
+    weaponFamily: getWeaponFamilyKey(enemy, enemy.attackType),
+  };
   const hitRoll = rollDie(state.game.runtimeRng, 20) + attackValue;
   const target = defenseValue + 10;
   if (hitRoll < target) {
     pushCombatLog(`${enemy.name} misses (${hitRoll} vs ${target}).`);
+    playCombatAttackSfx(enemySfxProfile, { outcome: "miss" });
     state.combat.playerDefending = false;
     tickPlayerEffects(player);
     state.combat.turn += 1;
@@ -6184,7 +6207,7 @@ function resolveEnemyTurn() {
 
   player.currentHealth = clamp(player.currentHealth - damage, 0, player.derivedStats.Health);
   pushCombatLog(`${enemy.name} hits for ${damage}.`);
-  playSfx(critRoll <= critThreshold ? "crit" : "hit");
+  playCombatAttackSfx(enemySfxProfile, { critical: critRoll <= critThreshold });
   state.combat.playerDefending = false;
   tickPlayerEffects(player);
   state.combat.turn += 1;
@@ -6700,6 +6723,15 @@ function isCharacterModal(type) {
   return CHARACTER_MODAL_TABS.includes(type);
 }
 
+function renderFocusNavAttrs(options = {}) {
+  const navScope = options.navScope || "";
+  const navGroup = options.navGroup || "";
+  if (!navScope || !navGroup || !Number.isFinite(options.navLayer)) return "";
+  const navOrder = Number.isFinite(options.navOrder) ? String(options.navOrder) : "0";
+  const navAxis = options.navAxis || "horizontal";
+  return ` data-nav-scope="${escapeHtml(navScope)}" data-nav-layer="${escapeHtml(String(options.navLayer))}" data-nav-group="${escapeHtml(navGroup)}" data-nav-order="${escapeHtml(navOrder)}" data-nav-axis="${escapeHtml(navAxis)}"`;
+}
+
 function focusFirstButtonByModalAction(action) {
   if (!action) return false;
   const index = state.focusables.findIndex((element) => element?.dataset?.modalAction === action);
@@ -6707,6 +6739,49 @@ function focusFirstButtonByModalAction(action) {
   state.focusIndex = index;
   applyFocusStyles();
   return true;
+}
+
+function rememberEquipmentModalFocus(element) {
+  if (state.modal !== "equipment" || !state.characterUi) return;
+  if (!element) {
+    state.characterUi.equipmentFocus = null;
+    return;
+  }
+  const modalAction = element.dataset?.modalAction || "";
+  if (!modalAction || modalAction === "open-character-section") {
+    state.characterUi.equipmentFocus = null;
+    return;
+  }
+  state.characterUi.equipmentFocus = {
+    isClose: false,
+    modalAction,
+    slot: element.dataset?.slot || "",
+    direction: element.dataset?.direction || "",
+    target: element.dataset?.target || "",
+  };
+}
+
+function focusEquipmentModalControl() {
+  if (state.modal !== "equipment") return false;
+  const savedFocus = state.characterUi?.equipmentFocus || null;
+  if (savedFocus) {
+    const index = state.focusables.findIndex((element) => {
+      if (!element) return false;
+      if (savedFocus.isClose) return element === els.modalClose;
+      return (element.dataset?.modalAction || "") === (savedFocus.modalAction || "")
+        && (element.dataset?.slot || "") === (savedFocus.slot || "")
+        && (element.dataset?.direction || "") === (savedFocus.direction || "")
+        && (element.dataset?.target || "") === (savedFocus.target || "");
+    });
+    if (index >= 0) {
+      state.focusIndex = index;
+      applyFocusStyles();
+      return true;
+    }
+  }
+  return focusFirstButtonByModalAction("cycle-equipment-slot-selection")
+    || focusFirstButtonByModalAction("optimize-equipment")
+    || focusButtonByDataset("target", state.modal);
 }
 
 function focusLevelUpControls() {
@@ -6728,15 +6803,15 @@ function focusLevelUpControls() {
 }
 
 function renderModalTabStrip(tabs, activeId, action, dataKey = "target", options = {}) {
-  const navScope = options.navScope || "";
-  const navLayer = Number.isFinite(options.navLayer) ? String(options.navLayer) : "";
-  const navGroup = options.navGroup || "";
-  const navAxis = options.navAxis || "horizontal";
   const buttons = tabs.map((tab, index) => {
     const isActive = tab.id === activeId;
-    const navAttrs = navScope
-      ? ` data-nav-scope="${escapeHtml(navScope)}" data-nav-layer="${escapeHtml(navLayer)}" data-nav-group="${escapeHtml(navGroup)}" data-nav-order="${index}" data-nav-axis="${escapeHtml(navAxis)}"`
-      : "";
+    const navAttrs = renderFocusNavAttrs({
+      navScope: options.navScope,
+      navLayer: options.navLayer,
+      navGroup: options.navGroup,
+      navOrder: index,
+      navAxis: options.navAxis,
+    });
     return `<button class="focusable ${isActive ? "selected" : ""}" data-modal-action="${action}" data-${dataKey}="${escapeHtml(tab.id)}"${navAttrs}>${escapeHtml(tab.label)}</button>`;
   }).join("");
   return `<div class="modal-tab-strip">${buttons}</div>`;
@@ -6818,6 +6893,168 @@ function getAllocatedStatPoints(player) {
   }, 0);
 }
 
+function formatEquipmentSlotLabel(slot) {
+  if (slot === "Accessory1") return "Accessory 1";
+  if (slot === "Accessory2") return "Accessory 2";
+  return slot || "Equipment";
+}
+
+function renderLevelRequirementMarkup(levelReq, playerLevel = 0, prefix = "Req Lv") {
+  const requiredLevel = Math.max(1, Math.floor(levelReq || 1));
+  const locked = Number.isFinite(playerLevel) && playerLevel < requiredLevel;
+  return `<span class="item-level-req${locked ? " is-locked" : ""}">${escapeHtml(prefix)} ${requiredLevel}</span>`;
+}
+
+function renderEquipmentMetaLine(item, playerLevel = 0, options = {}) {
+  if (!item) return "Empty";
+  const includeSlot = options.includeSlot !== false;
+  const slotLabel = includeSlot ? `${escapeHtml(formatEquipmentSlotLabel(options.slot || item.slot))} | ` : "";
+  const crafted = item.craftQuality ? ` | Crafted ${escapeHtml(item.craftQuality)}` : "";
+  const modifiers = escapeHtml(summarizeModifiers(item.modifiers || {}));
+  const weaponSummary = item.slot === "Weapon" ? ` | ${escapeHtml(summarizeWeaponForUi(item))}` : "";
+  return `${escapeHtml(item.rarity || "Common")} | ${slotLabel}${renderLevelRequirementMarkup(item.levelReq || 1, playerLevel)}${crafted} | ${modifiers}${weaponSummary}`;
+}
+
+function formatEquipmentOptionText(item, playerLevel = 0) {
+  if (!item) return "None";
+  const requiredLevel = Math.max(1, Math.floor(item.levelReq || 1));
+  const lockedText = playerLevel < requiredLevel ? `Req Lv ${requiredLevel} Locked` : `Req Lv ${requiredLevel}`;
+  const crafted = item.craftQuality ? ` | Crafted ${item.craftQuality}` : "";
+  const weaponSummary = item.slot === "Weapon" ? ` | ${summarizeWeaponForUi(item)}` : "";
+  return `${item.name} | ${item.rarity || "Common"} | ${lockedText}${crafted} | ${summarizeModifiers(item.modifiers || {})}${weaponSummary}`;
+}
+
+function getBagEquipmentForSlot(player, slot) {
+  if (!player?.bag) return [];
+  return player.bag.filter((item) => item.kind === "equipment" && item.slot === slot);
+}
+
+function getEquipmentSlotSelectId(slot) {
+  return `equipment-slot-select-${slot}`;
+}
+
+function cycleSelectValue(select, direction) {
+  if (!select || select.disabled || !direction) return false;
+  const options = [...select.options];
+  if (options.length <= 1) return false;
+  const step = direction > 0 ? 1 : -1;
+  const currentIndex = select.selectedIndex >= 0 ? select.selectedIndex : 0;
+  for (let attempts = 0; attempts < options.length; attempts += 1) {
+    const nextIndex = (currentIndex + step * (attempts + 1) + options.length) % options.length;
+    if (options[nextIndex]?.disabled || nextIndex === currentIndex) continue;
+    select.selectedIndex = nextIndex;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+  return false;
+}
+
+function getSelectedBagEquipmentByUid(player, uid, slot = "") {
+  if (!player || !uid) return null;
+  return player.bag.find((entry) => entry.uid === uid && entry.kind === "equipment" && (!slot || entry.slot === slot)) || null;
+}
+
+function getSelectedEquipmentItemFromModal(player, slot) {
+  const select = document.getElementById(getEquipmentSlotSelectId(slot));
+  return getSelectedBagEquipmentByUid(player, select?.value || "", slot);
+}
+
+function captureEquipmentSelections() {
+  const selections = {};
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    selections[slot] = document.getElementById(getEquipmentSlotSelectId(slot))?.value || "";
+  });
+  return selections;
+}
+
+function getEquipmentOptimizeScore(item, targetStyle = "Melee") {
+  if (!item || item.kind !== "equipment") return Number.NEGATIVE_INFINITY;
+  const styleStats = ATTACK_TO_STATS[targetStyle] || ATTACK_TO_STATS.Melee;
+  const mods = item.modifiers || {};
+  const otherStyles = Object.entries(ATTACK_TO_STATS).filter(([style]) => style !== targetStyle);
+  let score = 0;
+  score += (mods[styleStats.attack] || 0) * 8;
+  score += (mods[styleStats.defense] || 0) * 5;
+  score += (mods.Health || 0) * 1.2;
+  score += (mods.CriticalChance || 0) * 4;
+  score += (mods.Luck || 0) * 2;
+  otherStyles.forEach(([, stats]) => {
+    score += (mods[stats.attack] || 0) * 1.5;
+    score += (mods[stats.defense] || 0) * 1.25;
+  });
+  if (item.slot === "Weapon") {
+    normalizeWeaponItem(item);
+    score += item.attackType === targetStyle ? 24 : -18;
+    score += (item.damageDie || 0) * 4.5;
+    score += getWeaponSpeed(item) * 1.7;
+    score += getWeaponHitModifier(item) * 3;
+    score += getWeaponCritBonus(item) * 2.2;
+  }
+  score += (item.tier || tierForLevel(item.levelReq || 1)) * 0.7;
+  score += (item.levelReq || 1) * 0.08;
+  return score;
+}
+
+function getBestEquipmentCandidateForSlot(player, slot, targetStyle = "Melee") {
+  const current = player?.equipment?.[slot] || null;
+  const eligibleBagItems = getBagEquipmentForSlot(player, slot)
+    .filter((item) => player.level >= (item.levelReq || 1));
+  const candidates = [current, ...eligibleBagItems].filter(Boolean);
+  if (!candidates.length) return null;
+  return candidates
+    .slice()
+    .sort((a, b) => {
+      const scoreDelta = getEquipmentOptimizeScore(b, targetStyle) - getEquipmentOptimizeScore(a, targetStyle);
+      if (scoreDelta !== 0) return scoreDelta;
+      const levelDelta = (b.levelReq || 1) - (a.levelReq || 1);
+      if (levelDelta !== 0) return levelDelta;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    })[0];
+}
+
+function optimizeEquipmentForSelections(player, selections = {}) {
+  if (!player) return { changed: false, changes: [], invalidSelectedWeapon: null, previousStyle: "Melee", nextStyle: "Melee" };
+  const previousStyle = getActiveAttackStyle(player);
+  const selectedWeapon = getSelectedBagEquipmentByUid(player, selections.Weapon || "", "Weapon");
+  let invalidSelectedWeapon = null;
+  let targetWeapon = player.equipment?.Weapon || null;
+  if (selectedWeapon) {
+    if (player.level < (selectedWeapon.levelReq || 1)) invalidSelectedWeapon = selectedWeapon;
+    else targetWeapon = selectedWeapon;
+  }
+  if (targetWeapon) normalizeWeaponItem(targetWeapon);
+  const targetStyle = targetWeapon?.attackType || previousStyle || "Melee";
+  const desiredBySlot = { Weapon: targetWeapon };
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    if (slot === "Weapon") return;
+    desiredBySlot[slot] = getBestEquipmentCandidateForSlot(player, slot, targetStyle);
+  });
+
+  const changes = [];
+  if (desiredBySlot.Weapon?.uid && player.equipment?.Weapon?.uid !== desiredBySlot.Weapon.uid) {
+    const result = equipFromBag(player, desiredBySlot.Weapon.uid);
+    if (result) changes.push({ slot: "Weapon", item: result.item });
+  }
+
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    if (slot === "Weapon") return;
+    const desired = desiredBySlot[slot];
+    if (!desired?.uid || player.equipment?.[slot]?.uid === desired.uid) return;
+    const result = equipFromBag(player, desired.uid);
+    if (result) changes.push({ slot, item: result.item });
+  });
+
+  const nextStyle = getActiveAttackStyle(player);
+  return {
+    changed: changes.length > 0,
+    changes,
+    invalidSelectedWeapon,
+    previousStyle,
+    nextStyle,
+    targetStyle,
+  };
+}
+
 function renderInventoryTabContent(player) {
   const activeTab = getActiveInventoryTab();
   const consumables = player.bag.filter((item) => item.kind === "consumable");
@@ -6852,7 +7089,7 @@ function renderInventoryTabContent(player) {
           <div class="item-row">
             <div>
               <strong>${escapeHtml(item.name)}</strong>
-              <p>${escapeHtml(item.rarity || "Common")} | ${escapeHtml(item.slot)} | Req Lv ${item.levelReq || 1}${item.craftQuality ? ` | Crafted ${escapeHtml(item.craftQuality)}` : ""} | ${summarizeModifiers(item.modifiers)}${item.slot === "Weapon" ? ` | ${escapeHtml(summarizeWeaponForUi(item))}` : ""}</p>
+              <p>${renderEquipmentMetaLine(item, player.level)}</p>
             </div>
             <button class="focusable" data-modal-action="equip-item" data-item-id="${item.uid}">Equip</button>
           </div>
@@ -7125,7 +7362,7 @@ function renderShopStockRow(entry, player) {
     <div class="item-row">
       <div>
         <strong>${escapeHtml(item.name)}</strong>
-        <p>${escapeHtml(item.rarity || "Common")} | ${escapeHtml(item.slot)} | Req Lv ${item.levelReq || 1}${item.craftQuality ? ` | Crafted ${escapeHtml(item.craftQuality)}` : ""} | ${summarizeModifiers(item.modifiers)}${item.slot === "Weapon" ? ` | ${escapeHtml(summarizeWeaponForUi(item))}` : ""}</p>
+        <p>${renderEquipmentMetaLine(item, state.game?.player?.level || 1)}</p>
       </div>
       <button class="focusable" data-modal-action="buy-shop-item" data-shop-item-id="${entry.id}">Buy ${entry.price}g</button>
     </div>
@@ -7203,6 +7440,12 @@ function renderModal() {
     els.modalClose.dataset.navGroup = "crafting-close";
     els.modalClose.dataset.navOrder = "0";
     els.modalClose.dataset.navAxis = "horizontal";
+  } else if (state.modal === "equipment" && els.modalClose?.dataset) {
+    els.modalClose.dataset.navScope = EQUIPMENT_MODAL_NAV.scope;
+    els.modalClose.dataset.navLayer = String(EQUIPMENT_MODAL_NAV.layers.close);
+    els.modalClose.dataset.navGroup = "equipment-close";
+    els.modalClose.dataset.navOrder = "0";
+    els.modalClose.dataset.navAxis = "horizontal";
   }
 
   if (state.modal === "character") {
@@ -7247,22 +7490,83 @@ function renderModal() {
     els.modalContent.innerHTML = renderInventoryTabContent(player);
   } else if (state.modal === "equipment") {
     els.modalTitle.textContent = "Equipment";
-    const equippedRows = EQUIPMENT_SLOTS.map((slot) => {
+    const equippedRows = EQUIPMENT_SLOTS.map((slot, index) => {
       const item = player.equipment[slot];
-      if (!item) {
-        return `<div class="item-row"><div><strong>${slot}</strong><p>Empty</p></div><span>-</span></div>`;
-      }
+      const bagChoices = getBagEquipmentForSlot(player, slot);
+      const selectId = getEquipmentSlotSelectId(slot);
+      const rowNavLayer = EQUIPMENT_MODAL_NAV.layers.slotStart + index;
+      const rowNavGroup = `equipment-slot-${slot.toLowerCase()}`;
+      const prevNavAttrs = renderFocusNavAttrs({
+        navScope: EQUIPMENT_MODAL_NAV.scope,
+        navLayer: rowNavLayer,
+        navGroup: rowNavGroup,
+        navOrder: 0,
+        navAxis: "horizontal",
+      });
+      const nextNavAttrs = renderFocusNavAttrs({
+        navScope: EQUIPMENT_MODAL_NAV.scope,
+        navLayer: rowNavLayer,
+        navGroup: rowNavGroup,
+        navOrder: 1,
+        navAxis: "horizontal",
+      });
+      const equipNavAttrs = renderFocusNavAttrs({
+        navScope: EQUIPMENT_MODAL_NAV.scope,
+        navLayer: rowNavLayer,
+        navGroup: rowNavGroup,
+        navOrder: 2,
+        navAxis: "horizontal",
+      });
+      const unequipNavAttrs = renderFocusNavAttrs({
+        navScope: EQUIPMENT_MODAL_NAV.scope,
+        navLayer: rowNavLayer,
+        navGroup: rowNavGroup,
+        navOrder: 3,
+        navAxis: "horizontal",
+      });
+      const optionRows = bagChoices.length
+        ? bagChoices.map((entry) => `<option value="${escapeHtml(entry.uid)}">${escapeHtml(formatEquipmentOptionText(entry, player.level))}</option>`).join("")
+        : `<option value="">No compatible items in bag</option>`;
+      const currentLine = item
+        ? `<strong>${escapeHtml(item.name)}</strong> | ${renderEquipmentMetaLine(item, player.level, { includeSlot: false })}`
+        : "Empty";
       return `
-        <div class="item-row">
-          <div>
-            <strong>${slot}</strong>
-            <p>${escapeHtml(item.rarity || "Common")} | ${escapeHtml(item.name)} | Req Lv ${item.levelReq || 1}${item.craftQuality ? ` | Crafted ${escapeHtml(item.craftQuality)}` : ""} | ${summarizeModifiers(item.modifiers)}${slot === "Weapon" ? ` | ${escapeHtml(summarizeWeaponForUi(item))}` : ""}</p>
+        <div class="item-row equipment-slot-row">
+          <div class="equipment-slot-main">
+            <strong>${escapeHtml(formatEquipmentSlotLabel(slot))}</strong>
+            <p>${currentLine}</p>
+            <label class="equipment-slot-select-row" for="${escapeHtml(selectId)}">
+              <span>Inventory</span>
+              <div class="equipment-slot-picker">
+                <button class="focusable" data-modal-action="cycle-equipment-slot-selection" data-slot="${slot}" data-direction="-1"${prevNavAttrs} ${bagChoices.length ? "" : "disabled"}>Prev</button>
+                <select id="${escapeHtml(selectId)}" class="equipment-slot-select" ${bagChoices.length ? "" : "disabled"}>
+                  <option value="">${bagChoices.length ? `Choose ${escapeHtml(formatEquipmentSlotLabel(slot))}` : "No compatible items in bag"}</option>
+                  ${optionRows}
+                </select>
+                <button class="focusable" data-modal-action="cycle-equipment-slot-selection" data-slot="${slot}" data-direction="1"${nextNavAttrs} ${bagChoices.length ? "" : "disabled"}>Next</button>
+              </div>
+            </label>
           </div>
-          <button class="focusable" data-modal-action="unequip-slot" data-slot="${slot}">Unequip</button>
+          <div class="item-actions">
+            <button class="focusable" data-modal-action="equip-selected-slot" data-slot="${slot}"${equipNavAttrs} ${bagChoices.length ? "" : "disabled"}>Equip</button>
+            <button class="focusable" data-modal-action="unequip-slot" data-slot="${slot}"${unequipNavAttrs} ${item ? "" : "disabled"}>Unequip</button>
+          </div>
         </div>
       `;
     }).join("");
-    els.modalContent.innerHTML = `<h4>Equipped Gear</h4><div class="modal-list">${equippedRows}</div>`;
+    els.modalContent.innerHTML = `
+      <p>Pick a bag item from a slot dropdown, then equip it. Controller users can use Prev and Next to change the dropdown choice. Optimize uses the weapon selected in the weapon dropdown if one is chosen; otherwise it keeps your current weapon.</p>
+      <div class="equipment-toolbar">
+        <button class="focusable" data-modal-action="optimize-equipment"${renderFocusNavAttrs({
+          navScope: EQUIPMENT_MODAL_NAV.scope,
+          navLayer: EQUIPMENT_MODAL_NAV.layers.toolbar,
+          navGroup: "equipment-toolbar",
+          navOrder: 0,
+          navAxis: "horizontal",
+        })}>Optimize</button>
+      </div>
+      <div class="modal-list">${equippedRows}</div>
+    `;
   } else if (state.modal === "skills") {
     els.modalTitle.textContent = "Skills";
     const skills = ensurePlayerSkills(player);
@@ -7396,14 +7700,14 @@ function renderModal() {
         const family = getWeaponFamilyDefinition(item, item.attackType);
         const mastery = getWeaponMasterySnapshot(player, item, item.attackType);
         const disabled = player.level < (item.levelReq || 1) ? "disabled" : "";
-        const lockedText = player.level < (item.levelReq || 1) ? ` | Requires Lv ${item.levelReq}` : "";
+        const lockedText = player.level < (item.levelReq || 1) ? ` | ${renderLevelRequirementMarkup(item.levelReq || 1, player.level, "Requires Lv")}` : "";
         return `
           <div class="item-row">
             <div>
               <strong>${escapeHtml(item.name)}</strong>
               <p>${escapeHtml(item.attackType)} | ${escapeHtml(family.discipline)} | ${escapeHtml(summarizeWeaponForUi(item))}${lockedText}</p>
               <p>Mastery ${mastery.masteryPoints} | Learned ${mastery.learnedCount}/${mastery.totalCount}${mastery.next ? ` | Next ${escapeHtml(mastery.next.name)} at ${mastery.nextRequirement}` : " | All techniques learned"}</p>
-              <p>${escapeHtml(family.strengths)} Tradeoff: ${escapeHtml(family.weaknesses)}</p>
+              <p>${escapeHtml(getWeaponStrengths(item, item.attackType))} Tradeoff: ${escapeHtml(getWeaponTradeoffs(item, item.attackType))}</p>
             </div>
             <button class="focusable" data-modal-action="combat-swap-weapon" data-item-id="${item.uid}" ${disabled}>Equip</button>
           </div>
@@ -7971,7 +8275,14 @@ function renderModal() {
       state.modal,
       "open-character-section",
       "target",
-      state.modal === "crafting" && !state.craftingRun
+      state.modal === "equipment"
+        ? {
+          navScope: EQUIPMENT_MODAL_NAV.scope,
+          navLayer: EQUIPMENT_MODAL_NAV.layers.character,
+          navGroup: "equipment-character-tabs",
+          navAxis: "horizontal",
+        }
+        : state.modal === "crafting" && !state.craftingRun
         ? {
           navScope: CRAFTING_BROWSER_NAV.scope,
           navLayer: CRAFTING_BROWSER_NAV.layers.character,
@@ -8001,6 +8312,8 @@ function renderModal() {
     focusButtonByDataset("tab", getActiveInventoryTab());
   } else if (state.modal === "crafting") {
     focusButtonByDataset("skill", getActiveCraftingSkillTab());
+  } else if (state.modal === "equipment") {
+    focusEquipmentModalControl();
   } else if (state.modal === "levelup") {
     if (!focusLevelUpControls()) focusButtonByDataset("target", state.modal);
   } else if (isCharacterModal(state.modal)) {
@@ -8386,6 +8699,64 @@ function onModalAction(event) {
     } else {
       addWorldLog(`Equipped ${item.name}.`);
     }
+    renderWorld();
+    renderModal();
+    return;
+  }
+
+  if (action === "equip-selected-slot") {
+    const slot = button.dataset.slot;
+    if (!slot) return;
+    const item = getSelectedEquipmentItemFromModal(player, slot);
+    if (!item) {
+      addWorldLog(`Select a ${formatEquipmentSlotLabel(slot)} item first.`);
+      renderWorldLog();
+      return;
+    }
+    if (player.level < (item.levelReq || 1)) {
+      addWorldLog(`Level ${item.levelReq || 1} required to equip ${item.name}.`);
+      renderWorldLog();
+      return;
+    }
+    const result = equipFromBag(player, item.uid);
+    if (!result) return;
+    if (item.slot === "Weapon") {
+      const family = getWeaponFamilyDefinition(item, result.nextStyle);
+      const styleShift = result.previousStyle !== result.nextStyle ? ` Style shifted to ${result.nextStyle}.` : "";
+      addWorldLog(`Equipped ${item.name}. Class is now ${family.discipline}.${styleShift}`);
+    } else {
+      addWorldLog(`Equipped ${item.name} to ${formatEquipmentSlotLabel(slot)}.`);
+    }
+    renderWorld();
+    renderModal();
+    return;
+  }
+
+  if (action === "cycle-equipment-slot-selection") {
+    const slot = button.dataset.slot;
+    if (!slot) return;
+    const direction = Number(button.dataset.direction) || 1;
+    const select = document.getElementById(getEquipmentSlotSelectId(slot));
+    cycleSelectValue(select, direction);
+    return;
+  }
+
+  if (action === "optimize-equipment") {
+    const result = optimizeEquipmentForSelections(player, captureEquipmentSelections());
+    if (result.invalidSelectedWeapon) {
+      addWorldLog(`Optimize skipped ${result.invalidSelectedWeapon.name}. Level ${result.invalidSelectedWeapon.levelReq || 1} required.`);
+    }
+    if (!result.changed) {
+      addWorldLog("No better gear found for the selected weapon setup.");
+      renderWorld();
+      renderModal();
+      return;
+    }
+    const changeSummary = result.changes
+      .map((entry) => `${formatEquipmentSlotLabel(entry.slot)} ${entry.item.name}`)
+      .join(" | ");
+    const styleShift = result.previousStyle !== result.nextStyle ? ` Style shifted to ${result.nextStyle}.` : "";
+    addWorldLog(`Optimized gear for ${result.targetStyle}. ${changeSummary}.${styleShift}`);
     renderWorld();
     renderModal();
     return;
@@ -9113,6 +9484,7 @@ function gatherResourceNode(feature) {
   els.modalBackdrop.classList.remove("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "false");
   renderModal();
+  playSfx(getGatheringSfxType(feature.resourceKind));
   startGatheringSequenceLoop();
 }
 
@@ -12863,11 +13235,12 @@ function usesFocusNavigation() {
 }
 
 function focusButtonByDataset(key, value) {
-  if (!key || value == null) return;
+  if (!key || value == null) return false;
   const index = state.focusables.findIndex((button) => button?.dataset?.[key] === value);
-  if (index < 0) return;
+  if (index < 0) return false;
   state.focusIndex = index;
   applyFocusStyles();
+  return true;
 }
 
 function updateFocusables() {
@@ -12902,6 +13275,7 @@ function applyFocusStyles() {
   const element = state.focusables[state.focusIndex];
   if (!element) return;
   element.classList.add("focused");
+  rememberEquipmentModalFocus(element);
   element.scrollIntoView({ block: "nearest" });
 }
 
@@ -13226,8 +13600,8 @@ function pollGamepad(now) {
 
   if (state.screen === "world" && state.game && !state.modal && !state.combat) {
     if (edge(2)) toggleMapFullscreen();
-    if (edge(4)) changeMapZoom(-MAP_ZOOM_STEP);
-    if (edge(5)) changeMapZoom(MAP_ZOOM_STEP);
+    if (edge(4)) changeMapZoom(-getMapZoomStep());
+    if (edge(5)) changeMapZoom(getMapZoomStep());
     if (edge(12) || (axisY < -0.55 && now >= state.gamepad.axisYReadyAt)) {
       movePlayer(0, -1);
       state.gamepad.axisYReadyAt = now + 140;
@@ -13511,6 +13885,20 @@ function findWeaponTemplateById(weaponId) {
   return null;
 }
 
+function findWeaponTemplateByReference(weapon, fallbackStyle = "Melee") {
+  if (!weapon) return null;
+  if (typeof weapon === "string") return findWeaponTemplateById(weapon);
+  const direct = findWeaponTemplateById(weapon.weaponTemplateId || weapon.id);
+  if (direct) return direct;
+  const style = weapon.attackType || fallbackStyle || "Melee";
+  const name = String(weapon.name || "").toLowerCase().trim();
+  if (!name) return null;
+  const candidates = getWeaponsForStyle(style)
+    .slice()
+    .sort((a, b) => String(b.name || "").length - String(a.name || "").length);
+  return candidates.find((entry) => name.includes(String(entry.name || "").toLowerCase())) || null;
+}
+
 function getDefaultWeaponIdForStyle(style) {
   const styleData = COMBAT_STYLES[style] || COMBAT_STYLES.Melee;
   if (styleData?.defaultWeaponId) return styleData.defaultWeaponId;
@@ -13555,7 +13943,7 @@ function inferAttackTypeFromModifiers(item) {
 function getWeaponFamilyKey(weapon, fallbackStyle = "Melee") {
   const style = weapon?.attackType || fallbackStyle || "Melee";
   if (weapon?.weaponFamily && WEAPON_FAMILY_DEFS[weapon.weaponFamily]) return weapon.weaponFamily;
-  const template = weapon?.weaponTemplateId ? findWeaponTemplateById(weapon.weaponTemplateId) : weapon?.id ? findWeaponTemplateById(weapon.id) : null;
+  const template = findWeaponTemplateByReference(weapon, style);
   if (template?.weaponFamily) return template.weaponFamily;
 
   const name = String(weapon?.name || "").toLowerCase();
@@ -13616,6 +14004,20 @@ function getWeaponDiscipline(weapon, fallbackStyle = "Melee") {
   return getWeaponFamilyDefinition(weapon, fallbackStyle).discipline || fallbackStyle;
 }
 
+function getWeaponStrengths(weapon, fallbackStyle = "Melee") {
+  if (weapon?.strengths) return weapon.strengths;
+  const template = findWeaponTemplateByReference(weapon, fallbackStyle);
+  if (template?.strengths) return template.strengths;
+  return getWeaponFamilyDefinition(weapon, fallbackStyle).strengths;
+}
+
+function getWeaponTradeoffs(weapon, fallbackStyle = "Melee") {
+  if (weapon?.tradeoffs) return weapon.tradeoffs;
+  const template = findWeaponTemplateByReference(weapon, fallbackStyle);
+  if (template?.tradeoffs) return template.tradeoffs;
+  return getWeaponFamilyDefinition(weapon, fallbackStyle).weaknesses;
+}
+
 function syncPlayerStyleToWeapon(player) {
   if (!player) return "Melee";
   const weaponStyle = player.equipment?.Weapon?.attackType;
@@ -13637,11 +14039,10 @@ function normalizeWeaponItem(item) {
   item.speed = Number.isFinite(item.speed) ? clamp(Math.floor(item.speed), 1, 10) : 5;
   item.hitBonus = Number.isFinite(item.hitBonus) ? Math.floor(item.hitBonus) : 0;
   item.critBonus = Number.isFinite(item.critBonus) ? Math.floor(item.critBonus) : 0;
-  item.weaponFamily = getWeaponFamilyKey(item, item.attackType);
-  const template = item.weaponTemplateId ? findWeaponTemplateById(item.weaponTemplateId) : item.id ? findWeaponTemplateById(item.id) : null;
-  if (!item.summary) {
-    item.summary = template?.summary || `${getWeaponDiscipline(item, item.attackType)} weapon. ${getWeaponFamilyDefinition(item, item.attackType).strengths}`;
-  }
+  const template = findWeaponTemplateByReference(item, item.attackType);
+  if (template?.id && !item.weaponTemplateId) item.weaponTemplateId = template.id;
+  item.weaponFamily = template?.weaponFamily || getWeaponFamilyKey(item, item.attackType);
+  item.summary = template?.summary || item.summary || `${getWeaponDiscipline(item, item.attackType)} weapon. ${getWeaponFamilyDefinition(item, item.attackType).strengths}`;
   return item;
 }
 
@@ -13668,6 +14069,42 @@ function getWeaponDamageKind(weapon, fallbackAttackType = "Melee") {
   if (!weapon) return defaultDamageKindForAttackType(fallbackAttackType);
   normalizeWeaponItem(weapon);
   return weapon.damageKind;
+}
+
+function getWeaponFamilySfxType(weaponOrFamily, fallbackStyle = "Melee") {
+  const familyKey = typeof weaponOrFamily === "string"
+    ? weaponOrFamily
+    : getWeaponFamilyKey(weaponOrFamily, fallbackStyle);
+  if (familyKey === "magic_staff") return "weapon-magic-staff";
+  return WEAPON_FAMILY_DEFS[familyKey] ? `weapon-${familyKey}` : null;
+}
+
+function getDamageKindSfxType(damageKind, fallbackAttackType = "Melee") {
+  const kind = String(damageKind || defaultDamageKindForAttackType(fallbackAttackType)).toLowerCase();
+  if (!kind) return null;
+  return `attack-${kind}`;
+}
+
+function getSkillSfxType(attackType = "Melee") {
+  const normalized = String(attackType || "Melee").toLowerCase();
+  if (normalized === "ranged") return "skill-ranged";
+  if (normalized === "magic") return "skill-magic";
+  return "skill-melee";
+}
+
+function playCombatAttackSfx(profile, options = {}) {
+  if (!profile) return;
+  const attackType = profile.attackType || "Melee";
+  const familySfx = getWeaponFamilySfxType(profile.weaponFamily || null, attackType);
+  const damageSfx = getDamageKindSfxType(profile.damageKind, attackType);
+  if (options.isSkill) playSfx(getSkillSfxType(attackType));
+  if (familySfx) playSfx(familySfx);
+  if (damageSfx && damageSfx !== familySfx) playSfx(damageSfx);
+  if (options.outcome === "miss") {
+    playSfx("attack-miss");
+    return;
+  }
+  playSfx(options.critical ? "crit" : "hit");
 }
 
 function summarizeWeaponForUi(weapon) {
@@ -13840,7 +14277,7 @@ function updateControlPromptUi() {
     const autoHint = state.options.autoLevelUp ? " Auto-level is ON." : "";
     const debugHint = state.options.debugMode ? " Debug menu: button or Ctrl+Shift+D. Quick boosts: Ctrl+Shift+L/G/H/X." : "";
     const mapHint = ` Viewport ${state.map.fullscreen ? "expanded" : "standard"} at ${Math.round((state.map.zoom || 1) * 100)}% zoom.`;
-    const layoutHint = ` HUD ${state.map.hudLayout === "stacked" ? "stacked" : "side"} layout. ${state.map.viewportMode === "native" ? `Native ${state.map.viewportOrientation}` : "Fit"} viewport mode.`;
+    const layoutHint = ` HUD ${state.map.hudLayout === "stacked" ? "stacked" : "side"} layout. Actions ${state.map.actionBarPosition === "scene" ? "inside the scene panel" : "below the HUD"}. ${state.map.viewportMode === "native" ? `Native ${state.map.viewportOrientation}` : "Fit"} viewport mode.`;
     const quickLayoutHint = " Quick layout keys: [B] HUD layout, [X] viewport mode, [Z] orientation.";
     els.worldShortcutsHint.textContent = `Character menu includes Inventory, Equipment, Crafting, Skills, Mastery, Level Up, Quests, Bestiary, Story, Achievements, and journey stats. Inventory and crafting use tabs, and portable stations can open workshop-grade crafting anywhere. Open field crafting with [R]. Open options anytime with [N].${shoulderHint}${mapHint}${layoutHint}${quickLayoutHint}${autoHint}${debugHint}`;
   }
@@ -13851,7 +14288,10 @@ function normalizeMapViewState(mapState) {
   next.fullscreen = !!next.fullscreen;
   const zoom = Number(next.zoom);
   next.zoom = clamp(Number.isFinite(zoom) ? zoom : DEFAULT_MAP_ZOOM, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  const zoomStep = Number(next.zoomStep);
+  next.zoomStep = clamp(Number.isFinite(zoomStep) ? zoomStep : DEFAULT_MAP_ZOOM_STEP, 0.01, 1);
   next.hudLayout = next.hudLayout === "stacked" ? "stacked" : "side";
+  next.actionBarPosition = next.actionBarPosition === "bottom" ? "bottom" : "scene";
   next.viewportMode = next.viewportMode === "native" ? "native" : "fit";
   next.viewportOrientation = next.viewportOrientation === "portrait" ? "portrait" : "landscape";
   return next;
@@ -14132,6 +14572,117 @@ function playSfx(type) {
     pulse(120, 0.42, 0.1, "sawtooth");
     pulse(86, 0.45, 0.09, "triangle", 0.1);
     noiseBurst(0.2, 0.05, 0.04, 550);
+  } else if (normalizedType === "attack-miss") {
+    pulse(260, 0.08, 0.028, "triangle");
+    pulse(190, 0.09, 0.024, "sine", 0.04);
+    noiseBurst(0.05, 0.01, 0.01, 2100);
+  } else if (normalizedType === "skill-melee") {
+    pulse(210, 0.1, 0.04, "triangle");
+    pulse(330, 0.08, 0.03, "sawtooth", 0.03);
+  } else if (normalizedType === "skill-ranged") {
+    pulse(480, 0.07, 0.032, "triangle");
+    pulse(660, 0.09, 0.026, "sine", 0.05);
+  } else if (normalizedType === "skill-magic") {
+    pulse(540, 0.12, 0.04, "sine");
+    pulse(760, 0.14, 0.03, "triangle", 0.04);
+    pulse(980, 0.16, 0.024, "sine", 0.1);
+  } else if (normalizedType === "weapon-dagger") {
+    pulse(420, 0.05, 0.03, "triangle");
+    pulse(620, 0.04, 0.024, "square", 0.03);
+  } else if (normalizedType === "weapon-sword") {
+    pulse(250, 0.08, 0.036, "triangle");
+    pulse(520, 0.06, 0.024, "sine", 0.03);
+    noiseBurst(0.04, 0.008, 0.01, 2400);
+  } else if (normalizedType === "weapon-axe") {
+    pulse(170, 0.09, 0.042, "square");
+    pulse(120, 0.11, 0.03, "triangle", 0.03);
+    noiseBurst(0.04, 0.01, 0.01, 1200);
+  } else if (normalizedType === "weapon-hammer") {
+    pulse(120, 0.12, 0.05, "square");
+    pulse(78, 0.14, 0.036, "triangle", 0.04);
+  } else if (normalizedType === "weapon-flail") {
+    pulse(220, 0.07, 0.03, "triangle");
+    pulse(310, 0.05, 0.022, "square", 0.03);
+    pulse(510, 0.04, 0.018, "sine", 0.06);
+  } else if (normalizedType === "weapon-spear") {
+    pulse(360, 0.06, 0.034, "triangle");
+    pulse(760, 0.05, 0.025, "square", 0.02);
+  } else if (normalizedType === "weapon-polearm") {
+    pulse(230, 0.08, 0.036, "triangle");
+    pulse(430, 0.07, 0.026, "square", 0.04);
+    noiseBurst(0.05, 0.01, 0.01, 1800);
+  } else if (normalizedType === "weapon-quarterstaff") {
+    pulse(160, 0.08, 0.036, "triangle");
+    pulse(280, 0.07, 0.022, "sine", 0.03);
+  } else if (normalizedType === "weapon-bow") {
+    pulse(540, 0.04, 0.03, "triangle");
+    pulse(300, 0.08, 0.025, "sine", 0.02);
+  } else if (normalizedType === "weapon-crossbow") {
+    pulse(460, 0.05, 0.034, "square");
+    pulse(240, 0.09, 0.025, "triangle", 0.03);
+  } else if (normalizedType === "weapon-thrown") {
+    pulse(380, 0.05, 0.03, "triangle");
+    noiseBurst(0.05, 0.012, 0.01, 2000);
+  } else if (normalizedType === "weapon-sling") {
+    pulse(260, 0.06, 0.03, "triangle");
+    pulse(420, 0.05, 0.02, "sine", 0.04);
+  } else if (normalizedType === "weapon-wand") {
+    pulse(760, 0.08, 0.03, "sine");
+    pulse(980, 0.1, 0.022, "triangle", 0.03);
+  } else if (normalizedType === "weapon-magic-staff") {
+    pulse(220, 0.12, 0.028, "triangle");
+    pulse(620, 0.14, 0.028, "sine", 0.04);
+  } else if (normalizedType === "weapon-rod") {
+    pulse(520, 0.1, 0.032, "sine");
+    pulse(740, 0.12, 0.024, "triangle", 0.04);
+  } else if (normalizedType === "weapon-tome") {
+    pulse(430, 0.07, 0.022, "triangle");
+    noiseBurst(0.05, 0.01, 0.01, 1700);
+    pulse(700, 0.1, 0.022, "sine", 0.05);
+  } else if (normalizedType === "weapon-focus") {
+    pulse(820, 0.08, 0.03, "sine");
+    pulse(1180, 0.08, 0.022, "triangle", 0.03);
+  } else if (normalizedType === "weapon-scepter") {
+    pulse(260, 0.1, 0.03, "triangle");
+    pulse(680, 0.12, 0.026, "sine", 0.05);
+  } else if (normalizedType === "weapon-orb") {
+    pulse(640, 0.12, 0.03, "sine");
+    pulse(920, 0.14, 0.024, "triangle", 0.04);
+    pulse(1220, 0.12, 0.018, "sine", 0.09);
+  } else if (normalizedType === "attack-slash") {
+    pulse(300, 0.07, 0.032, "triangle");
+    pulse(560, 0.05, 0.026, "square", 0.02);
+    noiseBurst(0.05, 0.01, 0.01, 2200);
+  } else if (normalizedType === "attack-pierce") {
+    pulse(520, 0.05, 0.034, "triangle");
+    pulse(880, 0.05, 0.024, "square", 0.02);
+  } else if (normalizedType === "attack-blunt") {
+    pulse(150, 0.09, 0.04, "square");
+    pulse(92, 0.11, 0.028, "triangle", 0.03);
+  } else if (normalizedType === "attack-arcane") {
+    pulse(700, 0.11, 0.034, "sine");
+    pulse(940, 0.12, 0.026, "triangle", 0.04);
+  } else if (normalizedType === "attack-fire") {
+    pulse(240, 0.08, 0.03, "sawtooth");
+    pulse(520, 0.09, 0.028, "triangle", 0.03);
+    noiseBurst(0.07, 0.014, 0.01, 1400);
+  } else if (normalizedType === "attack-ice") {
+    pulse(820, 0.09, 0.03, "sine");
+    pulse(1160, 0.11, 0.022, "triangle", 0.03);
+  } else if (normalizedType === "attack-lightning") {
+    pulse(980, 0.05, 0.034, "square");
+    pulse(1480, 0.06, 0.022, "sine", 0.02);
+    noiseBurst(0.04, 0.014, 0.01, 3000);
+  } else if (normalizedType === "attack-wind") {
+    pulse(420, 0.06, 0.026, "triangle");
+    noiseBurst(0.08, 0.012, 0.01, 2600);
+  } else if (normalizedType === "attack-earth") {
+    pulse(130, 0.1, 0.042, "square");
+    pulse(180, 0.12, 0.026, "triangle", 0.04);
+  } else if (normalizedType === "attack-water") {
+    pulse(340, 0.08, 0.028, "sine");
+    pulse(470, 0.1, 0.022, "triangle", 0.04);
+    noiseBurst(0.05, 0.01, 0.02, 700);
   } else if (normalizedType === "hit") {
     pulse(260, 0.08, 0.075, "square");
     noiseBurst(0.07, 0.03, 0, 780);
@@ -14181,17 +14732,17 @@ function playSfx(type) {
     pulse(520, 0.09, 0.05, "sine");
     pulse(740, 0.08, 0.05, "sine", 0.07);
   } else if (normalizedType === "gather-tree") {
-    pulse(180, 0.11, 0.07, "square");
-    pulse(130, 0.13, 0.05, "triangle", 0.04);
-    noiseBurst(0.06, 0.018, 0.02, 850);
+    pulse(160, 0.12, 0.075, "square");
+    pulse(115, 0.14, 0.05, "triangle", 0.03);
+    noiseBurst(0.07, 0.02, 0.02, 780);
   } else if (normalizedType === "gather-herb") {
-    pulse(610, 0.08, 0.045, "triangle");
-    pulse(760, 0.1, 0.03, "sine", 0.04);
-    noiseBurst(0.05, 0.015, 0.01, 1600);
+    pulse(640, 0.08, 0.042, "triangle");
+    pulse(820, 0.1, 0.028, "sine", 0.04);
+    noiseBurst(0.05, 0.014, 0.01, 1850);
   } else if (normalizedType === "gather-ore") {
-    pulse(310, 0.07, 0.06, "square");
-    pulse(920, 0.12, 0.045, "triangle", 0.03);
-    pulse(1180, 0.1, 0.03, "sine", 0.08);
+    pulse(290, 0.08, 0.065, "square");
+    pulse(980, 0.12, 0.05, "triangle", 0.03);
+    pulse(1280, 0.1, 0.032, "sine", 0.08);
   } else if (normalizedType === "gather-crystal") {
     pulse(420, 0.08, 0.05, "sine");
     pulse(960, 0.14, 0.04, "triangle", 0.03);
@@ -14201,9 +14752,9 @@ function playSfx(type) {
     pulse(280, 0.08, 0.038, "square", 0.05);
     noiseBurst(0.04, 0.012, 0.02, 1100);
   } else if (normalizedType === "gather-fishing") {
-    pulse(440, 0.05, 0.04, "sine");
-    pulse(210, 0.14, 0.045, "triangle", 0.05);
-    noiseBurst(0.07, 0.02, 0.03, 320);
+    pulse(500, 0.05, 0.036, "sine");
+    pulse(230, 0.16, 0.045, "triangle", 0.04);
+    noiseBurst(0.07, 0.02, 0.03, 280);
   } else if (normalizedType === "gather-tidepool") {
     pulse(360, 0.07, 0.04, "sine");
     pulse(540, 0.08, 0.035, "triangle", 0.05);
