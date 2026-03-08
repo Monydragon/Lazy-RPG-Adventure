@@ -92,46 +92,51 @@
 
     <section id="screen-options" class="screen">
       <h2>Options</h2>
+      <p class="hint">Controller/keyboard: Up and Down select. Left and Right adjust. Enter or A applies.</p>
       <div class="panel simple">
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="worldLogPopups" data-option-kind="toggle">
+          <input id="option-world-log-popups" type="checkbox" checked />
+          Adventure log popups
+        </label>
+        <label class="toggle focusable option-entry" data-option-key="verboseCombatLog" data-option-kind="toggle">
           <input id="option-combat-log" type="checkbox" checked />
           Verbose combat log
         </label>
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="gamepadEnabled" data-option-kind="toggle">
           <input id="option-controller-vibe" type="checkbox" checked />
           Gamepad polling enabled
         </label>
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="sfxEnabled" data-option-kind="toggle">
           <input id="option-sfx" type="checkbox" checked />
           Sound effects enabled
         </label>
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="musicEnabled" data-option-kind="toggle">
           <input id="option-music" type="checkbox" checked />
           Background music enabled
         </label>
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="autoLevelUp" data-option-kind="toggle">
           <input id="option-auto-level" type="checkbox" />
           Auto Level Up
         </label>
-        <label class="toggle">
+        <label class="toggle focusable option-entry" data-option-key="debugMode" data-option-kind="toggle">
           <input id="option-debug" type="checkbox" />
           Debug Mode (quick testing hotkeys)
         </label>
-        <label class="option-slider">
+        <label class="option-slider focusable option-entry" data-option-key="masterVolume" data-option-kind="range" data-option-min="0" data-option-max="100" data-option-step="5">
           <span>Master Volume</span>
           <div class="slider-row">
             <input id="option-master-volume" type="range" min="0" max="100" step="1" value="80" />
             <strong id="option-master-volume-value">80%</strong>
           </div>
         </label>
-        <label class="option-slider">
+        <label class="option-slider focusable option-entry" data-option-key="musicVolume" data-option-kind="range" data-option-min="0" data-option-max="100" data-option-step="5">
           <span>Music Volume</span>
           <div class="slider-row">
             <input id="option-music-volume" type="range" min="0" max="100" step="1" value="90" />
             <strong id="option-music-volume-value">90%</strong>
           </div>
         </label>
-        <label class="option-slider">
+        <label class="option-slider focusable option-entry" data-option-key="sfxVolume" data-option-kind="range" data-option-min="0" data-option-max="100" data-option-step="5">
           <span>SFX Volume</span>
           <div class="slider-row">
             <input id="option-sfx-volume" type="range" min="0" max="100" step="1" value="90" />
@@ -163,8 +168,11 @@
             <button id="world-map-zoom-in">+ Zoom</button>
             <button id="world-map-zoom-reset">Reset Zoom</button>
           </div>
-          <canvas id="map-canvas" width="672" height="432" aria-label="Overworld map"></canvas>
-          <div id="world-interact-popup" class="world-interact-popup hidden" aria-hidden="true"></div>
+          <div class="map-scene">
+            <canvas id="map-canvas" width="672" height="432" aria-label="Overworld map"></canvas>
+            <div id="world-interact-popup" class="world-interact-popup hidden" aria-hidden="true"></div>
+            <div id="world-log-popup" class="world-log-popup hidden" aria-hidden="true" role="status" aria-live="polite"></div>
+          </div>
           <p id="map-legend" class="hint"></p>
           <p id="world-context" class="hint"></p>
         </main>

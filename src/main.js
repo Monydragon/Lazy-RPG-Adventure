@@ -14,6 +14,8 @@ const PORTRAIT_VIEW_TILES_Y = 30;
 const PORTRAIT_FULLSCREEN_VIEW_TILES_X = 24;
 const PORTRAIT_FULLSCREEN_VIEW_TILES_Y = 40;
 const WORLD_LOG_LIMIT = 16;
+const WORLD_LOG_POPUP_DURATION_MS = 3200;
+const WORLD_LOG_POPUP_QUEUE_LIMIT = 8;
 const COMBAT_LOG_LIMIT = 16;
 const MAP_ZOOM_MIN = 0.35;
 const MAP_ZOOM_MAX = 4.2;
@@ -26,6 +28,9 @@ const GATHERING_BIOME_TUNING = {
   forest: { zoneWidth: 0.23, speed: 1.08 },
   swamp: { zoneWidth: 0.2, speed: 1.16 },
   badlands: { zoneWidth: 0.18, speed: 1.24 },
+  highlands: { zoneWidth: 0.22, speed: 1.12 },
+  coast: { zoneWidth: 0.24, speed: 1.04 },
+  ruins: { zoneWidth: 0.19, speed: 1.22 },
 };
 const GATHERING_RESOURCE_TUNING = {
   tree: { zoneWidth: 1.08, speed: 0.94, prompt: "Chop on the clean grain." },
@@ -42,6 +47,12 @@ const GATHERING_TIMING_TIERS = {
   great: { key: "great", name: "Great", quantityScale: 1.34, xpScale: 1.18, chanceBonus: 0.1, flatBonus: 0, guaranteedPrimary: 1, color: "#7bcf94", score: 1.45 },
   perfect: { key: "perfect", name: "Perfect", quantityScale: 1.72, xpScale: 1.42, chanceBonus: 0.18, flatBonus: 1, guaranteedPrimary: 1, color: "#f4b942", score: 1.95 },
 };
+const GATHERING_XP_MULTIPLIER = 1.45;
+const CRAFTING_XP_MULTIPLIER = 1.9;
+const CRAFTING_FAILURE_XP_MULTIPLIER = 0.58;
+const CRAFTING_SALVAGE_XP_MULTIPLIER = 1.55;
+const DUNGEON_GUARDIAN_TITLES = ["Gate Warden", "Hall Keeper", "Crypt Watcher", "Chain Binder", "Bone Marshal", "Torch Sentinel"];
+const DUNGEON_CHAMPION_TITLES = ["Deep Champion", "Vault Reaver", "Oathbreaker", "Ash Castellan", "Relic Devourer", "Grave Captain"];
 
 const ALL_STATS = [
   "Health",
@@ -82,8 +93,11 @@ const BIOME_DATA = {
   road: { color: "#5f5d6b", baseEncounter: 2, label: "Road" },
   plains: { color: "#2f6f54", baseEncounter: 4, label: "Plains" },
   forest: { color: "#1f5a3a", baseEncounter: 6, label: "Forest" },
-  swamp: { color: "#35646e", baseEncounter: 8, label: "Swamp" },
+  swamp: { color: "#35646e", baseEncounter: 8, label: "Swamp", avoidSettlements: true },
   badlands: { color: "#865f43", baseEncounter: 10, label: "Badlands" },
+  highlands: { color: "#60748c", baseEncounter: 7, label: "Highlands" },
+  coast: { color: "#3f7b88", baseEncounter: 5, label: "Coast" },
+  ruins: { color: "#6e5968", baseEncounter: 9, label: "Ruins", avoidSettlements: true },
 };
 
 const ATTACK_TO_STATS = {
@@ -130,7 +144,7 @@ const DUNGEON_NAMES = [
 const TRANSITION_NAMES = ["Moon Gate", "Rift Stair", "Echo Arch", "Lantern Crossing"];
 const NPC_NAME_PREFIX = ["Alda", "Bram", "Cori", "Dax", "Elow", "Fenn", "Gora", "Hale", "Iris", "Juno"];
 const NPC_NAME_SUFFIX = ["Wright", "Thorn", "Vale", "Mott", "Keen", "Frost", "Gale", "Rune", "Pike", "Dane"];
-const NPC_ROLES = ["merchant", "guard", "scholar", "hunter", "healer", "bard"];
+const NPC_ROLES = ["merchant", "guard", "scholar", "hunter", "healer", "bard", "artisan", "scout", "mystic", "courier"];
 const DEBUG_CRAFTING_AREA_ID = "DEBUG_CRAFTING";
 const DEBUG_CRAFTING_RESOURCE_LEVELS = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 const DEBUG_CRAFTING_RESOURCE_KINDS = ["tree", "herb", "hide", "ore", "crystal", "fishing", "tidepool"];
@@ -145,13 +159,134 @@ const CRAFTING_SITE_NAMES = {
   Jewelcrafting: ["Gemsetter Table", "Facet Lamp", "Stonebench"],
 };
 const CRAFTING_SITE_BIOMES = {
-  Clothier: ["plains", "forest", "road"],
-  Smithing: ["badlands", "road", "plains"],
-  Woodworking: ["forest", "plains"],
-  Cooking: ["road", "plains", "swamp"],
-  Leatherworking: ["forest", "plains", "swamp"],
-  Alchemy: ["swamp", "forest", "road"],
-  Jewelcrafting: ["badlands", "road", "forest"],
+  Clothier: ["plains", "forest", "road", "coast"],
+  Smithing: ["badlands", "highlands", "road", "plains", "ruins"],
+  Woodworking: ["forest", "plains", "highlands"],
+  Cooking: ["road", "plains", "swamp", "coast"],
+  Leatherworking: ["forest", "plains", "swamp", "highlands"],
+  Alchemy: ["swamp", "forest", "road", "ruins", "coast"],
+  Jewelcrafting: ["badlands", "highlands", "road", "forest", "ruins"],
+};
+const BIOME_REGION_WEIGHTS = [
+  { biome: "plains", weight: 3.6, minAnchors: 3 },
+  { biome: "forest", weight: 2.6, minAnchors: 2 },
+  { biome: "swamp", weight: 1.45, minAnchors: 1 },
+  { biome: "badlands", weight: 1.35, minAnchors: 1 },
+  { biome: "highlands", weight: 1.3, minAnchors: 1 },
+  { biome: "coast", weight: 1.15, minAnchors: 1 },
+];
+const RESOURCE_CLUSTER_DEFS = [
+  {
+    id: "woodland",
+    biomes: ["forest", "plains", "highlands"],
+    countRange: [8, 11],
+    radius: 3,
+    nodes: [
+      { kind: "tree", countRange: [2, 4] },
+      { kind: "herb", countRange: [1, 3] },
+      { kind: "hide", countRange: [1, 2], chance: 0.72 },
+    ],
+  },
+  {
+    id: "wetland",
+    biomes: ["swamp", "coast", "plains"],
+    countRange: [7, 10],
+    radius: 3,
+    nodes: [
+      { kind: "fishing", countRange: [2, 4] },
+      { kind: "tidepool", countRange: [1, 2], chance: 0.7 },
+      { kind: "herb", countRange: [1, 2], chance: 0.86 },
+    ],
+  },
+  {
+    id: "mineral",
+    biomes: ["badlands", "highlands", "ruins", "forest"],
+    countRange: [7, 10],
+    radius: 3,
+    nodes: [
+      { kind: "ore", countRange: [2, 4] },
+      { kind: "crystal", countRange: [1, 2], chance: 0.76 },
+    ],
+  },
+  {
+    id: "frontier",
+    biomes: ["plains", "forest", "swamp", "coast"],
+    countRange: [6, 9],
+    radius: 2,
+    nodes: [
+      { kind: "hide", countRange: [1, 3] },
+      { kind: "herb", countRange: [1, 2], chance: 0.82 },
+      { kind: "tree", countRange: [1, 2], chance: 0.58 },
+    ],
+  },
+];
+const RESOURCE_CLUSTER_NAME_POOLS = {
+  woodland: ["Greenbough", "Mosshollow", "Stagrest", "Briarwake", "Fernshade", "Timbermoss"],
+  wetland: ["Reedwhisper", "Brackwater", "Gullmere", "Saltglass", "Boglilt", "Tidehush"],
+  mineral: ["Ironclasp", "Starseam", "Gravelight", "Cindervein", "Shardstep", "Stonewake"],
+  frontier: ["Brambletrail", "Duskwillow", "Foxrun", "Thornfield", "Latchgrove", "Rainstep"],
+};
+const WORLD_EVENT_SITE_DEFS = {
+  caravan: {
+    label: "Caravan Stop",
+    actionLabel: "Meet Caravan",
+    biomes: ["road", "plains", "coast"],
+    color: "#c9a76c",
+    countRange: [3, 5],
+  },
+  shrine: {
+    label: "Waystone Shrine",
+    actionLabel: "Visit Shrine",
+    biomes: ["plains", "forest", "highlands", "coast", "ruins"],
+    color: "#8db8ff",
+    countRange: [3, 5],
+  },
+  forage: {
+    label: "Forager Ring",
+    actionLabel: "Search Camp",
+    biomes: ["forest", "swamp", "coast", "highlands"],
+    color: "#7cc98a",
+    countRange: [3, 5],
+  },
+  artisan: {
+    label: "Artisan Wagon",
+    actionLabel: "Inspect Wagon",
+    biomes: ["road", "badlands", "highlands", "ruins"],
+    color: "#d7b676",
+    countRange: [3, 4],
+  },
+  commission: {
+    label: "Guild Commission",
+    actionLabel: "Take Commission",
+    biomes: ["road", "plains", "forest", "swamp", "highlands", "coast", "ruins"],
+    color: "#f0cf7d",
+    countRange: [4, 6],
+  },
+  ambush: {
+    label: "Danger Site",
+    actionLabel: "Confront Threat",
+    biomes: ["forest", "swamp", "badlands", "highlands", "ruins"],
+    color: "#d27b7b",
+    countRange: [4, 6],
+  },
+};
+const WORLD_EVENT_NAME_POOLS = {
+  caravan: ["Lantern Caravan", "Tinwheel Camp", "Mulepost Stop", "Guild Supply Halt", "Saltroad Caravan"],
+  shrine: ["Waystone Shrine", "Traveler's Marker", "Old Oath Shrine", "Moonbound Reliquary", "Watchfire Shrine"],
+  forage: ["Forager Ring", "Hunter's Rest", "Bogside Cache", "Gatherer's Circle", "Trailside Camp"],
+  artisan: ["Artisan Wagon", "Forge Cart", "Stitcher's Stand", "Reagent Dray", "Gemwright Caravan"],
+  commission: ["Guild Commission", "Rush Order Camp", "Frontier Work Order", "Traveling Contract", "Quartermaster Bench"],
+  ambush: ["Bandit Screen", "Predator Trail", "Broken Barricade", "Bloodsign Hollow", "Raid Nest"],
+};
+const ELITE_TITLES_BY_BIOME = {
+  road: ["Road Captain", "Toll Reaver", "Vanguard"],
+  plains: ["Field Alpha", "Banner Hunter", "Dustrunner"],
+  forest: ["Canopy Stalker", "Mossfang", "Thorn Warden"],
+  swamp: ["Bog Tyrant", "Reed Killer", "Marrow Eel"],
+  badlands: ["Ash Reaver", "Canyon Butcher", "Wasteland Alpha"],
+  highlands: ["Peakbreaker", "Stonehorn", "Stormchaser"],
+  coast: ["Saltclaw", "Wave Hunter", "Undertow Fang"],
+  ruins: ["Ruin Marshal", "Vault Shade", "Broken Sentinel"],
 };
 const PLAYER_TOKEN_PATHS = {
   Melee: "./src/assets/tokens/player-token-sword.svg",
@@ -334,26 +469,46 @@ const ENEMY_POOLS = {
     { id: "toll_bandit", name: "Toll Bandit", attackType: "Melee", damageDie: 6, crit: 7, weaknesses: ["Blunt"], resistances: ["Pierce"], hpScale: 1.02, offenseScale: 1, defenseScale: 1.04 },
     { id: "aggressive_goose", name: "Aggressive Goose", attackType: "Ranged", damageDie: 4, crit: 10, weaknesses: ["Slash"], resistances: ["Pierce"], hpScale: 0.88, offenseScale: 1.08, defenseScale: 0.9 },
     { id: "accountant_doom", name: "Accountant of Doom", attackType: "Magic", damageDie: 6, crit: 8, weaknesses: ["Blunt", "Lightning"], resistances: ["Arcane", "Water"], hpScale: 1, offenseScale: 1.06, defenseScale: 0.98 },
+    { id: "lamp_courier", name: "Lamp Courier", attackType: "Ranged", damageDie: 6, crit: 9, weaknesses: ["Slash"], resistances: ["Wind"], hpScale: 0.94, offenseScale: 1.08, defenseScale: 0.96 },
   ],
   plains: [
     { id: "lazy_slime", name: "Lazy Slime", attackType: "Melee", damageDie: 6, crit: 6, weaknesses: ["Slash", "Fire"], resistances: ["Blunt"], hpScale: 1.07, offenseScale: 0.95, defenseScale: 0.96 },
     { id: "horned_rabbit", name: "Horned Rabbit", attackType: "Ranged", damageDie: 6, crit: 9, weaknesses: ["Pierce"], resistances: ["Blunt"], hpScale: 0.92, offenseScale: 1.12, defenseScale: 0.92 },
     { id: "wandering_squire", name: "Wandering Squire", attackType: "Melee", damageDie: 8, crit: 7, weaknesses: ["Blunt"], resistances: ["Slash"], hpScale: 1.08, offenseScale: 1.02, defenseScale: 1.06 },
+    { id: "prairie_howler", name: "Prairie Howler", attackType: "Ranged", damageDie: 7, crit: 10, weaknesses: ["Blunt"], resistances: ["Pierce"], hpScale: 0.98, offenseScale: 1.08, defenseScale: 0.94 },
   ],
   forest: [
     { id: "moss_goblin", name: "Moss Goblin", attackType: "Melee", damageDie: 8, crit: 8, weaknesses: ["Slash", "Fire"], resistances: ["Pierce"], hpScale: 1.04, offenseScale: 1.03, defenseScale: 1.02 },
     { id: "twig_archer", name: "Twig Archer", attackType: "Ranged", damageDie: 8, crit: 10, weaknesses: ["Slash", "Fire"], resistances: ["Pierce"], hpScale: 0.95, offenseScale: 1.1, defenseScale: 0.94 },
     { id: "mushroom_hexer", name: "Mushroom Hexer", attackType: "Magic", damageDie: 8, crit: 9, weaknesses: ["Fire", "Slash"], resistances: ["Water", "Earth"], hpScale: 1, offenseScale: 1.08, defenseScale: 0.99 },
+    { id: "briar_stag", name: "Briar Stag", attackType: "Melee", damageDie: 9, crit: 8, weaknesses: ["Pierce", "Fire"], resistances: ["Earth"], hpScale: 1.08, offenseScale: 1.04, defenseScale: 1.02 },
   ],
   swamp: [
     { id: "bog_lurker", name: "Bog Lurker", attackType: "Melee", damageDie: 10, crit: 8, weaknesses: ["Fire", "Slash"], resistances: ["Blunt", "Water"], hpScale: 1.12, offenseScale: 1.05, defenseScale: 1.08 },
     { id: "leech_sniper", name: "Leech Sniper", attackType: "Ranged", damageDie: 8, crit: 11, weaknesses: ["Blunt", "Fire"], resistances: ["Pierce"], hpScale: 0.98, offenseScale: 1.14, defenseScale: 0.96 },
     { id: "mud_oracle", name: "Mud Oracle", attackType: "Magic", damageDie: 10, crit: 9, weaknesses: ["Lightning", "Ice"], resistances: ["Earth", "Water"], hpScale: 1.05, offenseScale: 1.08, defenseScale: 1.04 },
+    { id: "reed_hound", name: "Reed Hound", attackType: "Melee", damageDie: 9, crit: 10, weaknesses: ["Fire"], resistances: ["Water", "Pierce"], hpScale: 1.02, offenseScale: 1.1, defenseScale: 0.98 },
   ],
   badlands: [
     { id: "dust_marauder", name: "Dust Marauder", attackType: "Melee", damageDie: 10, crit: 9, weaknesses: ["Pierce"], resistances: ["Slash", "Earth"], hpScale: 1.1, offenseScale: 1.08, defenseScale: 1.1 },
     { id: "scorpion_ballista", name: "Scorpion Ballista", attackType: "Ranged", damageDie: 10, crit: 12, weaknesses: ["Blunt"], resistances: ["Pierce", "Slash"], hpScale: 1.02, offenseScale: 1.16, defenseScale: 1.04 },
     { id: "ash_warlock", name: "Ash Warlock", attackType: "Magic", damageDie: 12, crit: 10, weaknesses: ["Water", "Pierce"], resistances: ["Fire", "Arcane"], hpScale: 1.07, offenseScale: 1.1, defenseScale: 1.05 },
+    { id: "canyon_vulture", name: "Canyon Vulture", attackType: "Ranged", damageDie: 9, crit: 12, weaknesses: ["Lightning"], resistances: ["Earth", "Slash"], hpScale: 0.98, offenseScale: 1.14, defenseScale: 0.96 },
+  ],
+  highlands: [
+    { id: "stone_ram", name: "Stone Ram", attackType: "Melee", damageDie: 10, crit: 8, weaknesses: ["Pierce"], resistances: ["Blunt", "Earth"], hpScale: 1.1, offenseScale: 1.06, defenseScale: 1.08 },
+    { id: "storm_rook", name: "Storm Rook", attackType: "Ranged", damageDie: 9, crit: 11, weaknesses: ["Lightning"], resistances: ["Wind", "Pierce"], hpScale: 0.98, offenseScale: 1.12, defenseScale: 0.96 },
+    { id: "peak_seer", name: "Peak Seer", attackType: "Magic", damageDie: 11, crit: 9, weaknesses: ["Slash", "Arcane"], resistances: ["Wind", "Earth"], hpScale: 1.04, offenseScale: 1.08, defenseScale: 1.04 },
+  ],
+  coast: [
+    { id: "salt_crab", name: "Salt Crab", attackType: "Melee", damageDie: 8, crit: 8, weaknesses: ["Blunt"], resistances: ["Water", "Pierce"], hpScale: 1.08, offenseScale: 1.04, defenseScale: 1.08 },
+    { id: "gull_raider", name: "Gull Raider", attackType: "Ranged", damageDie: 8, crit: 11, weaknesses: ["Lightning"], resistances: ["Wind"], hpScale: 0.94, offenseScale: 1.12, defenseScale: 0.94 },
+    { id: "tide_cantor", name: "Tide Cantor", attackType: "Magic", damageDie: 10, crit: 10, weaknesses: ["Earth", "Lightning"], resistances: ["Water", "Arcane"], hpScale: 1.02, offenseScale: 1.08, defenseScale: 1.02 },
+  ],
+  ruins: [
+    { id: "rubble_guard", name: "Rubble Guard", attackType: "Melee", damageDie: 10, crit: 8, weaknesses: ["Blunt", "Water"], resistances: ["Slash", "Earth"], hpScale: 1.1, offenseScale: 1.04, defenseScale: 1.1 },
+    { id: "vault_sentinel", name: "Vault Sentinel", attackType: "Ranged", damageDie: 10, crit: 10, weaknesses: ["Blunt", "Lightning"], resistances: ["Pierce", "Arcane"], hpScale: 1.02, offenseScale: 1.12, defenseScale: 1.02 },
+    { id: "echo_lector", name: "Echo Lector", attackType: "Magic", damageDie: 12, crit: 10, weaknesses: ["Slash", "Fire"], resistances: ["Arcane", "Water"], hpScale: 1.05, offenseScale: 1.1, defenseScale: 1.05 },
   ],
 };
 
@@ -616,6 +771,9 @@ const MATERIAL_DEFS = {
   beast_hide: { id: "beast_hide", name: "Leafhide Sheet", description: "Dense bark-fiber sheets cured into leather-like crafting stock." },
   fresh_fish: { id: "fresh_fish", name: "Fresh Fish", description: "A fresh catch that can be cooked into restorative food." },
   river_scale: { id: "river_scale", name: "River Scale", description: "A gleaming scale used in alchemy and trade." },
+  dungeon_shard: { id: "dungeon_shard", name: "Dungeon Shard", description: "A resonant fragment pried from dungeon elites and delvers." },
+  ruin_relic: { id: "ruin_relic", name: "Ruin Relic", description: "A preserved relic core taken from major guardians inside old ruins." },
+  boss_core: { id: "boss_core", name: "Boss Core", description: "A powerful core left behind by dungeon bosses, required for the best crafted gear." },
 };
 
 const RESOURCE_REQUIREMENT_BANDS = {
@@ -625,6 +783,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [10, 35],
     swamp: [20, 55],
     badlands: [35, 80],
+    highlands: [20, 50],
+    coast: [10, 25],
+    ruins: [20, 45],
   },
   herb: {
     road: [1, 10],
@@ -632,6 +793,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [5, 30],
     swamp: [15, 50],
     badlands: [30, 70],
+    highlands: [15, 40],
+    coast: [10, 35],
+    ruins: [20, 50],
   },
   hide: {
     road: [1, 10],
@@ -639,6 +803,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [10, 35],
     swamp: [20, 50],
     badlands: [30, 70],
+    highlands: [15, 40],
+    coast: [10, 30],
+    ruins: [20, 45],
   },
   ore: {
     road: [5, 15],
@@ -646,6 +813,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [10, 35],
     swamp: [20, 55],
     badlands: [30, 80],
+    highlands: [20, 70],
+    coast: [10, 30],
+    ruins: [25, 75],
   },
   crystal: {
     road: [15, 30],
@@ -653,6 +823,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [20, 45],
     swamp: [30, 65],
     badlands: [45, 100],
+    highlands: [30, 80],
+    coast: [20, 45],
+    ruins: [35, 90],
   },
   fishing: {
     road: [1, 15],
@@ -660,6 +833,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [5, 20],
     swamp: [10, 40],
     badlands: [20, 50],
+    highlands: [10, 30],
+    coast: [5, 35],
+    ruins: [15, 35],
   },
   tidepool: {
     road: [10, 30],
@@ -667,6 +843,9 @@ const RESOURCE_REQUIREMENT_BANDS = {
     forest: [15, 35],
     swamp: [20, 60],
     badlands: [25, 70],
+    highlands: [20, 45],
+    coast: [10, 50],
+    ruins: [20, 45],
   },
 };
 
@@ -695,7 +874,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 4,
     respawnSteps: 20,
-    placementBiomes: ["forest", "plains"],
+    placementBiomes: ["forest", "plains", "highlands", "coast"],
     drops: [
       { id: "hardwood_log", chance: 1, min: 1, max: 2 },
       { id: "fiber_bundle", chance: 0.5, min: 1, max: 2 },
@@ -711,7 +890,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 4,
     respawnSteps: 16,
-    placementBiomes: ["forest", "plains", "swamp"],
+    placementBiomes: ["forest", "plains", "swamp", "coast", "ruins"],
     drops: [
       { id: "herb_bundle", chance: 1, min: 1, max: 3 },
       { id: "slime_gel", chance: 0.28, min: 1, max: 1 },
@@ -726,7 +905,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 3,
     respawnSteps: 24,
-    placementBiomes: ["badlands", "swamp", "forest"],
+    placementBiomes: ["badlands", "highlands", "ruins", "forest"],
     drops: [
       { id: "iron_ore", chance: 1, min: 1, max: 2 },
       { id: "iron_scrap", chance: 0.5, min: 1, max: 2 },
@@ -744,7 +923,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 3,
     respawnSteps: 24,
-    placementBiomes: ["badlands", "swamp", "forest"],
+    placementBiomes: ["badlands", "highlands", "ruins", "swamp"],
     drops: [
       { id: "arcane_dust", chance: 1, min: 1, max: 2 },
       { id: "gem_shard", chance: 0.68, min: 1, max: 2 },
@@ -761,7 +940,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 4,
     respawnSteps: 20,
-    placementBiomes: ["plains", "forest", "swamp"],
+    placementBiomes: ["plains", "forest", "swamp", "highlands"],
     drops: [
       { id: "beast_hide", chance: 1, min: 1, max: 2 },
       { id: "fiber_bundle", chance: 0.56, min: 1, max: 2 },
@@ -777,7 +956,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 4,
     respawnSteps: 18,
-    placementBiomes: ["swamp", "plains", "road"],
+    placementBiomes: ["swamp", "coast", "plains", "road"],
     minigameId: "fishing_basic_v1",
   },
   tidepool: {
@@ -789,7 +968,7 @@ const RESOURCE_NODE_DEFS = {
     minCharges: 2,
     maxCharges: 4,
     respawnSteps: 18,
-    placementBiomes: ["swamp", "road", "plains"],
+    placementBiomes: ["coast", "swamp", "road", "plains"],
     minigameId: "fishing_basic_v1",
   },
 };
@@ -1465,8 +1644,8 @@ const BASE_CRAFTING_RECIPES = [
   },
 ];
 
-const CRAFTING_RECIPE_STAGE_LEVELS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-const CRAFTING_RECIPE_STAGE_NAMES = ["Journeyman", "Sturdy", "Veteran", "Knight", "Runed", "Warborn", "Heroic", "Relic", "Ancient", "Ascendant"];
+const CRAFTING_RECIPE_STAGE_LEVELS = [1, 11, 21, 31, 41, 51, 61, 71, 81, 91];
+const CRAFTING_RECIPE_STAGE_NAMES = ["Apprentice", "Common", "Sturdy", "Fine", "Heroic", "Mythic", "Relic", "Legendary", "Ancient", "Divine"];
 const CRAFTING_RECIPE_VERBS = {
   Clothier: "Tailor",
   Smithing: "Forge",
@@ -1475,7 +1654,7 @@ const CRAFTING_RECIPE_VERBS = {
   Leatherworking: "Stitch",
   Alchemy: "Distill",
 };
-const CRAFTING_RECIPE_BLUEPRINTS = {
+const CRAFTING_RECIPE_BLUEPRINTS_BASE = {
   Clothier: [
     {
       key: "wayfarer_wraps",
@@ -1966,6 +2145,208 @@ const CRAFTING_RECIPE_BLUEPRINTS = {
   ],
 };
 
+const CRAFTING_RECIPE_CATEGORY_ORDER = {
+  weapon: 0,
+  armor: 1,
+  accessory: 2,
+  consumable: 3,
+  material: 4,
+};
+
+const EXTRA_CRAFTING_BLUEPRINTS = {
+  Clothier: [
+    {
+      key: "spellstep_trousers",
+      baseName: "Spellstep Trousers",
+      description: "Tailor light legwear that keeps casters mobile without sacrificing magical insulation.",
+      costs: [{ id: "fiber_bundle", qty: 5, scale: 0.85 }, { id: "arcane_dust", qty: 2, scale: 0.4 }, { id: "herb_bundle", qty: 1, scale: 0.18 }],
+      output: {
+        kind: "equipment",
+        equipment: {
+          slot: "Legs",
+          name: "Spellstep Trousers",
+          levelReqBase: 1,
+          modifiers: { Health: 7, MagicAttack: 1, MagicDefense: 3, Luck: 1 },
+        },
+      },
+      baseXp: 23,
+    },
+  ],
+  Smithing: [
+    {
+      key: "bulwark_greaves",
+      baseName: "Bulwark Greaves",
+      description: "Forge plated greaves that keep melee fighters planted against brutal hits.",
+      costs: [{ id: "iron_ore", qty: 5, scale: 0.95 }, { id: "iron_scrap", qty: 3, scale: 0.45 }, { id: "beast_hide", qty: 1, scale: 0.16 }],
+      output: {
+        kind: "equipment",
+        equipment: {
+          slot: "Legs",
+          name: "Bulwark Greaves",
+          levelReqBase: 1,
+          modifiers: { Health: 9, MeleeDefense: 3, RangedDefense: 1 },
+        },
+      },
+      baseXp: 24,
+    },
+  ],
+};
+
+function getCraftingSkillForWeaponTemplate(template) {
+  if (!template) return "Smithing";
+  if (template.attackType === "Melee") return "Smithing";
+  if (template.attackType === "Ranged") return "Woodworking";
+  if (template.weaponFamily === "wand" || template.weaponFamily === "magic_staff") return "Woodworking";
+  return "Alchemy";
+}
+
+function mergeCraftingCostEntries(costs = []) {
+  const merged = new Map();
+  costs.forEach((cost) => {
+    if (!cost?.id) return;
+    const previous = merged.get(cost.id) || { id: cost.id, qty: 0, scale: 0 };
+    previous.qty += Math.max(1, Number(cost.qty) || 1);
+    previous.scale += Math.max(0, Number(cost.scale) || 0);
+    merged.set(cost.id, previous);
+  });
+  return [...merged.values()];
+}
+
+function buildWeaponBlueprintCosts(template, skillName) {
+  if (!template) return [];
+  if (skillName === "Smithing") {
+    const shafted = template.weaponFamily === "spear" || template.weaponFamily === "polearm" || template.weaponFamily === "quarterstaff";
+    const heavy = (template.damageDie || 0) >= 9 || (template.speed || 6) <= 4;
+    return mergeCraftingCostEntries([
+      { id: "iron_ore", qty: heavy ? 5 : 4, scale: heavy ? 1 : 0.85 },
+      { id: shafted ? "hardwood_log" : "iron_scrap", qty: shafted ? 2 : 1, scale: shafted ? 0.25 : 0.18 },
+      ...(template.critBonus >= 3 ? [{ id: "beast_fang", qty: 1, scale: 0.1 }] : []),
+    ]);
+  }
+  if (skillName === "Woodworking") {
+    const mechanical = template.weaponFamily === "crossbow";
+    const mystical = template.attackType === "Magic";
+    return mergeCraftingCostEntries([
+      { id: "hardwood_log", qty: mechanical ? 5 : 4, scale: mechanical ? 0.92 : 0.78 },
+      { id: mystical ? "arcane_dust" : "fiber_bundle", qty: mystical ? 2 : 2, scale: mystical ? 0.38 : 0.26 },
+      ...(mechanical ? [{ id: "iron_scrap", qty: 2, scale: 0.18 }] : []),
+      ...(template.weaponFamily === "thrown" || template.critBonus >= 3 ? [{ id: "beast_fang", qty: 1, scale: 0.08 }] : []),
+      ...(mystical ? [{ id: "fiber_bundle", qty: 1, scale: 0.16 }] : []),
+    ]);
+  }
+  return mergeCraftingCostEntries([
+    { id: "arcane_dust", qty: 3, scale: 0.34 },
+    { id: template.weaponFamily === "orb" || template.weaponFamily === "scepter" ? "silver_ore" : "slime_gel", qty: 2, scale: 0.16 },
+    ...(template.weaponFamily === "orb" || template.weaponFamily === "focus" || template.weaponFamily === "scepter"
+      ? [{ id: "gem_shard", qty: 1, scale: 0.12 }]
+      : []),
+    ...(["Fire", "Ice", "Water", "Lightning"].includes(template.damageKind) ? [{ id: "river_scale", qty: 1, scale: 0.08 }] : []),
+  ]);
+}
+
+function buildWeaponBlueprintModifiers(template) {
+  const modifiers = {};
+  const attackStat = `${template.attackType}Attack`;
+  if (ALL_STATS.includes(attackStat)) modifiers[attackStat] = 2;
+  if (template.attackType === "Melee") {
+    modifiers.Health = (template.damageDie || 0) >= 9 ? 5 : 3;
+    modifiers.MeleeDefense = (template.speed || 6) <= 5 ? 1 : 0;
+  } else if (template.attackType === "Ranged") {
+    modifiers.Health = 3;
+    modifiers.CriticalChance = (template.critBonus || 0) >= 3 ? 1 : 0;
+    modifiers.Luck = (template.hitBonus || 0) >= 2 || (template.speed || 0) >= 8 ? 1 : 0;
+  } else {
+    modifiers.Health = 3;
+    modifiers.MagicDefense = 1;
+    modifiers.CriticalChance = (template.critBonus || 0) >= 3 ? 1 : 0;
+  }
+  return modifiers;
+}
+
+function createWeaponCraftingBlueprint(template) {
+  const skillName = getCraftingSkillForWeaponTemplate(template);
+  const family = getWeaponFamilyDefinition(template, template.attackType);
+  return {
+    key: `${toId(template.attackType)}_${toId(template.name)}`,
+    baseName: template.name,
+    category: "weapon",
+    description: template.summary || `${family.name} weapon tuned for ${family.discipline.toLowerCase()} techniques.`,
+    costs: buildWeaponBlueprintCosts(template, skillName),
+    output: {
+      kind: "equipment",
+      equipment: {
+        slot: "Weapon",
+        attackType: template.attackType,
+        weaponFamily: template.weaponFamily,
+        name: template.name,
+        levelReqBase: 1,
+        damageDie: template.damageDie,
+        speed: template.speed,
+        damageKind: template.damageKind,
+        hitBonus: template.hitBonus,
+        critBonus: template.critBonus,
+        summary: template.summary,
+        modifiers: buildWeaponBlueprintModifiers(template),
+      },
+    },
+    baseXp: 21 + Math.max(0, Math.floor(((template.damageDie || 6) - 6) / 2)) + Math.max(0, template.critBonus || 0),
+    sortName: `${template.attackType} ${family.name} ${template.name}`,
+  };
+}
+
+function buildWeaponCraftingBlueprintMap() {
+  const grouped = {
+    Smithing: [],
+    Woodworking: [],
+    Alchemy: [],
+  };
+  Object.values(WEAPON_LIBRARY).forEach((list) => {
+    list.forEach((template) => {
+      const skillName = getCraftingSkillForWeaponTemplate(template);
+      if (!grouped[skillName]) grouped[skillName] = [];
+      grouped[skillName].push(createWeaponCraftingBlueprint(template));
+    });
+  });
+  Object.values(grouped).forEach((list) => {
+    list.sort((a, b) => (a.sortName || a.baseName).localeCompare(b.sortName || b.baseName));
+  });
+  return grouped;
+}
+
+const CRAFTING_WEAPON_BLUEPRINTS = buildWeaponCraftingBlueprintMap();
+
+const CRAFTING_RECIPE_BLUEPRINTS = {
+  Clothier: [
+    ...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Clothier || []),
+    ...(EXTRA_CRAFTING_BLUEPRINTS.Clothier || []),
+  ],
+  Smithing: [
+    ...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Smithing || []),
+    ...(EXTRA_CRAFTING_BLUEPRINTS.Smithing || []),
+    ...(CRAFTING_WEAPON_BLUEPRINTS.Smithing || []),
+  ],
+  Woodworking: [
+    ...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Woodworking || []),
+    ...(CRAFTING_WEAPON_BLUEPRINTS.Woodworking || []),
+  ],
+  Cooking: [...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Cooking || [])],
+  Leatherworking: [...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Leatherworking || [])],
+  Alchemy: [
+    ...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Alchemy || []),
+    ...(CRAFTING_WEAPON_BLUEPRINTS.Alchemy || []),
+  ],
+  Jewelcrafting: [...(CRAFTING_RECIPE_BLUEPRINTS_BASE.Jewelcrafting || [])],
+};
+
+function getCraftingRecipeCategory(output = {}) {
+  if (output.kind === "consumable") return "consumable";
+  if (output.kind === "material") return "material";
+  const slot = output?.equipment?.slot;
+  if (slot === "Weapon") return "weapon";
+  if (slot === "Accessory1" || slot === "Accessory2") return "accessory";
+  return "armor";
+}
+
 function scaleCraftingTemplateModifiers(modifiers = {}, stageIndex = 0) {
   const progress = stageIndex + 1;
   const scaled = {};
@@ -1989,14 +2370,43 @@ function buildScaledRecipeCosts(costs = [], stageIndex = 0) {
   }));
 }
 
+function mergeRecipeCosts(costs = [], extras = []) {
+  const totals = new Map();
+  [...costs, ...extras].forEach((cost) => {
+    if (!cost?.id) return;
+    const quantity = Math.max(1, Math.floor(cost.qty || 1));
+    totals.set(cost.id, (totals.get(cost.id) || 0) + quantity);
+  });
+  return [...totals.entries()].map(([id, qty]) => ({ id, qty }));
+}
+
+function buildAdvancedRecipeCosts(blueprint, stageIndex) {
+  if (blueprint?.output?.kind !== "equipment") return [];
+  const extras = [];
+  if (stageIndex >= 4) {
+    extras.push({ id: "dungeon_shard", qty: 1 + Math.floor((stageIndex - 4) / 3) });
+  }
+  if (stageIndex >= 6) {
+    extras.push({ id: "ruin_relic", qty: 1 + Math.floor((stageIndex - 6) / 3) });
+  }
+  if (stageIndex >= 8) {
+    extras.push({ id: "boss_core", qty: 1 });
+  }
+  return extras;
+}
+
 function buildProgressionRecipe(skillName, blueprint, stageIndex) {
   const minLevel = CRAFTING_RECIPE_STAGE_LEVELS[stageIndex];
   const stageName = CRAFTING_RECIPE_STAGE_NAMES[stageIndex];
   const verb = CRAFTING_RECIPE_VERBS[skillName] || "Craft";
   const recipeName = `${verb} ${stageName} ${blueprint.baseName}`;
   const description = `${blueprint.description} Tuned for ${skillName.toLowerCase()} progression through level ${minLevel}.`;
-  const costs = buildScaledRecipeCosts(blueprint.costs, stageIndex);
+  const costs = mergeRecipeCosts(
+    buildScaledRecipeCosts(blueprint.costs, stageIndex),
+    buildAdvancedRecipeCosts(blueprint, stageIndex),
+  );
   const xp = Math.max(20, Math.round((blueprint.baseXp || 20) + (stageIndex + 1) * 8));
+  const category = blueprint.category || getCraftingRecipeCategory(blueprint.output || {});
   if (blueprint.output?.kind === "equipment") {
     const template = blueprint.output.equipment || {};
     const equipment = {
@@ -2015,6 +2425,9 @@ function buildProgressionRecipe(skillName, blueprint, stageIndex) {
       id: `${toId(skillName)}_${blueprint.key}_${minLevel}`,
       skill: skillName,
       minLevel,
+      recipeTier: stageIndex + 1,
+      recipeTierLabel: stageName,
+      category,
       name: recipeName,
       description,
       costs,
@@ -2030,6 +2443,9 @@ function buildProgressionRecipe(skillName, blueprint, stageIndex) {
     id: `${toId(skillName)}_${blueprint.key}_${minLevel}`,
     skill: skillName,
     minLevel,
+    recipeTier: stageIndex + 1,
+    recipeTierLabel: stageName,
+    category,
     name: recipeName,
     description,
     costs,
@@ -2041,15 +2457,23 @@ function buildProgressionRecipe(skillName, blueprint, stageIndex) {
 function buildTieredCraftingRecipes() {
   const recipes = [];
   Object.entries(CRAFTING_RECIPE_BLUEPRINTS).forEach(([skillName, blueprints]) => {
-    CRAFTING_RECIPE_STAGE_LEVELS.forEach((level, stageIndex) => {
-      const blueprint = blueprints[stageIndex % blueprints.length];
-      recipes.push(buildProgressionRecipe(skillName, blueprint, stageIndex));
+    blueprints.forEach((blueprint) => {
+      CRAFTING_RECIPE_STAGE_LEVELS.forEach((level, stageIndex) => {
+        recipes.push(buildProgressionRecipe(skillName, blueprint, stageIndex));
+      });
     });
   });
-  return recipes;
+  return recipes.sort((a, b) => {
+    if (a.skill !== b.skill) return a.skill.localeCompare(b.skill);
+    if ((a.category || "armor") !== (b.category || "armor")) {
+      return (CRAFTING_RECIPE_CATEGORY_ORDER[a.category || "armor"] ?? 99) - (CRAFTING_RECIPE_CATEGORY_ORDER[b.category || "armor"] ?? 99);
+    }
+    if ((a.recipeTier || 0) !== (b.recipeTier || 0)) return (a.recipeTier || 0) - (b.recipeTier || 0);
+    return a.name.localeCompare(b.name);
+  });
 }
 
-const CRAFTING_RECIPES = [...BASE_CRAFTING_RECIPES, ...buildTieredCraftingRecipes()];
+const CRAFTING_RECIPES = buildTieredCraftingRecipes();
 
 const TREASURE_DEFS = {
   old_coin: { id: "old_coin", name: "Old Coin", description: "A relic worth selling." },
@@ -2125,13 +2549,33 @@ const NPC_ROLE_DIALOG = {
     "Songs travel faster than heroes. Pay your tab before fame arrives.",
     "If you slay another tyrant, I can rhyme it with 'pantry'.",
   ],
+  artisan: [
+    "Bring me clean ore, fiber, or scales and I can make the road feel less insulting.",
+    "Field repairs keep heroes alive longer than speeches do.",
+    "Every biome wants different tools. The ruins want all of them.",
+  ],
+  scout: [
+    "Highlands look open until something faster than you owns the ridgeline.",
+    "Ruins echo. If you hear two footsteps, one of them is not yours.",
+    "I mark safe paths. Monsters keep trying to edit the map.",
+  ],
+  mystic: [
+    "The coast hums at dusk, and the ruins answer back.",
+    "Some shrines still remember who was supposed to save this place.",
+    "You can feel when a biome has become a wound instead of a landscape.",
+  ],
+  courier: [
+    "Every rumor gets heavier when you have to carry it across badlands.",
+    "Road work is never done. Neither are the things that stalk the road crews.",
+    "Deliveries are easy until the package bites.",
+  ],
 };
 
-const QUEST_BOARD_ACTIVE_TARGET = 10;
+const QUEST_BOARD_ACTIVE_TARGET = 12;
 const QUEST_ARCHIVE_LIMIT = 40;
 const QUEST_STAGE_LABELS = ["Local", "Road", "Frontier", "Guild", "Expedition", "Veteran", "Heroic", "Mythic"];
 const QUEST_QUALITY_ORDER = { rough: 0, good: 1, great: 2, perfect: 3 };
-const QUEST_ROLE_TARGETS = ["merchant", "guard", "scholar", "hunter", "healer", "bard"];
+const QUEST_ROLE_TARGETS = ["merchant", "guard", "scholar", "hunter", "healer", "bard", "artisan", "scout", "mystic", "courier"];
 const QUEST_VISIT_VERBS = ["Check In With", "Report To", "Survey", "Reinforce", "Secure"];
 const QUEST_DUNGEON_VERBS = ["Break", "Silence", "Clear", "Seal", "Crack"];
 const QUEST_BIOME_ACTIONS = {
@@ -2140,6 +2584,9 @@ const QUEST_BIOME_ACTIONS = {
   forest: ["Cull", "Track", "Purge"],
   swamp: ["Burn Out", "Thin", "Map"],
   badlands: ["Hunt", "Break", "Push Through"],
+  highlands: ["Climb Through", "Break", "Scout"],
+  coast: ["Sound", "Sweep", "Secure"],
+  ruins: ["Cleanse", "Break", "Seal"],
 };
 const GATHERING_SKILL_QUEST_COPY = {
   Botany: {
@@ -2202,241 +2649,47 @@ const ACHIEVEMENT_DEFS = [
   { id: "legend", name: "Legend", description: "Reach level 50." },
 ];
 
-const MUSIC_THEMES = {
-  menu: {
-    stepMs: 560,
-    bass: [110, 123, 98, 110, 131, 123, 110, 98],
-    chords: [
-      [220, 277, 330, 440],
-      [246, 311, 369, 493],
-      [196, 247, 294, 392],
-      [220, 277, 330, 440],
-      [262, 330, 392, 523],
-      [246, 311, 369, 493],
-      [220, 277, 330, 440],
-      [196, 247, 294, 392],
-    ],
-    melody: [440, 523, 587, 659, 740, 659, 587, 523],
-    counter: [330, 392, 440, 494, 523, 494, 440, 392],
-    bassWave: "triangle",
-    chordWave: "sine",
-    melodyWave: "triangle",
-    counterWave: "sine",
-    bassGain: 0.1,
-    chordGain: 0.06,
-    melodyGain: 0.095,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.03,
-  },
-  world: {
-    stepMs: 620,
-    bass: [98, 110, 87, 98, 98, 117, 87, 82],
-    chords: [
-      [196, 247, 294, 392],
-      [220, 277, 330, 440],
-      [174, 220, 262, 349],
-      [196, 247, 294, 392],
-      [196, 247, 311, 392],
-      [233, 294, 349, 466],
-      [174, 220, 262, 349],
-      [164, 208, 247, 330],
-    ],
-    melody: [392, 440, 494, 523, 587, 523, 494, 440],
-    counter: [294, 330, 349, 392, 440, 392, 349, 330],
-    bassWave: "sawtooth",
-    chordWave: "sine",
-    melodyWave: "triangle",
-    counterWave: "sine",
-    bassGain: 0.11,
-    chordGain: 0.06,
-    melodyGain: 0.09,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.035,
-  },
-  worldForest: {
-    stepMs: 650,
-    bass: [87, 92, 98, 104, 98, 92, 87, 82],
-    chords: [
-      [174, 220, 262, 349],
-      [185, 233, 277, 370],
-      [196, 247, 294, 392],
-      [208, 262, 311, 415],
-      [196, 247, 294, 392],
-      [185, 233, 277, 370],
-      [174, 220, 262, 349],
-      [165, 208, 247, 330],
-    ],
-    melody: [349, 392, 440, 466, 523, 466, 440, 392],
-    counter: [262, 294, 311, 349, 392, 349, 311, 294],
-    bassWave: "triangle",
-    chordWave: "triangle",
-    melodyWave: "sine",
-    counterWave: "sine",
-    bassGain: 0.1,
-    chordGain: 0.058,
-    melodyGain: 0.082,
-    counterGain: 0.046,
-    percussionPattern: ["kick", "none", "hat", "none", "kick", "hat", "none", "hat"],
-    percussionGain: 0.028,
-  },
-  worldSwamp: {
-    stepMs: 680,
-    bass: [73, 78, 82, 87, 82, 78, 73, 69],
-    chords: [
-      [146, 185, 220, 277],
-      [155, 196, 233, 294],
-      [164, 208, 247, 311],
-      [146, 185, 220, 277],
-      [138, 174, 208, 262],
-      [146, 185, 220, 277],
-      [155, 196, 233, 294],
-      [130, 164, 196, 247],
-    ],
-    melody: [294, 311, 349, 392, 415, 392, 349, 311],
-    counter: [220, 233, 262, 277, 311, 277, 262, 233],
-    bassWave: "sawtooth",
-    chordWave: "triangle",
-    melodyWave: "square",
-    counterWave: "sine",
-    bassGain: 0.11,
-    chordGain: 0.06,
-    melodyGain: 0.082,
-    counterGain: 0.044,
-    percussionPattern: ["kick", "hat", "snare", "none", "kick", "hat", "none", "hat"],
-    percussionGain: 0.034,
-  },
-  worldBadlands: {
-    stepMs: 600,
-    bass: [82, 87, 98, 92, 82, 98, 92, 87],
-    chords: [
-      [164, 208, 247, 330],
-      [174, 220, 262, 349],
-      [196, 247, 294, 392],
-      [185, 233, 277, 370],
-      [174, 220, 262, 349],
-      [196, 247, 294, 392],
-      [185, 233, 277, 370],
-      [174, 220, 262, 349],
-    ],
-    melody: [392, 440, 466, 523, 587, 523, 466, 440],
-    counter: [294, 330, 349, 392, 440, 392, 349, 330],
-    bassWave: "sawtooth",
-    chordWave: "square",
-    melodyWave: "triangle",
-    counterWave: "triangle",
-    bassGain: 0.12,
-    chordGain: 0.064,
-    melodyGain: 0.1,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.042,
-  },
-  worldTown: {
-    stepMs: 640,
-    bass: [98, 104, 110, 117, 110, 104, 98, 92],
-    chords: [
-      [196, 247, 294, 392],
-      [208, 262, 311, 415],
-      [220, 277, 330, 440],
-      [233, 294, 349, 466],
-      [220, 277, 330, 440],
-      [208, 262, 311, 415],
-      [196, 247, 294, 392],
-      [185, 233, 277, 370],
-    ],
-    melody: [392, 440, 494, 523, 587, 523, 494, 440],
-    counter: [294, 330, 349, 392, 440, 392, 349, 330],
-    bassWave: "triangle",
-    chordWave: "sine",
-    melodyWave: "triangle",
-    counterWave: "sine",
-    bassGain: 0.1,
-    chordGain: 0.06,
-    melodyGain: 0.092,
-    counterGain: 0.048,
-    percussionPattern: ["kick", "none", "hat", "none", "kick", "hat", "none", "hat"],
-    percussionGain: 0.026,
-  },
-  worldDungeon: {
-    stepMs: 520,
-    bass: [73, 69, 65, 62, 73, 69, 65, 58],
-    chords: [
-      [146, 174, 220, 277],
-      [138, 165, 208, 262],
-      [130, 155, 196, 247],
-      [123, 146, 185, 233],
-      [146, 174, 220, 277],
-      [138, 165, 208, 262],
-      [130, 155, 196, 247],
-      [116, 146, 174, 220],
-    ],
-    melody: [330, 349, 392, 415, 466, 415, 392, 349],
-    counter: [247, 262, 294, 311, 349, 311, 294, 262],
-    bassWave: "sawtooth",
-    chordWave: "triangle",
-    melodyWave: "square",
-    counterWave: "triangle",
-    bassGain: 0.13,
-    chordGain: 0.068,
-    melodyGain: 0.104,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.046,
-  },
-  combat: {
-    stepMs: 410,
-    bass: [110, 98, 92, 87, 123, 110, 98, 92],
-    chords: [
-      [220, 262, 330, 392],
-      [196, 247, 311, 392],
-      [185, 233, 294, 370],
-      [174, 220, 277, 349],
-      [233, 277, 349, 466],
-      [220, 262, 330, 440],
-      [196, 247, 311, 392],
-      [185, 233, 294, 370],
-    ],
-    melody: [440, 523, 587, 659, 698, 659, 587, 523],
-    counter: [220, 247, 262, 294, 330, 294, 262, 247],
-    bassWave: "sawtooth",
-    chordWave: "square",
-    melodyWave: "square",
-    counterWave: "triangle",
-    bassGain: 0.13,
-    chordGain: 0.07,
-    melodyGain: 0.115,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.05,
-  },
-  victory: {
-    stepMs: 260,
-    bass: [131, 147, 165, 196, 220, 196, 165, 131],
-    chords: [
-      [262, 330, 392],
-      [294, 370, 440],
-      [330, 415, 494],
-      [392, 494, 587],
-      [440, 554, 659],
-      [392, 494, 587],
-      [330, 415, 494],
-      [262, 330, 392],
-    ],
-    melody: [523, 587, 659, 784, 880, 784, 659, 587],
-    bassWave: "triangle",
-    chordWave: "sine",
-    melodyWave: "triangle",
-    counter: [330, 370, 415, 494, 554, 494, 415, 370],
-    counterWave: "sine",
-    bassGain: 0.09,
-    chordGain: 0.06,
-    melodyGain: 0.09,
-    counterGain: 0.05,
-    percussionPattern: ["kick", "hat", "none", "hat", "kick", "hat", "snare", "hat"],
-    percussionGain: 0.03,
-  },
+const MUSIC_TRACK_CANDIDATES = {
+  main_menu: [
+    "./src/assets/music/fantasy_main_menu.mp3",
+    "./src/assets/music/main_menu.mp3",
+  ],
+  overworld: [
+    "./src/assets/music/overworld.mp3",
+    "./src/assets/music/fantasy_overworld.mp3",
+  ],
+  battle: [
+    "./src/assets/music/battle.mp3",
+    "./src/assets/music/fantasy_battle.mp3",
+  ],
+  battle_boss: [
+    "./src/assets/music/fantasy_battle_boss.mp3",
+    "./src/assets/music/battle_boss.mp3",
+    "./src/assets/music/fantasy_battle.mp3",
+  ],
+};
+
+const MUSIC_MODE_TRACKS = {
+  menu: "main_menu",
+  world: "overworld",
+  worldForest: "overworld",
+  worldSwamp: "overworld",
+  worldBadlands: "overworld",
+  worldTown: "overworld",
+  worldDungeon: "overworld",
+  combat: "battle",
+  combatBoss: "battle_boss",
+  victory: "battle",
+};
+
+const MUSIC_TRACK_BASE_VOLUME = 0.38;
+const MUSIC_LOOP_GUARD_SECONDS = 0.03;
+const MUSIC_TRACK_LOOP_TRIMS = {
+  default: { start: 0.012, end: 0.04 },
+  main_menu: { start: 0.012, end: 0.08 },
+  overworld: { start: 0.012, end: 0.05 },
+  battle: { start: 0.012, end: 0.045 },
+  battle_boss: { start: 0.012, end: 0.045 },
 };
 
 const CONTROL_PROMPTS = {
@@ -2487,6 +2740,32 @@ const INVENTORY_TABS = [
 const CRAFTING_SKILL_TABS = SKILL_ORDER
   .filter((skillName) => SKILL_DEFS[skillName].role === "Crafting")
   .map((skillName) => ({ id: skillName, label: skillName }));
+const CRAFTING_RECIPE_FILTER_TABS = [
+  { id: "all", label: "All" },
+  { id: "weapon", label: "Weapons" },
+  { id: "armor", label: "Armor" },
+  { id: "accessory", label: "Accessories" },
+  { id: "consumable", label: "Consumables" },
+];
+const CRAFTING_RECIPE_TIER_TABS = [
+  { id: "current", label: "Current Tier" },
+  { id: "all", label: "All Tiers" },
+];
+const CREATE_SCREEN_NAV_GROUPS = ["style", "weapon", "city", "difficulty", "seed", "actions"];
+const CRAFTING_BROWSER_NAV = {
+  scope: "crafting-browser",
+  layers: {
+    character: 0,
+    skill: 1,
+    tier: 2,
+    filter: 3,
+    station: 4,
+    recipes: 5,
+    recycle: 6,
+    close: 7,
+  },
+};
+const CRAFTING_ENCOUNTER_NAV_SCOPE = "crafting-encounter";
 
 const els = {
   app: document.getElementById("app"),
@@ -2517,6 +2796,7 @@ const els = {
   seedRandom: document.getElementById("seed-random"),
   createStart: document.getElementById("create-start"),
   createBack: document.getElementById("create-back"),
+  optionWorldLogPopups: document.getElementById("option-world-log-popups"),
   optionCombatLog: document.getElementById("option-combat-log"),
   optionControllerVibe: document.getElementById("option-controller-vibe"),
   optionSfx: document.getElementById("option-sfx"),
@@ -2561,6 +2841,7 @@ const els = {
   combatLog: document.getElementById("combat-log"),
   combatActions: document.getElementById("combat-actions"),
   combatReturn: document.getElementById("combat-return"),
+  worldLogPopup: document.getElementById("world-log-popup"),
   modalBackdrop: document.getElementById("modal-backdrop"),
   modalWindow: document.getElementById("modal-window"),
   modalTitle: document.getElementById("modal-title"),
@@ -2582,6 +2863,7 @@ const state = {
     seed: randomSeed(),
   },
   options: {
+    worldLogPopups: true,
     verboseCombatLog: true,
     gamepadEnabled: true,
     sfxEnabled: true,
@@ -2600,6 +2882,8 @@ const state = {
   characterUi: {
     inventoryTab: INVENTORY_TABS[0].id,
     craftingSkill: CRAFTING_SKILL_TABS[0]?.id || "Clothier",
+    craftingFilter: CRAFTING_RECIPE_FILTER_TABS[0].id,
+    craftingTierScope: CRAFTING_RECIPE_TIER_TABS[0].id,
   },
   gathering: null,
   craftingRun: null,
@@ -2621,6 +2905,12 @@ const state = {
   debug: {
     returnPosition: null,
   },
+  notifications: {
+    worldLogPopupQueue: [],
+    worldLogPopupMessage: "",
+    worldLogPopupVisible: false,
+    worldLogPopupTimerId: null,
+  },
   assets: {
     playerTokens: { Melee: null, Ranged: null, Magic: null },
     featureTokens: {},
@@ -2628,12 +2918,13 @@ const state = {
   audio: {
     context: null,
     master: null,
-    musicBus: null,
     sfxBus: null,
     started: false,
     mode: "world",
-    step: 0,
-    intervalId: null,
+    currentMusicTrack: null,
+    currentMusicElement: null,
+    musicElements: {},
+    musicLoopFrameId: null,
     victoryTimeoutId: null,
   },
 };
@@ -2645,6 +2936,18 @@ function initialize() {
   loadFeatureTokenAssets();
   state.saveSlots = refreshSaveSlots();
   state.map = normalizeMapViewState(state.map);
+  if (els.seedRandom) {
+    els.seedRandom.dataset.createGroup = "seed";
+    els.seedRandom.dataset.createOrder = "0";
+  }
+  if (els.createStart) {
+    els.createStart.dataset.createGroup = "actions";
+    els.createStart.dataset.createOrder = "0";
+  }
+  if (els.createBack) {
+    els.createBack.dataset.createGroup = "actions";
+    els.createBack.dataset.createOrder = "1";
+  }
   bindEvents();
   updateOptionsUi();
   updateControlPromptUi();
@@ -2653,6 +2956,7 @@ function initialize() {
   renderIntro();
   els.seedInput.value = state.creation.seed;
   showScreen("menu");
+  if (state.options.musicEnabled) ensureAudioStarted();
   requestAnimationFrame(gamepadLoop);
 }
 
@@ -2747,64 +3051,35 @@ function bindEvents() {
   els.createBack.addEventListener("click", () => showScreen("menu"));
   els.optionsBack.addEventListener("click", closeOptionsScreen);
 
+  els.optionWorldLogPopups.addEventListener("change", () => {
+    setOptionValue("worldLogPopups", !!els.optionWorldLogPopups.checked);
+  });
   els.optionCombatLog.addEventListener("change", () => {
-    state.options.verboseCombatLog = !!els.optionCombatLog.checked;
+    setOptionValue("verboseCombatLog", !!els.optionCombatLog.checked);
   });
   els.optionControllerVibe.addEventListener("change", () => {
-    state.options.gamepadEnabled = !!els.optionControllerVibe.checked;
+    setOptionValue("gamepadEnabled", !!els.optionControllerVibe.checked);
   });
   els.optionSfx.addEventListener("change", () => {
-    state.options.sfxEnabled = !!els.optionSfx.checked;
-    applyAudioMixLevels();
+    setOptionValue("sfxEnabled", !!els.optionSfx.checked);
   });
   els.optionMusic.addEventListener("change", () => {
-    state.options.musicEnabled = !!els.optionMusic.checked;
-    applyAudioMixLevels();
-    if (state.options.musicEnabled) {
-      ensureAudioStarted();
-      syncMusicForCurrentContext();
-    } else {
-      clearVictoryMusicTimer();
-      stopMusicLoop();
-    }
+    setOptionValue("musicEnabled", !!els.optionMusic.checked);
   });
   els.optionAutoLevel.addEventListener("change", () => {
-    state.options.autoLevelUp = !!els.optionAutoLevel.checked;
-    updateControlPromptUi();
-    if (!state.options.autoLevelUp || !state.game?.player) return;
-    if ((state.game.player.unspentStatPoints || 0) <= 0) return;
-    const info = applyAutoLevelWithReview(state.game.player);
-    if (info?.summary) addWorldLog(`Auto-level applied pending points: ${info.summary}. Review in Level Up if you want to edit.`);
-    renderWorld();
-    if (state.modal === "levelup") renderModal();
+    setOptionValue("autoLevelUp", !!els.optionAutoLevel.checked);
   });
   els.optionDebug.addEventListener("change", () => {
-    state.options.debugMode = !!els.optionDebug.checked;
-    updateControlPromptUi();
-    if (!state.game) return;
-    if (state.options.debugMode) {
-      addWorldLog("Debug mode enabled. Hotkeys: Ctrl+Shift+D menu, L level, G gold, H heal, X XP.");
-    } else {
-      if (state.modal === "debug") closeModal();
-      addWorldLog("Debug mode disabled.");
-    }
-    renderWorld();
-    renderWorldLog();
+    setOptionValue("debugMode", !!els.optionDebug.checked);
   });
   els.optionMasterVolume.addEventListener("input", () => {
-    state.options.masterVolume = clamp((Number(els.optionMasterVolume.value) || 0) / 100, 0, 1);
-    updateOptionsUi();
-    applyAudioMixLevels();
+    setOptionValue("masterVolume", clamp((Number(els.optionMasterVolume.value) || 0) / 100, 0, 1));
   });
   els.optionMusicVolume.addEventListener("input", () => {
-    state.options.musicVolume = clamp((Number(els.optionMusicVolume.value) || 0) / 100, 0, 1);
-    updateOptionsUi();
-    applyAudioMixLevels();
+    setOptionValue("musicVolume", clamp((Number(els.optionMusicVolume.value) || 0) / 100, 0, 1));
   });
   els.optionSfxVolume.addEventListener("input", () => {
-    state.options.sfxVolume = clamp((Number(els.optionSfxVolume.value) || 0) / 100, 0, 1);
-    updateOptionsUi();
-    applyAudioMixLevels();
+    setOptionValue("sfxVolume", clamp((Number(els.optionSfxVolume.value) || 0) / 100, 0, 1));
   });
 
   els.worldInteract.addEventListener("click", handleWorldInteract);
@@ -2862,13 +3137,23 @@ function onKeyDown(event) {
       event.preventDefault();
       return;
     }
-    if (key === "ArrowUp" || key === "ArrowLeft") {
-      moveFocus(-1);
+    if (key === "ArrowUp") {
+      moveFocus("up");
       event.preventDefault();
       return;
     }
-    if (key === "ArrowDown" || key === "ArrowRight") {
-      moveFocus(1);
+    if (key === "ArrowDown") {
+      moveFocus("down");
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowLeft") {
+      moveFocus("left");
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowRight") {
+      moveFocus("right");
       event.preventDefault();
       return;
     }
@@ -2885,13 +3170,31 @@ function onKeyDown(event) {
   if (handleDebugHotkeys(event, lower, typingInInput)) return;
 
   if (usesFocusNavigation() && !typingInInput) {
-    if (key === "ArrowUp" || key === "ArrowLeft") {
-      moveFocus(-1);
+    if (state.screen === "options" && key === "ArrowLeft" && adjustFocusedOptionValue(-1)) {
       event.preventDefault();
       return;
     }
-    if (key === "ArrowDown" || key === "ArrowRight") {
-      moveFocus(1);
+    if (state.screen === "options" && key === "ArrowRight" && adjustFocusedOptionValue(1)) {
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowUp") {
+      moveFocus("up");
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowDown") {
+      moveFocus("down");
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowLeft") {
+      moveFocus("left");
+      event.preventDefault();
+      return;
+    }
+    if (key === "ArrowRight") {
+      moveFocus("right");
       event.preventDefault();
       return;
     }
@@ -3093,9 +3396,9 @@ function renderCreationSelectors() {
   if (document.activeElement !== els.seedInput) els.seedInput.value = state.creation.seed;
 
   els.styleButtons.innerHTML = Object.keys(COMBAT_STYLES)
-    .map((style) => {
+    .map((style, index) => {
       const selected = state.creation.style === style ? "selected" : "";
-      return `<button class="focusable ${selected}" data-style="${style}">${style}</button>`;
+      return `<button class="focusable ${selected}" data-create-group="style" data-create-order="${index}" data-style="${style}">${style}</button>`;
     })
     .join("");
 
@@ -3110,9 +3413,9 @@ function renderCreationSelectors() {
     }
     const selectedWeapon = getWeaponTemplateForStyle(state.creation.style, state.creation.weaponId);
     els.weaponButtons.innerHTML = availableWeapons
-      .map((weapon) => {
+      .map((weapon, index) => {
         const selected = state.creation.weaponId === weapon.id ? "selected" : "";
-        return `<button class="focusable ${selected}" data-weapon-id="${weapon.id}">${weapon.name}</button>`;
+        return `<button class="focusable ${selected}" data-create-group="weapon" data-create-order="${index}" data-weapon-id="${weapon.id}">${weapon.name}</button>`;
       })
       .join("");
     if (selectedWeapon) {
@@ -3138,14 +3441,14 @@ function renderCreationSelectors() {
     }
   }
 
-  els.cityButtons.innerHTML = MAJOR_CITIES.map((city) => {
+  els.cityButtons.innerHTML = MAJOR_CITIES.map((city, index) => {
     const selected = state.creation.cityId === city.id ? "selected" : "";
-    return `<button class="focusable ${selected}" data-city-id="${city.id}">${city.name}</button>`;
+    return `<button class="focusable ${selected}" data-create-group="city" data-create-order="${index}" data-city-id="${city.id}">${city.name}</button>`;
   }).join("");
 
-  els.difficultyButtons.innerHTML = Object.keys(DIFFICULTY_PRESETS).map((difficulty) => {
+  els.difficultyButtons.innerHTML = Object.keys(DIFFICULTY_PRESETS).map((difficulty, index) => {
     const selected = state.creation.difficulty === difficulty ? "selected" : "";
-    return `<button class="focusable ${selected}" data-difficulty="${difficulty}">${difficulty}</button>`;
+    return `<button class="focusable ${selected}" data-create-group="difficulty" data-create-order="${index}" data-difficulty="${difficulty}">${difficulty}</button>`;
   }).join("");
   const selectedDifficulty = getDifficulty(state.creation.difficulty);
   if (els.difficultyInfo) {
@@ -3317,6 +3620,9 @@ function showScreen(screen) {
   syncGamePlaytimeForScreenChange(previousScreen, screen);
   state.screen = screen;
   if (els.app) els.app.dataset.screen = screen;
+  if (screen === "menu" || screen === "load" || screen === "intro" || screen === "create") {
+    clearWorldLogPopupQueue();
+  }
   Object.keys(els.screens).forEach((key) => {
     els.screens[key].classList.toggle("active", key === screen);
   });
@@ -3335,12 +3641,16 @@ function showScreen(screen) {
   }
   updateControlPromptUi();
   updateFocusables();
+  if (screen === "create") {
+    focusButtonByDataset("style", state.creation.style);
+  }
 }
 
 function openOptionsScreen(returnScreen = "menu") {
   if (returnScreen === "world" && (state.screen !== "world" || !state.game || state.combat || state.modal)) return;
   const fromWorld = returnScreen === "world" && state.game && !state.combat;
   state.optionsReturnScreen = fromWorld ? "world" : "menu";
+  state.focusIndex = 0;
   updateOptionsUi();
   showScreen("options");
 }
@@ -3348,6 +3658,113 @@ function openOptionsScreen(returnScreen = "menu") {
 function closeOptionsScreen() {
   const target = state.optionsReturnScreen === "world" && state.game ? "world" : "menu";
   showScreen(target);
+}
+
+function getFocusedOptionEntry() {
+  if (state.screen !== "options" || state.modal) return null;
+  const target = state.focusables[state.focusIndex];
+  return target?.dataset?.optionKey ? target : null;
+}
+
+function setOptionValue(optionKey, value) {
+  if (!optionKey) return false;
+  switch (optionKey) {
+    case "worldLogPopups":
+      state.options.worldLogPopups = !!value;
+      if (!state.options.worldLogPopups) clearWorldLogPopupQueue();
+      break;
+    case "verboseCombatLog":
+      state.options.verboseCombatLog = !!value;
+      break;
+    case "gamepadEnabled":
+      state.options.gamepadEnabled = !!value;
+      break;
+    case "sfxEnabled":
+      state.options.sfxEnabled = !!value;
+      applyAudioMixLevels();
+      break;
+    case "musicEnabled":
+      state.options.musicEnabled = !!value;
+      applyAudioMixLevels();
+      if (state.options.musicEnabled) {
+        ensureAudioStarted();
+        syncMusicForCurrentContext();
+      } else {
+        clearVictoryMusicTimer();
+        stopMusicLoop();
+      }
+      break;
+    case "autoLevelUp":
+      state.options.autoLevelUp = !!value;
+      updateControlPromptUi();
+      if (state.options.autoLevelUp && state.game?.player && (state.game.player.unspentStatPoints || 0) > 0) {
+        const info = applyAutoLevelWithReview(state.game.player);
+        if (info?.summary) addWorldLog(`Auto-level applied pending points: ${info.summary}. Review in Level Up if you want to edit.`);
+        if (state.screen === "world") renderWorld();
+        if (state.modal === "levelup") renderModal();
+      }
+      break;
+    case "debugMode":
+      state.options.debugMode = !!value;
+      updateControlPromptUi();
+      if (state.game) {
+        if (state.options.debugMode) {
+          addWorldLog("Debug mode enabled. Hotkeys: Ctrl+Shift+D menu, L level, G gold, H heal, X XP.");
+        } else {
+          if (state.modal === "debug") closeModal();
+          addWorldLog("Debug mode disabled.");
+        }
+        renderWorld();
+        renderWorldLog();
+      }
+      break;
+    case "masterVolume":
+      state.options.masterVolume = clamp(Number(value) || 0, 0, 1);
+      applyAudioMixLevels();
+      break;
+    case "musicVolume":
+      state.options.musicVolume = clamp(Number(value) || 0, 0, 1);
+      applyAudioMixLevels();
+      break;
+    case "sfxVolume":
+      state.options.sfxVolume = clamp(Number(value) || 0, 0, 1);
+      applyAudioMixLevels();
+      break;
+    default:
+      return false;
+  }
+  updateOptionsUi();
+  return true;
+}
+
+function adjustFocusedOptionValue(direction) {
+  const entry = getFocusedOptionEntry();
+  if (!entry || !direction) return false;
+  const optionKey = entry.dataset.optionKey;
+  if (entry.dataset.optionKind === "toggle") {
+    return setOptionValue(optionKey, direction > 0);
+  }
+  if (entry.dataset.optionKind === "range") {
+    const step = Math.max(1, Number(entry.dataset.optionStep) || 5);
+    const min = Number(entry.dataset.optionMin) || 0;
+    const max = Number(entry.dataset.optionMax) || 100;
+    const currentPercent = Math.round((Number(state.options[optionKey]) || 0) * 100);
+    const nextPercent = clamp(currentPercent + direction * step, min, max);
+    return setOptionValue(optionKey, nextPercent / 100);
+  }
+  return false;
+}
+
+function activateFocusedOptionEntry() {
+  const entry = getFocusedOptionEntry();
+  if (!entry) return false;
+  if (entry.dataset.optionKind === "toggle") {
+    return setOptionValue(entry.dataset.optionKey, !state.options[entry.dataset.optionKey]);
+  }
+  if (entry.dataset.optionKind === "range") {
+    return adjustFocusedOptionValue(1);
+  }
+  return false;
 }
 
 function addMenuMessage(message) {
@@ -3482,6 +3899,72 @@ function renderWorldLog() {
   els.worldLog.scrollTop = els.worldLog.scrollHeight;
 }
 
+function renderWorldLogPopup() {
+  if (!els.worldLogPopup) return;
+  const message = state.notifications.worldLogPopupMessage || "";
+  const visible = !!(state.notifications.worldLogPopupVisible && message);
+  els.worldLogPopup.classList.toggle("hidden", !visible);
+  els.worldLogPopup.setAttribute("aria-hidden", visible ? "false" : "true");
+  els.worldLogPopup.innerHTML = visible
+    ? `
+      <strong>Adventure Log</strong>
+      <p>${escapeHtml(message)}</p>
+    `
+    : "";
+}
+
+function hideWorldLogPopup() {
+  state.notifications.worldLogPopupVisible = false;
+  state.notifications.worldLogPopupMessage = "";
+  renderWorldLogPopup();
+}
+
+function clearWorldLogPopupQueue() {
+  state.notifications.worldLogPopupQueue = [];
+  if (state.notifications.worldLogPopupTimerId) {
+    window.clearTimeout(state.notifications.worldLogPopupTimerId);
+    state.notifications.worldLogPopupTimerId = null;
+  }
+  hideWorldLogPopup();
+}
+
+function advanceWorldLogPopupQueue() {
+  if (!els.worldLogPopup || !state.options.worldLogPopups) {
+    clearWorldLogPopupQueue();
+    return;
+  }
+  const nextMessage = state.notifications.worldLogPopupQueue.shift();
+  if (!nextMessage) {
+    hideWorldLogPopup();
+    return;
+  }
+  state.notifications.worldLogPopupMessage = nextMessage;
+  state.notifications.worldLogPopupVisible = true;
+  renderWorldLogPopup();
+  if (state.notifications.worldLogPopupTimerId) {
+    window.clearTimeout(state.notifications.worldLogPopupTimerId);
+  }
+  state.notifications.worldLogPopupTimerId = window.setTimeout(() => {
+    state.notifications.worldLogPopupTimerId = null;
+    if (state.notifications.worldLogPopupQueue.length) {
+      advanceWorldLogPopupQueue();
+    } else {
+      hideWorldLogPopup();
+    }
+  }, WORLD_LOG_POPUP_DURATION_MS);
+}
+
+function queueWorldLogPopup(message) {
+  if (!els.worldLogPopup || !message || !state.options.worldLogPopups) return;
+  state.notifications.worldLogPopupQueue.push(message);
+  if (state.notifications.worldLogPopupQueue.length > WORLD_LOG_POPUP_QUEUE_LIMIT) {
+    state.notifications.worldLogPopupQueue = state.notifications.worldLogPopupQueue.slice(-WORLD_LOG_POPUP_QUEUE_LIMIT);
+  }
+  if (!state.notifications.worldLogPopupVisible && !state.notifications.worldLogPopupTimerId) {
+    advanceWorldLogPopupQueue();
+  }
+}
+
 function renderWorldSkillsPanel() {
   if (!els.worldSkills || !state.game?.player) return;
   const skills = ensurePlayerSkills(state.game.player);
@@ -3530,6 +4013,7 @@ function isSafeWorldFeature(feature) {
     feature.type === "city"
     || feature.type === "town"
     || feature.type === "npc"
+    || feature.type === "event"
     || feature.type === "transition"
     || feature.type === "grave"
     || feature.type === "debug"
@@ -3570,6 +4054,148 @@ function getWorldEncounterChance(world, player, feature = null) {
   return clamp(chance, 0, 45);
 }
 
+function getFeatureById(world, featureId) {
+  if (!world || !featureId) return null;
+  return (world.features || []).find((entry) => entry.id === featureId) || null;
+}
+
+function getDefaultDungeonEncounterBonusMaterials(index, total, rng = null) {
+  if (index >= total - 1) {
+    return [
+      { id: "dungeon_shard", quantity: rng ? rng.int(1, 2) : 1 },
+      { id: "ruin_relic", quantity: rng ? rng.int(1, 2) : 1 },
+    ];
+  }
+  return [{ id: "dungeon_shard", quantity: rng ? rng.int(1, 2) : 1 }];
+}
+
+function buildDungeonStaticEncounterPlan(featureId, biome, rng) {
+  const eliteTitles = ELITE_TITLES_BY_BIOME[biome] || ELITE_TITLES_BY_BIOME.ruins || ["Champion"];
+  const count = rng.int(2, 4);
+  const plan = [];
+  for (let index = 0; index < count; index += 1) {
+    const champion = index === count - 1;
+    const guardTitle = champion
+      ? rng.pick(DUNGEON_CHAMPION_TITLES)
+      : rng.pick(DUNGEON_GUARDIAN_TITLES);
+    plan.push({
+      id: `${featureId}_guardian_${index}`,
+      name: `${rng.pick(eliteTitles)} ${guardTitle}`,
+      defeated: false,
+      eliteTitle: rng.pick(eliteTitles),
+      levelOffset: champion ? 2 : 1,
+      bonusMaterials: getDefaultDungeonEncounterBonusMaterials(index, count, rng),
+    });
+  }
+  return plan;
+}
+
+function ensureDungeonFeatureState(feature, biome = null) {
+  if (!feature || feature.type !== "dungeon") return null;
+  const encounterBiome = biome || state.game?.world?.tiles?.[feature.y]?.[feature.x]?.biome || feature.biome || "ruins";
+  const existingEncounters = Array.isArray(feature.staticEncounters) ? feature.staticEncounters : [];
+  if (!existingEncounters.length) {
+    const rng = createRng(hashString(`${feature.id}|${feature.name}|${feature.x}|${feature.y}|${encounterBiome}`));
+    feature.staticEncounters = buildDungeonStaticEncounterPlan(feature.id, encounterBiome, rng);
+  } else {
+    const total = existingEncounters.length;
+    feature.staticEncounters = existingEncounters.map((encounter, index) => ({
+      id: encounter.id || `${feature.id}_guardian_${index}`,
+      name: encounter.name || `${(ELITE_TITLES_BY_BIOME[encounterBiome] || ["Champion"])[0]} ${index >= total - 1 ? DUNGEON_CHAMPION_TITLES[0] : DUNGEON_GUARDIAN_TITLES[0]}`,
+      defeated: !!encounter.defeated,
+      eliteTitle: encounter.eliteTitle || (ELITE_TITLES_BY_BIOME[encounterBiome] || ["Champion"])[0],
+      levelOffset: Number.isFinite(encounter.levelOffset) ? encounter.levelOffset : (index >= total - 1 ? 2 : 1),
+      bonusMaterials: Array.isArray(encounter.bonusMaterials) && encounter.bonusMaterials.length
+        ? encounter.bonusMaterials
+          .filter((drop) => drop?.id && MATERIAL_DEFS[drop.id])
+          .map((drop) => ({ id: drop.id, quantity: Math.max(1, Math.floor(drop.quantity || 1)) }))
+        : getDefaultDungeonEncounterBonusMaterials(index, total),
+    }));
+  }
+  feature.bossName = feature.bossName || BOSS_TITLES[0];
+  feature.bossDefeated = !!feature.bossDefeated;
+  feature.delvesCleared = Number.isFinite(feature.delvesCleared) ? feature.delvesCleared : 0;
+  return feature;
+}
+
+function getRemainingDungeonStaticEncounters(feature) {
+  const dungeon = ensureDungeonFeatureState(feature);
+  return dungeon ? dungeon.staticEncounters.filter((encounter) => !encounter.defeated) : [];
+}
+
+function getDungeonEncounterSummary(feature) {
+  const dungeon = ensureDungeonFeatureState(feature);
+  if (!dungeon) {
+    return {
+      remainingCount: 0,
+      nextEncounter: null,
+      bossReady: false,
+      bossDefeated: false,
+      delvesCleared: 0,
+    };
+  }
+  const remaining = getRemainingDungeonStaticEncounters(dungeon);
+  return {
+    remainingCount: remaining.length,
+    nextEncounter: remaining[0] || null,
+    bossReady: remaining.length === 0 && !dungeon.bossDefeated,
+    bossDefeated: dungeon.bossDefeated,
+    delvesCleared: Math.max(0, dungeon.delvesCleared || 0),
+  };
+}
+
+function markDungeonStaticEncounterDefeated(featureId, encounterId) {
+  const feature = getFeatureById(state.game?.world, featureId);
+  if (!feature || feature.type !== "dungeon") return null;
+  ensureDungeonFeatureState(feature);
+  const encounter = feature.staticEncounters.find((entry) => entry.id === encounterId);
+  if (encounter) encounter.defeated = true;
+  return feature;
+}
+
+function startDungeonStaticEncounter(feature, encounter) {
+  if (!state.game || !feature || feature.type !== "dungeon" || !encounter) return false;
+  const biome = state.game.world.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+  const enemy = generateEnemy(biome, state.game.player.level + (encounter.levelOffset || 1), state.game.runtimeRng, {
+    elite: true,
+    eliteTitle: encounter.eliteTitle || null,
+    name: encounter.name,
+    featureId: feature.id,
+    staticEncounterId: encounter.id,
+    isDungeonEncounter: true,
+    bonusMaterials: encounter.bonusMaterials || [],
+  });
+  addWorldLog(`${feature.name}: ${encounter.name} is dug in ahead of you.`);
+  startCombat(enemy, biome);
+  return true;
+}
+
+function startDungeonDelveEncounter(feature) {
+  if (!state.game || !feature || feature.type !== "dungeon") return false;
+  const biome = state.game.world.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+  const enemy = generateEnemy(biome, state.game.player.level + 1, state.game.runtimeRng, {
+    featureId: feature.id,
+    dungeonDelve: true,
+    isDungeonEncounter: true,
+    bonusMaterials: state.game.runtimeRng.next() < 0.65 ? [{ id: "dungeon_shard", quantity: 1 }] : [],
+  });
+  addWorldLog(`You sweep deeper into ${feature.name} for roaming delvers.`);
+  startCombat(enemy, biome);
+  return true;
+}
+
+function handleDungeonInteraction(feature) {
+  if (!state.game || !feature || feature.type !== "dungeon") return false;
+  const summary = getDungeonEncounterSummary(feature);
+  if (summary.remainingCount > 0 && summary.nextEncounter) {
+    return startDungeonStaticEncounter(feature, summary.nextEncounter);
+  }
+  if (!feature.bossDefeated) {
+    return maybeTriggerDungeonBoss(feature);
+  }
+  return startDungeonDelveEncounter(feature);
+}
+
 function getWorldInteractPopupData(feature) {
   if (!feature || !state.game) return null;
   const prompts = CONTROL_PROMPTS[state.inputMode] || CONTROL_PROMPTS.keyboard;
@@ -3592,6 +4218,14 @@ function getWorldInteractPopupData(feature) {
       state: "ready",
     };
   }
+  if (feature.type === "event") {
+    const definition = getWorldEventSiteDef(feature.eventKind);
+    return {
+      title: `${prompts.interact}: ${feature.resolved ? "Inspect Site" : definition.actionLabel}`,
+      detail: feature.resolved ? `${definition.label} already resolved.` : `${definition.label}. Scripted encounter site.`,
+      state: feature.resolved ? "depleted" : "ready",
+    };
+  }
   if (feature.type === "debug") {
     return state.options.debugMode
       ? {
@@ -3606,9 +4240,14 @@ function getWorldInteractPopupData(feature) {
       };
   }
   if (feature.type === "dungeon") {
+    const summary = getDungeonEncounterSummary(feature);
     return {
-      title: `${prompts.interact}: ${feature.bossDefeated ? "Delve Deeper" : "Challenge Boss"}`,
-      detail: feature.bossDefeated ? "Boss defeated. The depths are still hostile." : `Boss: ${feature.bossName || "Unknown"}.`,
+      title: `${prompts.interact}: ${summary.remainingCount > 0 ? "Engage Guardian" : feature.bossDefeated ? "Hunt Delvers" : "Challenge Boss"}`,
+      detail: summary.remainingCount > 0
+        ? `${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain. Next: ${summary.nextEncounter?.name || "Guardian"}.`
+        : feature.bossDefeated
+          ? `Boss defeated. ${summary.delvesCleared} delve${summary.delvesCleared === 1 ? "" : "s"} cleared since then.`
+          : `Boss: ${feature.bossName || "Unknown"}. The guard line is broken.`,
       state: "ready",
     };
   }
@@ -3700,8 +4339,13 @@ function renderWorldContext() {
     : `Encounter chance: ${encounterChance.toFixed(1)}% | Threat ${threat}`;
   if (feature) {
     if (feature.type === "dungeon") {
-      const bossState = feature.bossDefeated ? "Boss Defeated" : `Boss: ${feature.bossName}`;
-      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (dungeon). ${bossState}. Press Interact to delve. ${safetyText}`;
+      const summary = getDungeonEncounterSummary(feature);
+      const dungeonState = summary.remainingCount > 0
+        ? `${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain. Next ${summary.nextEncounter?.name || "guardian"}.`
+        : feature.bossDefeated
+          ? `Boss defeated. ${summary.delvesCleared} random delve${summary.delvesCleared === 1 ? "" : "s"} cleared so far.`
+          : `Boss ${feature.bossName} is waiting deeper inside.`;
+      els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name} (dungeon). ${dungeonState} Press Interact to push in. ${safetyText}`;
     } else if (feature.type === "chest") {
       els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. ${feature.opened ? "Opened already." : "Press Interact to open."} ${safetyText}`;
     } else if (feature.type === "transition") {
@@ -3724,6 +4368,11 @@ function renderWorldContext() {
     } else if (feature.type === "crafting") {
       const workshopType = feature.isDebug ? "debug workshop" : "field workshop";
       els.worldContext.textContent = `${areaPrefix}${biomeLabel} - ${feature.name}. ${feature.skillFocus} ${workshopType}. Press Interact to craft with encounter rules and workshop bonuses. ${safetyText}`;
+    } else if (feature.type === "event") {
+      const definition = getWorldEventSiteDef(feature.eventKind);
+      els.worldContext.textContent = feature.resolved
+        ? `${areaPrefix}${biomeLabel} - ${feature.name}. ${definition.label} already resolved. Safe tile.`
+        : `${areaPrefix}${biomeLabel} - ${feature.name}. ${definition.label}. Press Interact to trigger the encounter. Safe tile until you choose to engage.`;
     } else if (feature.type === "debug") {
       const debugText = state.options.debugMode
         ? "Press Interact or use the Debug button to open tester tools."
@@ -3830,7 +4479,7 @@ function updateMapUi() {
     const viewportText = state.map.viewportMode === "native"
       ? `Native ${state.map.viewportOrientation}`
       : "Fit-to-window";
-    els.mapLegend.textContent = `Map icons: City, Town, Dungeon, Chest, NPC, Boss, Workshop, DEBUG_CRAFTING, resources (tree/herb/leafhide/ore/crystal/fish/tidepool). Resource top-left badge shows required level, bottom-right shows charges or depletion. Shop badge ($), Inn badge (I). Zoom ${zoomText}. ${viewportText} viewport with ${layoutText}.`;
+    els.mapLegend.textContent = `Map icons: City, Town, Dungeon, Chest, NPC, Event, Boss, Workshop, DEBUG_CRAFTING, resources (tree/herb/leafhide/ore/crystal/fish/tidepool). Resource top-left badge shows required level, bottom-right shows charges or depletion. Shop badge ($), Inn badge (I). Zoom ${zoomText}. ${viewportText} viewport with ${layoutText}.`;
   }
 }
 
@@ -4101,6 +4750,26 @@ function drawFeatureSymbol(feature, sx, sy, tileSize = TILE_SIZE) {
     ctx.fillRect(size * 0.36, size * 0.36, size * 0.32, size * 0.1);
     ctx.fillStyle = "#f1e2b3";
     ctx.fillRect(size * 0.62, size * 0.18, size * 0.12, size * 0.12);
+  } else if (feature.type === "event") {
+    const definition = getWorldEventSiteDef(feature.eventKind);
+    ctx.fillStyle = feature.resolved ? "#414952" : (definition.color || "#8aa4bf");
+    ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = feature.resolved ? "#b7c1cc" : "#f2f6fd";
+    ctx.beginPath();
+    ctx.moveTo(size * 0.5, size * 0.16);
+    ctx.lineTo(size * 0.62, size * 0.38);
+    ctx.lineTo(size * 0.86, size * 0.42);
+    ctx.lineTo(size * 0.68, size * 0.58);
+    ctx.lineTo(size * 0.74, size * 0.82);
+    ctx.lineTo(size * 0.5, size * 0.7);
+    ctx.lineTo(size * 0.26, size * 0.82);
+    ctx.lineTo(size * 0.32, size * 0.58);
+    ctx.lineTo(size * 0.14, size * 0.42);
+    ctx.lineTo(size * 0.38, size * 0.38);
+    ctx.closePath();
+    ctx.fillStyle = feature.resolved ? "#6c7783" : "#f5f0d8";
+    ctx.fill();
+    ctx.stroke();
   } else if (feature.type === "grave") {
     ctx.fillStyle = "#4a4355";
     ctx.fillRect(0, 0, size, size);
@@ -4199,7 +4868,15 @@ function movePlayer(dx, dy) {
     addWorldLog("Entered DEBUG_CRAFTING. Encounters are disabled in this testing yard.");
   }
   if (feature?.type === "city" || feature?.type === "town") addWorldLog(`Arrived at ${feature.name}. This is a safe location.`);
-  if (feature?.type === "dungeon") addWorldLog(`You stand at ${feature.name}. Press Interact to enter.`);
+  if (feature?.type === "dungeon") {
+    const summary = getDungeonEncounterSummary(feature);
+    const dungeonLine = summary.remainingCount > 0
+      ? `${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} hold the halls. Next: ${summary.nextEncounter?.name || "guardian"}.`
+      : feature.bossDefeated
+        ? `The boss is down. Random delvers still roam the depths.`
+        : `${feature.bossName || "The boss"} waits beyond the broken guard line.`;
+    addWorldLog(`You stand at ${feature.name}. ${dungeonLine} Press Interact to enter.`);
+  }
   if (feature?.type === "chest" && !feature.opened) addWorldLog(`A chest waits here. Press Interact.`);
   if (feature?.type === "transition") addWorldLog(`${feature.name} hums softly. Press Interact to travel.`);
   if (feature?.type === "npc") addWorldLog(`${feature.name} (${feature.role}) is here.`);
@@ -4217,6 +4894,12 @@ function movePlayer(dx, dy) {
     }
   }
   if (feature?.type === "crafting") addWorldLog(`${feature.name} is set up for ${feature.skillFocus}. Press Interact to start a crafting encounter.`);
+  if (feature?.type === "event") {
+    const definition = getWorldEventSiteDef(feature.eventKind);
+    addWorldLog(feature.resolved
+      ? `${feature.name} (${definition.label}) is spent but still worth a look.`
+      : `${feature.name} (${definition.label}) is active. Press Interact to engage the encounter.`);
+  }
   if (feature?.type === "debug") {
     const debugPrompt = state.options.debugMode
       ? "Press Interact to open the debug menu."
@@ -4254,6 +4937,20 @@ function describeCurrentTile() {
     }
   } else if (feature?.type === "crafting") {
     addWorldLog(`${feature.name}: ${feature.skillFocus} workshop in the ${BIOME_DATA[tile.biome].label}. Use Interact to craft with full field support.`);
+  } else if (feature?.type === "dungeon") {
+    const summary = getDungeonEncounterSummary(feature);
+    if (summary.remainingCount > 0) {
+      addWorldLog(`${feature.name}: dungeon in the ${BIOME_DATA[tile.biome].label}. ${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain. Next: ${summary.nextEncounter?.name || "guardian"}.`);
+    } else if (feature.bossDefeated) {
+      addWorldLog(`${feature.name}: boss defeated. Random delve encounters remain active in the ${BIOME_DATA[tile.biome].label}.`);
+    } else {
+      addWorldLog(`${feature.name}: the guard line is broken and ${feature.bossName || "the boss"} is waiting deeper inside.`);
+    }
+  } else if (feature?.type === "event") {
+    const definition = getWorldEventSiteDef(feature.eventKind);
+    addWorldLog(feature.resolved
+      ? `${feature.name}: resolved ${definition.label.toLowerCase()} in the ${BIOME_DATA[tile.biome].label}.`
+      : `${feature.name}: active ${definition.label.toLowerCase()} in the ${BIOME_DATA[tile.biome].label}. Interact to trigger it.`);
   } else if (feature?.type === "debug") {
     const debugPrompt = state.options.debugMode
       ? "Use Interact to open tester tools."
@@ -4286,6 +4983,124 @@ function restAtInn(feature = null) {
   addWorldLog(`You rest at ${targetName} for ${cost} gold and recover to full health.`);
   playSfx("potion");
   renderWorld();
+}
+
+function getGatheringSkillForBiomeEncounter(biome = "plains") {
+  if (biome === "badlands" || biome === "highlands" || biome === "ruins") return "Mining";
+  if (biome === "swamp" || biome === "coast") return "Fishing";
+  return "Botany";
+}
+
+function getCraftingSkillsForBiomeEncounter(biome = "plains") {
+  if (biome === "badlands") return ["Smithing", "Jewelcrafting"];
+  if (biome === "highlands") return ["Smithing", "Woodworking", "Jewelcrafting"];
+  if (biome === "coast") return ["Cooking", "Alchemy", "Clothier"];
+  if (biome === "ruins") return ["Alchemy", "Jewelcrafting", "Smithing"];
+  if (biome === "swamp") return ["Alchemy", "Cooking", "Leatherworking"];
+  if (biome === "forest") return ["Woodworking", "Leatherworking", "Clothier"];
+  if (biome === "road") return ["Cooking", "Clothier", "Smithing"];
+  return ["Cooking", "Leatherworking", "Woodworking"];
+}
+
+function grantBiomeMaterials(player, rng, biome, rolls = 3, options = {}) {
+  const rewardMap = new Map();
+  for (let i = 0; i < rolls; i += 1) {
+    const itemId = rollMaterialIdForLevel(clamp(player.level + (options.levelBonus || 4), 1, MAX_LEVEL), rng, {
+      biome,
+      highQuality: !!options.highQuality,
+    });
+    const quantity = rng.int(1, options.highQuality ? 3 : 2);
+    const definition = MATERIAL_DEFS[itemId];
+    if (!definition) continue;
+    addStackableLoot(player, "material", definition, quantity);
+    rewardMap.set(itemId, (rewardMap.get(itemId) || 0) + quantity);
+  }
+  return [...rewardMap.entries()].map(([itemId, quantity]) => `${quantity}x ${MATERIAL_DEFS[itemId]?.name || itemId}`);
+}
+
+function resolveWorldEventFeature(feature) {
+  if (!state.game || !feature || feature.type !== "event") return;
+  if (feature.resolved) {
+    addWorldLog(`${feature.name} has already been cleared.`);
+    return;
+  }
+  const { player, world, runtimeRng } = state.game;
+  const dynamic = state.game.dynamic || (state.game.dynamic = { threat: 0, lastEventStep: 0 });
+  const biome = world.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+  const definition = getWorldEventSiteDef(feature.eventKind);
+
+  if (feature.eventKind === "caravan") {
+    const gold = runtimeRng.int(18 + player.level, 34 + player.level * 2);
+    const materials = grantBiomeMaterials(player, runtimeRng, biome, 2, { levelBonus: 5 });
+    const consumableId = rollConsumableDrop(runtimeRng, clamp(player.level + 3, 1, MAX_LEVEL), player.level >= 40);
+    player.gold += gold;
+    state.game.meta.totalGoldFound += gold;
+    addConsumableToBag(player, consumableId, 1);
+    feature.resolved = true;
+    addWorldLog(`${feature.name}: caravan hands over ${gold} gold, ${materials.join(", ")}, and ${CONSUMABLE_DEFS[consumableId]?.name || consumableId}.`);
+    playSfx("shop");
+    renderWorld();
+    return;
+  }
+
+  if (feature.eventKind === "shrine") {
+    const missingHp = Math.max(0, player.derivedStats.Health - player.currentHealth);
+    player.currentHealth = player.derivedStats.Health;
+    dynamic.threat = Math.max(0, (dynamic.threat || 0) - 1);
+    revealAround(world, feature.x, feature.y, 4);
+    feature.resolved = true;
+    addWorldLog(`${feature.name}: the shrine restores ${missingHp} HP and steadies the wilds. Threat ${dynamic.threat}.`);
+    playSfx("buff");
+    renderWorld();
+    return;
+  }
+
+  if (feature.eventKind === "forage") {
+    const skillName = getGatheringSkillForBiomeEncounter(biome);
+    const materials = grantBiomeMaterials(player, runtimeRng, biome, 4, { levelBonus: 6, highQuality: player.level >= 35 });
+    const skillGain = gainSkillXp(player, skillName, Math.round(runtimeRng.int(18, 30) * GATHERING_XP_MULTIPLIER), feature.name);
+    feature.resolved = true;
+    addWorldLog(`${feature.name}: you strip the camp for ${materials.join(", ")}.`);
+    logSkillXpProgress(player, skillName, skillGain);
+    playSfx("gather-good");
+    renderWorld();
+    return;
+  }
+
+  if (feature.eventKind === "artisan") {
+    const skillName = runtimeRng.pick(getCraftingSkillsForBiomeEncounter(biome));
+    const materials = grantBiomeMaterials(player, runtimeRng, biome, 3, { levelBonus: 8, highQuality: player.level >= 30 });
+    const skillGain = gainSkillXp(player, skillName, Math.round(runtimeRng.int(16, 28) * CRAFTING_XP_MULTIPLIER), feature.name);
+    if (runtimeRng.next() < 0.34) {
+      const consumableId = rollConsumableDrop(runtimeRng, clamp(player.level + 5, 1, MAX_LEVEL), player.level >= 45);
+      addConsumableToBag(player, consumableId, 1);
+      materials.push(`1x ${CONSUMABLE_DEFS[consumableId]?.name || consumableId}`);
+    }
+    feature.resolved = true;
+    addWorldLog(`${feature.name}: the artisans trade you ${materials.join(", ")} and talk shop.`);
+    logSkillXpProgress(player, skillName, skillGain);
+    playSfx("craft-finish");
+    renderWorld();
+    return;
+  }
+
+  if (feature.eventKind === "commission") {
+    if (!startCraftingEventChallenge(feature)) {
+      addWorldLog(`${feature.name}: the commission board is empty right now.`);
+      renderWorld();
+    }
+    return;
+  }
+
+  feature.resolved = true;
+  const eliteTitlePool = ELITE_TITLES_BY_BIOME[biome] || ["Champion"];
+  const enemy = rollOverworldEncounterEnemy(biome, player.level + 1, runtimeRng, {
+    forceElite: true,
+    eliteTitle: runtimeRng.pick(eliteTitlePool),
+    featureId: feature.id,
+  });
+  addWorldLog(`${feature.name}: the site erupts into an ambush.`);
+  startCombat(enemy, biome);
 }
 
 function getWorldInteractionActions(feature, allowInspect = false) {
@@ -4322,6 +5137,15 @@ function getWorldInteractionActions(feature, allowInspect = false) {
       label: "Use Workshop",
       description: `${feature.skillFocus} field workshop`,
     });
+  } else if (feature.type === "event") {
+    const definition = getWorldEventSiteDef(feature.eventKind);
+    actions.push({
+      id: "resolve-event",
+      label: feature.resolved ? "Inspect Site" : definition.actionLabel,
+      description: feature.resolved
+        ? `${feature.name} has already been handled`
+        : `${feature.name} (${definition.label})`,
+    });
   } else if (feature.type === "debug" && state.options.debugMode) {
     actions.push({
       id: "open-debug-menu",
@@ -4331,10 +5155,15 @@ function getWorldInteractionActions(feature, allowInspect = false) {
   } else if (feature.type === "grave") {
     actions.push({ id: "recover-gear", label: "Recover Gear", description: feature.name });
   } else if (feature.type === "dungeon") {
+    const summary = getDungeonEncounterSummary(feature);
     actions.push({
       id: "enter-dungeon",
-      label: feature.bossDefeated ? "Delve Deeper" : "Challenge Boss",
-      description: feature.name,
+      label: summary.remainingCount > 0 ? "Engage Guardian" : feature.bossDefeated ? "Hunt Delvers" : "Challenge Boss",
+      description: summary.remainingCount > 0
+        ? `${feature.name} | ${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain`
+        : feature.bossDefeated
+          ? `${feature.name} | Random delve encounter`
+          : `${feature.name} | ${feature.bossName || "Boss"} awaits`,
     });
   } else if (feature.type === "city" || feature.type === "town") {
     actions.push({ id: "talk", label: "Talk To Locals", description: `${feature.name} gossip and rumors` });
@@ -4380,6 +5209,11 @@ function executeWorldInteractionAction(actionId, feature = null) {
     gatherResourceNode(activeFeature);
     return;
   }
+  if (actionId === "resolve-event") {
+    if (!activeFeature || activeFeature.type !== "event") return addWorldLog("No encounter site here.");
+    resolveWorldEventFeature(activeFeature);
+    return;
+  }
   if (actionId === "recover-gear") {
     if (!activeFeature || activeFeature.type !== "grave") return addWorldLog("No dropped gear cache here.");
     recoverDroppedGear(activeFeature);
@@ -4405,17 +5239,7 @@ function executeWorldInteractionAction(actionId, feature = null) {
   }
   if (actionId === "enter-dungeon") {
     if (!activeFeature || activeFeature.type !== "dungeon") return addWorldLog("No dungeon entrance here.");
-    if (!activeFeature.bossDefeated) {
-      maybeTriggerDungeonBoss(activeFeature);
-      return;
-    }
-    const tile = world.tiles[player.position.y][player.position.x];
-    const depthEnemy = generateEnemy(tile.biome, player.level + 1, state.game.runtimeRng, {
-      name: `${activeFeature.name} Delver`,
-      featureId: activeFeature.id,
-    });
-    addWorldLog(`You delve deeper into ${activeFeature.name}.`);
-    startCombat(depthEnemy, tile.biome);
+    handleDungeonInteraction(activeFeature);
     return;
   }
 }
@@ -4459,6 +5283,10 @@ function openCurrentShop() {
 function openCurrentCrafting() {
   if (!state.game || state.combat) return;
   const feature = getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
+  if (feature?.type === "event" && feature.eventKind === "commission" && !feature.resolved) {
+    startCraftingEventChallenge(feature);
+    return;
+  }
   openCraftingMenu(feature || null);
 }
 
@@ -4528,6 +5356,99 @@ function setSkillLevelsByRole(role, targetLevel = SKILL_CAP_LEVEL) {
   return true;
 }
 
+function getHighestSkillLevelByRole(role) {
+  if (!state.game) return 1;
+  const skills = ensurePlayerSkills(state.game.player);
+  return SKILL_ORDER.reduce((highest, skillName) => {
+    if (SKILL_DEFS[skillName]?.role !== role) return highest;
+    return Math.max(highest, skills[skillName]?.level || 1);
+  }, 1);
+}
+
+function promptForDebugLevel(label, currentLevel, capLevel = MAX_LEVEL) {
+  const response = window.prompt(`${label}\nEnter a level from 1 to ${capLevel}.`, String(clamp(currentLevel, 1, capLevel)));
+  if (response == null) return null;
+  const trimmed = String(response).trim();
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed)) {
+    addWorldLog(`Debug: invalid level "${response}".`);
+    renderWorldLog();
+    return null;
+  }
+  return clamp(parsed, 1, capLevel);
+}
+
+function unlockAllCraftingSupport() {
+  if (!state.game) return false;
+  const player = state.game.player;
+  let added = 0;
+  CRAFTING_TOOL_ORDER.forEach((toolId) => {
+    if (addToolToBag(player, toolId)) added += 1;
+  });
+  CRAFTING_STATION_ORDER.forEach((stationId) => {
+    if (addStationToBag(player, stationId)) added += 1;
+  });
+  addWorldLog(added > 0
+    ? "Debug: unlocked every crafting tool and portable station."
+    : "Debug: all crafting tools and portable stations are already unlocked.");
+  renderWorld();
+  return added > 0;
+}
+
+function getAllocatedStatPointTotal(player) {
+  if (!player) return 0;
+  const styleStats = COMBAT_STYLES[player.style]?.baseStats || COMBAT_STYLES.Melee.baseStats;
+  return ALL_STATS.reduce((total, stat) => {
+    const current = Math.floor(player.baseStats?.[stat] || 0);
+    const baseline = Math.floor(styleStats?.[stat] || 0);
+    return total + Math.max(0, current - baseline);
+  }, 0);
+}
+
+function unequipItemsAbovePlayerLevel(player) {
+  if (!player?.equipment) return [];
+  const removed = [];
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    const item = player.equipment[slot];
+    if (!item || player.level >= (item.levelReq || 1)) return;
+    player.equipment[slot] = null;
+    addItemToBag(player, item);
+    removed.push(item.name);
+  });
+  if (removed.length) syncPlayerStyleToWeapon(player);
+  return removed;
+}
+
+function setPlayerLevel(targetLevel = MAX_LEVEL) {
+  if (!state.game?.player) return false;
+  const player = state.game.player;
+  const nextLevel = clamp(Math.floor(targetLevel || 1), 1, MAX_LEVEL);
+  const previousLevel = clamp(Math.floor(player.level || 1), 1, MAX_LEVEL);
+  player.level = nextLevel;
+  player.xp = 0;
+  state.game.pendingLevelUpReview = false;
+  state.game.lastAutoLevelUp = null;
+  const availablePoints = Math.max(0, (nextLevel - 1) * 3);
+  const spentPoints = getAllocatedStatPointTotal(player);
+  player.unspentStatPoints = Math.max(0, availablePoints - spentPoints);
+  const removedItems = nextLevel < previousLevel ? unequipItemsAbovePlayerLevel(player) : [];
+  recalculatePlayerStats(player, false);
+  player.currentHealth = player.derivedStats.Health;
+  state.game.pendingLevelUp = (player.unspentStatPoints || 0) > 0;
+  if (nextLevel > previousLevel) {
+    updateQuestProgress("levelUp", { level: player.level });
+    advanceStoryIfNeeded("level");
+    checkAchievements();
+  }
+  const overBudget = Math.max(0, spentPoints - availablePoints);
+  let message = `Debug: player level set to ${nextLevel}. ${player.unspentStatPoints || 0} stat points ready.`;
+  if (removedItems.length) message += ` Unequipped: ${removedItems.join(", ")}.`;
+  if (overBudget > 0) message += ` Current build is ${overBudget} points over the normal budget for this level.`;
+  addWorldLog(message);
+  renderWorld();
+  return true;
+}
+
 function grantDebugMaterialCache(quantity = 25) {
   if (!state.game) return false;
   Object.values(MATERIAL_DEFS).forEach((definition) => {
@@ -4564,10 +5485,6 @@ function maybeAutoTriggerFeatureEvent(feature) {
       return true;
     }
   }
-  if (feature.type === "dungeon" && !feature.bossDefeated) {
-    addWorldLog(`Auto-event: ${feature.bossName || "The boss"} senses your presence.`);
-    return maybeTriggerDungeonBoss(feature);
-  }
   if ((feature.type === "city" || feature.type === "town") && hasUnclaimedCompletedQuest()) {
     const lastPrompt = Number.isFinite(feature.lastAutoQuestPromptStep) ? feature.lastAutoQuestPromptStep : -999;
     if (state.game.stepCount - lastPrompt >= 8) {
@@ -4602,13 +5519,22 @@ function maybeTriggerDynamicWorldEvent(feature) {
     if (added > 0) addWorldLog("World Event: New quest rumors spread across settlements.");
     return;
   }
-  if (roll < 0.64) {
+  if (roll < 0.6) {
     if (spawnDynamicChestNearPlayer()) {
       addWorldLog("World Event: Scouts reveal a hidden cache nearby.");
       return;
     }
   }
-  if (roll < 0.84) {
+  if (roll < 0.78) {
+    const biome = game.world.tiles?.[game.player.position.y]?.[game.player.position.x]?.biome || "plains";
+    const eventFeature = spawnDynamicEventSiteNearPlayer(biome);
+    if (eventFeature) {
+      const definition = getWorldEventSiteDef(eventFeature.eventKind);
+      addWorldLog(`World Event: ${definition.label} stirs nearby.`);
+      return;
+    }
+  }
+  if (roll < 0.9) {
     const gold = rng.int(10, 35);
     game.player.gold += gold;
     game.meta.totalGoldFound += gold;
@@ -4644,8 +5570,72 @@ function spawnDynamicChestNearPlayer() {
   return false;
 }
 
+function spawnDynamicEventSiteNearPlayer(biome = "plains") {
+  if (!state.game) return null;
+  const { world, player, runtimeRng } = state.game;
+  const kindPool = biome === "road"
+    ? ["caravan", "artisan", "commission", "shrine"]
+    : biome === "forest"
+      ? ["forage", "commission", "ambush", "shrine"]
+      : biome === "swamp"
+        ? ["forage", "commission", "ambush", "shrine"]
+        : biome === "badlands"
+          ? ["artisan", "commission", "ambush", "shrine"]
+          : biome === "highlands"
+            ? ["artisan", "commission", "forage", "ambush"]
+            : biome === "coast"
+              ? ["caravan", "commission", "forage", "shrine"]
+              : biome === "ruins"
+                ? ["ambush", "artisan", "commission", "shrine"]
+                : ["caravan", "commission", "forage", "shrine"];
+  const eventKind = runtimeRng.pick(kindPool);
+  const definition = getWorldEventSiteDef(eventKind);
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const x = clamp(player.position.x + runtimeRng.int(-6, 6), 0, world.width - 1);
+    const y = clamp(player.position.y + runtimeRng.int(-6, 6), 0, world.height - 1);
+    if (isInDebugCraftingArea(world, x, y)) continue;
+    if (definition.biomes?.length && !definition.biomes.includes(world.tiles?.[y]?.[x]?.biome || "plains")) continue;
+    const key = featureKey(x, y);
+    if (world.featureLookup[key]) continue;
+    const names = WORLD_EVENT_NAME_POOLS[eventKind] || [definition.label];
+    const feature = {
+      id: `event_dynamic_${eventKind}_${createItemUid()}`,
+      type: "event",
+      eventKind,
+      name: rngPick(runtimeRng, names),
+      x,
+      y,
+      resolved: false,
+    };
+    world.features.push(feature);
+    world.featureLookup[key] = feature;
+    return feature;
+  }
+  return null;
+}
+
+function rngPick(rng, list = []) {
+  if (!list.length) return "";
+  return rng.pick ? rng.pick(list) : list[Math.floor((rng.next ? rng.next() : Math.random()) * list.length) % list.length];
+}
+
 function hasUnclaimedCompletedQuest() {
   return !!state.game?.quests?.some((quest) => quest.completed && !quest.claimed);
+}
+
+function rollOverworldEncounterEnemy(biome, playerLevel, rng, options = {}) {
+  const threat = state.game?.dynamic?.threat || 0;
+  const biomePressure = biome === "badlands" || biome === "highlands" || biome === "ruins" ? 0.05 : biome === "swamp" || biome === "forest" ? 0.03 : 0;
+  const eliteChance = options.forceElite
+    ? 1
+    : clamp(0.05 + threat * 0.03 + biomePressure, 0.05, 0.26);
+  const elite = !!options.forceElite || (!options.boss && rng.next() < eliteChance);
+  const encounterLevel = clamp(playerLevel + rng.int(-1, elite ? 2 : 1), 1, MAX_LEVEL);
+  return generateEnemy(biome, encounterLevel, rng, {
+    ...options,
+    elite,
+    eliteTitle: elite ? (options.eliteTitle || rng.pick(ELITE_TITLES_BY_BIOME[biome] || ["Champion"])) : options.eliteTitle,
+  });
 }
 
 function tryTriggerEncounter(feature) {
@@ -4655,18 +5645,29 @@ function tryTriggerEncounter(feature) {
   const chance = getWorldEncounterChance(world, player, feature);
   if (chance <= 0) return;
   if (runtimeRng.next() * 100 < chance) {
-    const enemy = generateEnemy(tile.biome, player.level, runtimeRng);
+    const enemy = rollOverworldEncounterEnemy(tile.biome, player.level, runtimeRng);
     startCombat(enemy, tile.biome);
   }
 }
 
 function maybeTriggerDungeonBoss(feature) {
   if (!state.game || !feature || feature.type !== "dungeon" || feature.bossDefeated || state.combat) return false;
-  const tile = state.game.world.tiles[state.game.player.position.y][state.game.player.position.x];
+  const summary = getDungeonEncounterSummary(feature);
+  if (summary.remainingCount > 0) {
+    addWorldLog(`${feature.name}: ${summary.remainingCount} static guardian${summary.remainingCount === 1 ? "" : "s"} still block the boss chamber.`);
+    return false;
+  }
+  const tile = state.game.world.tiles?.[feature.y]?.[feature.x] || state.game.world.tiles[state.game.player.position.y][state.game.player.position.x];
   const enemy = generateEnemy(tile.biome, state.game.player.level, state.game.runtimeRng, {
     boss: true,
     name: feature.bossName || state.game.runtimeRng.pick(BOSS_TITLES),
     featureId: feature.id,
+    isDungeonEncounter: true,
+    bonusMaterials: [
+      { id: "dungeon_shard", quantity: state.game.runtimeRng.int(2, 4) },
+      { id: "ruin_relic", quantity: state.game.runtimeRng.int(1, 2) },
+      { id: "boss_core", quantity: 1 + (state.game.player.level >= 60 ? 1 : 0) },
+    ],
   });
   startCombat(enemy, tile.biome);
   addWorldLog(`Boss encounter: ${enemy.name} rises from ${feature.name}.`);
@@ -4680,11 +5681,12 @@ function getEncounterChancePercent(biome, level) {
 
 function startCombat(enemy, biome) {
   const bestiaryUpdate = registerBestiaryEncounter(enemy, biome);
+  const combatLabel = enemy.isBoss ? "BOSS " : enemy.isElite ? "ELITE " : "";
   state.combat = {
     enemy,
     biome,
     phase: "player",
-    log: [`A ${enemy.isBoss ? "BOSS " : ""}${enemy.name} (Lv ${enemy.level}) appears from the ${BIOME_DATA[biome].label}!`],
+    log: [`A ${combatLabel}${enemy.name} (Lv ${enemy.level}) appears from the ${BIOME_DATA[biome].label}!`],
     result: null,
     playerDefending: false,
     turn: 1,
@@ -4692,7 +5694,7 @@ function startCombat(enemy, biome) {
   if (bestiaryUpdate.discovered) {
     addWorldLog(`Bestiary discovered: ${enemy.speciesName || enemy.name}.`);
   }
-  addWorldLog(`Encounter: ${enemy.name} ambushes you.`);
+  addWorldLog(`${enemy.isElite ? "Elite encounter" : "Encounter"}: ${enemy.name} ambushes you.`);
   playSfx(enemy.isBoss ? "boss" : "encounter");
   showScreen("combat");
 }
@@ -4714,7 +5716,7 @@ function renderCombat() {
     ? player.activeEffects.map((effect) => `${effect.name} (${effect.turns}t)`).join(", ")
     : "None";
   const playerWeaponSummary = player.equipment.Weapon ? summarizeWeaponForUi(player.equipment.Weapon) : "None";
-  els.combatTitle.textContent = `Combat - ${enemy.name}${enemy.isBoss ? " [Boss]" : ""}`;
+  els.combatTitle.textContent = `Combat - ${enemy.name}${enemy.isBoss ? " [Boss]" : enemy.isElite ? " [Elite]" : ""}`;
   els.combatPlayer.innerHTML = `
     <p><strong>${escapeHtml(player.name)}</strong> (Lv ${player.level})</p>
     <p>HP ${player.currentHealth}/${player.derivedStats.Health}</p>
@@ -4735,7 +5737,7 @@ function renderCombat() {
     <p>Damage 1d${enemy.damageDie} ${escapeHtml(enemy.damageKind || defaultDamageKindForAttackType(enemy.attackType))}</p>
     <p>Known Weaknesses ${escapeHtml(knownWeaknesses)}</p>
     <p>Known Resistances ${escapeHtml(knownResistances)}</p>
-    <p>Type ${enemy.isBoss ? "Boss" : "Normal"}</p>
+    <p>Type ${enemy.isBoss ? "Boss" : enemy.isElite ? "Elite" : "Normal"}</p>
   `;
 
   const lines = state.combat.log.slice(-COMBAT_LOG_LIMIT);
@@ -5138,7 +6140,7 @@ function openLevelUpModal() {
   }
   state.game.pendingLevelUp = points > 0 || hasPendingAutoLevelReview();
   state.modal = "levelup";
-  state.modalData = null;
+  state.modalData = {};
   els.modalBackdrop.classList.remove("hidden");
   els.modalBackdrop.setAttribute("aria-hidden", "false");
   renderModal();
@@ -5206,8 +6208,9 @@ function finalizeCombat(result) {
 
   if (result === "won") {
     const enemy = state.combat.enemy;
+    let dungeonFeature = enemy.featureId ? getFeatureById(state.game.world, enemy.featureId) : null;
     recordBestiaryKill(enemy);
-    const xpGain = Math.floor((20 + enemy.level * 8 + (enemy.isBoss ? 90 : 0)) * getDifficulty().xp);
+    const xpGain = Math.floor((20 + enemy.level * 8 + (enemy.isBoss ? 90 : 0) + (enemy.isElite ? 26 : 0)) * getDifficulty().xp);
     gainXp(state.game.player, xpGain);
     addWorldLog(`Victory over ${enemy.name}. Gained ${xpGain} XP.`);
     pushCombatLog(`Victory. You gain ${xpGain} XP.`);
@@ -5216,13 +6219,26 @@ function finalizeCombat(result) {
     updateQuestProgress("enemyDefeated", { enemy, biome: state.combat.biome });
     if (enemy.isBoss) {
       state.game.meta.bossesDefeated += 1;
-      markBossDefeated(enemy.featureId);
+      dungeonFeature = markBossDefeated(enemy.featureId);
       updateQuestProgress("bossDefeated", { featureId: enemy.featureId, enemy });
       advanceStoryIfNeeded("boss");
       addWorldLog(`Boss defeated: ${enemy.name}.`);
+      if (dungeonFeature?.type === "dungeon") {
+        addWorldLog(`${dungeonFeature.name} is broken open. Random delves and component runs remain inside.`);
+      }
       playSfx("bossWin");
       triggerVictoryFanfare(true);
     } else {
+      if (enemy.staticEncounterId) {
+        dungeonFeature = markDungeonStaticEncounterDefeated(enemy.featureId, enemy.staticEncounterId) || dungeonFeature;
+        const summary = getDungeonEncounterSummary(dungeonFeature);
+        addWorldLog(summary.remainingCount > 0
+          ? `${dungeonFeature?.name || "Dungeon"}: ${summary.remainingCount} static elite${summary.remainingCount === 1 ? "" : "s"} remain.`
+          : `${dungeonFeature?.name || "Dungeon"}: the boss chamber is exposed.`);
+      } else if (enemy.dungeonDelve && dungeonFeature?.type === "dungeon") {
+        dungeonFeature.delvesCleared = Math.max(0, dungeonFeature.delvesCleared || 0) + 1;
+        addWorldLog(`${dungeonFeature.name}: delve cleared. ${dungeonFeature.delvesCleared} random delve${dungeonFeature.delvesCleared === 1 ? "" : "s"} defeated here.`);
+      }
       playSfx("victory");
       triggerVictoryFanfare(false);
     }
@@ -5388,11 +6404,12 @@ function buildConsumableWeightTable(level, isBoss = false, shopStock = false) {
 
 function buildMaterialWeightTable(level, biome = "plains", highQuality = false) {
   const tier = tierForLevel(level);
-  const forestBonus = biome === "forest" ? 1 : 0;
-  const plainsBonus = biome === "plains" ? 1 : 0;
-  const swampBonus = biome === "swamp" ? 1 : 0;
-  const badlandsBonus = biome === "badlands" ? 1 : 0;
-  const roadBonus = biome === "road" ? 1 : 0;
+  const forestBonus = biome === "forest" || biome === "highlands" ? 1 : 0;
+  const plainsBonus = biome === "plains" || biome === "coast" ? 1 : 0;
+  const swampBonus = biome === "swamp" || biome === "coast" ? 1 : 0;
+  const badlandsBonus = biome === "badlands" || biome === "highlands" || biome === "ruins" ? 1 : 0;
+  const roadBonus = biome === "road" || biome === "ruins" ? 1 : 0;
+  const ruinsBonus = biome === "ruins" ? 1 : 0;
   return [
     { id: "slime_gel", weight: clamp(22 - tier * 2 + swampBonus * 8, 4, 26) },
     { id: "iron_scrap", weight: clamp(20 - Math.floor(tier / 2) + badlandsBonus * 6, 6, 24) },
@@ -5400,11 +6417,11 @@ function buildMaterialWeightTable(level, biome = "plains", highQuality = false) 
     { id: "herb_bundle", weight: clamp(14 - Math.floor(tier / 3) + (forestBonus + swampBonus) * 7, 5, 24) },
     { id: "iron_ore", weight: clamp(8 + tier * 2 + badlandsBonus * 8 + (highQuality ? 3 : 0), 8, 34) },
     { id: "silver_ore", weight: clamp(4 + tier * 2 + badlandsBonus * 6 + (highQuality ? 2 : 0), 4, 22) },
-    { id: "gem_shard", weight: clamp((tier >= 2 ? 2 + tier : 0) + badlandsBonus * 4 + swampBonus * 2 + (highQuality ? 2 : 0), 0, 18) },
+    { id: "gem_shard", weight: clamp((tier >= 2 ? 2 + tier : 0) + badlandsBonus * 4 + swampBonus * 2 + ruinsBonus * 3 + (highQuality ? 2 : 0), 0, 18) },
     { id: "beast_hide", weight: clamp(8 + tier * 2 + (forestBonus + plainsBonus) * 4, 8, 28) },
     { id: "beast_fang", weight: clamp(4 + Math.floor(tier * 1.5) + (forestBonus + plainsBonus) * 3 + (highQuality ? 2 : 0), 4, 20) },
     { id: "hardwood_log", weight: clamp(8 + tier * 2 + forestBonus * 8 + (highQuality ? 2 : 0), 8, 30) },
-    { id: "arcane_dust", weight: clamp(4 + tier * 2 + (swampBonus + badlandsBonus) * 4 + (highQuality ? 3 : 0), 4, 26) },
+    { id: "arcane_dust", weight: clamp(4 + tier * 2 + (swampBonus + badlandsBonus) * 4 + ruinsBonus * 6 + (highQuality ? 3 : 0), 4, 28) },
     { id: "river_scale", weight: clamp((tier >= 3 ? 3 + tier : 0) + (swampBonus + roadBonus) * 5 + (highQuality ? 2 : 0), 0, 16) },
   ].filter((entry) => entry.weight > 0);
 }
@@ -5428,6 +6445,9 @@ function getMaterialShopPrice(materialId, quantity, tier) {
     hardwood_log: 14,
     arcane_dust: 18,
     river_scale: 22,
+    dungeon_shard: 54,
+    ruin_relic: 96,
+    boss_core: 160,
   };
   const base = basePrices[materialId] || 12;
   return Math.floor(base * Math.max(1, quantity) * (1 + Math.max(0, tier - 1) * 0.06));
@@ -5440,33 +6460,45 @@ function maybeDropLoot(enemy) {
   const biome = state.combat?.biome || "plains";
   const lootLines = [];
 
-  const goldGain = Math.floor((8 + enemy.level * 3 + rng.int(0, 14)) * (enemy.isBoss ? 2.2 : 1) * difficulty.loot);
+  const goldGain = Math.floor((8 + enemy.level * 3 + rng.int(0, 14)) * (enemy.isBoss ? 2.2 : enemy.isElite ? 1.45 : 1) * difficulty.loot);
   player.gold += goldGain;
   state.game.meta.totalGoldFound += goldGain;
   lootLines.push(`${goldGain} gold`);
 
-  const equipmentDropChance = clamp(24 + player.derivedStats.Luck * 0.45 + (enemy.isBoss ? 42 : 0), 10, 95);
+  const equipmentDropChance = clamp(24 + player.derivedStats.Luck * 0.45 + (enemy.isBoss ? 42 : 0) + (enemy.isElite ? 18 : 0), 10, 95);
   if (rng.next() * 100 < equipmentDropChance) {
-    const item = generateEquipmentDrop(enemy.level + rng.int(-1, enemy.isBoss ? 4 : 2), rng, { boss: enemy.isBoss });
+    const item = generateEquipmentDrop(enemy.level + rng.int(-1, enemy.isBoss ? 4 : enemy.isElite ? 3 : 2), rng, { boss: enemy.isBoss || enemy.isElite });
     addItemToBag(player, item);
     lootLines.push(item.name);
   }
 
-  const consumableDrops = enemy.isBoss ? 3 : rng.int(0, 2);
+  const consumableDrops = enemy.isBoss ? 3 : enemy.isElite ? rng.int(1, 2) : rng.int(0, 2);
   for (let i = 0; i < consumableDrops; i += 1) {
-    const dropId = rollConsumableDrop(rng, enemy.level, enemy.isBoss);
+    const dropId = rollConsumableDrop(rng, enemy.level, enemy.isBoss || enemy.isElite);
     addConsumableToBag(player, dropId, 1);
     lootLines.push(CONSUMABLE_DEFS[dropId].name);
   }
 
-  if (rng.next() * 100 < (enemy.isBoss ? 90 : 45)) {
-    const materialId = rollMaterialIdForLevel(enemy.level, rng, { biome, highQuality: enemy.isBoss });
-    const quantity = rng.int(1, enemy.isBoss ? 4 : 2) + (enemy.level >= 60 ? 1 : 0);
+  if (rng.next() * 100 < (enemy.isBoss ? 90 : enemy.isElite ? 72 : 45)) {
+    const materialId = rollMaterialIdForLevel(enemy.level, rng, { biome, highQuality: enemy.isBoss || enemy.isElite });
+    const quantity = rng.int(1, enemy.isBoss ? 4 : enemy.isElite ? 3 : 2) + (enemy.level >= 60 ? 1 : 0);
     addStackableLoot(player, "material", MATERIAL_DEFS[materialId], quantity);
     lootLines.push(`${quantity}x ${MATERIAL_DEFS[materialId].name}`);
   }
 
-  if (enemy.isBoss || rng.next() * 100 < 14) {
+  (enemy.bonusMaterials || []).forEach((drop) => {
+    if (!drop?.id || !MATERIAL_DEFS[drop.id]) return;
+    const quantity = Math.max(1, Math.floor(drop.quantity || 1));
+    addStackableLoot(player, "material", MATERIAL_DEFS[drop.id], quantity);
+    lootLines.push(`${quantity}x ${MATERIAL_DEFS[drop.id].name}`);
+  });
+
+  if (enemy.dungeonDelve && rng.next() < 0.3) {
+    addStackableLoot(player, "material", MATERIAL_DEFS.dungeon_shard, 1);
+    lootLines.push(`1x ${MATERIAL_DEFS.dungeon_shard.name}`);
+  }
+
+  if (enemy.isBoss || rng.next() * 100 < (enemy.isElite ? 28 : 14)) {
     const treasureId = rng.pick(Object.keys(TREASURE_DEFS));
     addStackableLoot(player, "treasure", TREASURE_DEFS[treasureId], 1);
     lootLines.push(TREASURE_DEFS[treasureId].name);
@@ -5603,6 +6635,7 @@ function xpToNextLevel(level) {
 
 function openCharacterMenu() {
   if (!state.game || state.combat) return;
+  state.focusIndex = 0;
   state.modal = "character";
   state.modalData = null;
   els.modalBackdrop.classList.remove("hidden");
@@ -5612,6 +6645,7 @@ function openCharacterMenu() {
 
 function openModal(type) {
   if (!state.game || state.combat) return;
+  state.focusIndex = 0;
   state.modal = type;
   state.modalData = null;
   hideWorldInteractPopup();
@@ -5666,10 +6700,44 @@ function isCharacterModal(type) {
   return CHARACTER_MODAL_TABS.includes(type);
 }
 
-function renderModalTabStrip(tabs, activeId, action, dataKey = "target") {
-  const buttons = tabs.map((tab) => {
+function focusFirstButtonByModalAction(action) {
+  if (!action) return false;
+  const index = state.focusables.findIndex((element) => element?.dataset?.modalAction === action);
+  if (index < 0) return false;
+  state.focusIndex = index;
+  applyFocusStyles();
+  return true;
+}
+
+function focusLevelUpControls() {
+  if (state.modal !== "levelup" || !state.game) return false;
+  const player = state.game.player;
+  const preferredStat = state.modalData?.focusStat || null;
+  if ((player.unspentStatPoints || 0) > 0 && preferredStat) {
+    const index = state.focusables.findIndex((element) => element?.dataset?.modalAction === "levelup-add-stat" && element?.dataset?.stat === preferredStat);
+    if (index >= 0) {
+      state.focusIndex = index;
+      applyFocusStyles();
+      return true;
+    }
+  }
+  if ((player.unspentStatPoints || 0) > 0 && focusFirstButtonByModalAction("levelup-add-stat")) return true;
+  if (hasPendingAutoLevelReview() && focusFirstButtonByModalAction("levelup-keep-auto")) return true;
+  if ((player.unspentStatPoints || 0) > 0 && focusFirstButtonByModalAction("levelup-auto")) return true;
+  return false;
+}
+
+function renderModalTabStrip(tabs, activeId, action, dataKey = "target", options = {}) {
+  const navScope = options.navScope || "";
+  const navLayer = Number.isFinite(options.navLayer) ? String(options.navLayer) : "";
+  const navGroup = options.navGroup || "";
+  const navAxis = options.navAxis || "horizontal";
+  const buttons = tabs.map((tab, index) => {
     const isActive = tab.id === activeId;
-    return `<button class="focusable ${isActive ? "selected" : ""}" data-modal-action="${action}" data-${dataKey}="${escapeHtml(tab.id)}">${escapeHtml(tab.label)}</button>`;
+    const navAttrs = navScope
+      ? ` data-nav-scope="${escapeHtml(navScope)}" data-nav-layer="${escapeHtml(navLayer)}" data-nav-group="${escapeHtml(navGroup)}" data-nav-order="${index}" data-nav-axis="${escapeHtml(navAxis)}"`
+      : "";
+    return `<button class="focusable ${isActive ? "selected" : ""}" data-modal-action="${action}" data-${dataKey}="${escapeHtml(tab.id)}"${navAttrs}>${escapeHtml(tab.label)}</button>`;
   }).join("");
   return `<div class="modal-tab-strip">${buttons}</div>`;
 }
@@ -5696,6 +6764,48 @@ function setActiveCraftingSkillTab(skillName) {
   if (!CRAFTING_SKILL_TABS.some((tab) => tab.id === skillName)) return false;
   state.characterUi.craftingSkill = skillName;
   return true;
+}
+
+function getActiveCraftingRecipeFilter() {
+  const valid = new Set(CRAFTING_RECIPE_FILTER_TABS.map((tab) => tab.id));
+  const filterId = state.characterUi?.craftingFilter;
+  return valid.has(filterId) ? filterId : CRAFTING_RECIPE_FILTER_TABS[0].id;
+}
+
+function setActiveCraftingRecipeFilter(filterId) {
+  if (!CRAFTING_RECIPE_FILTER_TABS.some((tab) => tab.id === filterId)) return false;
+  state.characterUi.craftingFilter = filterId;
+  return true;
+}
+
+function getActiveCraftingTierScope() {
+  const valid = new Set(CRAFTING_RECIPE_TIER_TABS.map((tab) => tab.id));
+  const scopeId = state.characterUi?.craftingTierScope;
+  return valid.has(scopeId) ? scopeId : CRAFTING_RECIPE_TIER_TABS[0].id;
+}
+
+function setActiveCraftingTierScope(scopeId) {
+  if (!CRAFTING_RECIPE_TIER_TABS.some((tab) => tab.id === scopeId)) return false;
+  state.characterUi.craftingTierScope = scopeId;
+  return true;
+}
+
+function getCraftingStageTierForLevel(level) {
+  for (let index = CRAFTING_RECIPE_STAGE_LEVELS.length - 1; index >= 0; index -= 1) {
+    if (level >= CRAFTING_RECIPE_STAGE_LEVELS[index]) return index + 1;
+  }
+  return 1;
+}
+
+function filterCraftingRecipesForUi(recipes, skillLevel) {
+  const categoryFilter = getActiveCraftingRecipeFilter();
+  const tierScope = getActiveCraftingTierScope();
+  const currentTier = getCraftingStageTierForLevel(skillLevel);
+  return recipes.filter((recipe) => {
+    if (categoryFilter !== "all" && recipe.category !== categoryFilter) return false;
+    if (tierScope === "current" && (recipe.recipeTier || 1) !== currentTier) return false;
+    return true;
+  });
 }
 
 function getAllocatedStatPoints(player) {
@@ -5798,6 +6908,9 @@ function renderCraftingMenuContent(player, context) {
   const activeSkill = getActiveCraftingSkillTab();
   const skillEntry = getPlayerSkillEntry(player, activeSkill) || { level: 1, xp: 0 };
   const nextSkillXp = xpToNextSkillLevel(skillEntry.level);
+  const activeFilter = getActiveCraftingRecipeFilter();
+  const activeTierScope = getActiveCraftingTierScope();
+  const currentTier = getCraftingStageTierForLevel(skillEntry.level);
   const toolDef = getCraftingToolDefForSkill(activeSkill);
   const stationDef = getCraftingStationDefForSkill(activeSkill);
   const support = getCraftingContextSupport(context, activeSkill);
@@ -5807,10 +6920,19 @@ function renderCraftingMenuContent(player, context) {
   const workshopSource = context.feature?.type === "crafting" ? "Field workshop" : "Town workshop";
   const skillRecipes = CRAFTING_RECIPES
     .filter((recipe) => recipe.skill === activeSkill)
-    .sort((a, b) => a.minLevel - b.minLevel || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      if ((a.category || "armor") !== (b.category || "armor")) {
+        return (CRAFTING_RECIPE_CATEGORY_ORDER[a.category || "armor"] ?? 99) - (CRAFTING_RECIPE_CATEGORY_ORDER[b.category || "armor"] ?? 99);
+      }
+      if ((a.recipeTier || 0) !== (b.recipeTier || 0)) return (a.recipeTier || 0) - (b.recipeTier || 0);
+      return a.name.localeCompare(b.name);
+    });
+  const visibleRecipes = filterCraftingRecipesForUi(skillRecipes, skillEntry.level);
+  const unlockedRecipes = skillRecipes.filter((recipe) => recipe.minLevel <= skillEntry.level);
   const rangeText = skillRecipes.length
     ? `${skillRecipes[0].minLevel}-${skillRecipes[skillRecipes.length - 1].minLevel}`
     : "1-100";
+  const filterSummary = `${visibleRecipes.length}/${skillRecipes.length} shown | ${unlockedRecipes.length} unlocked | Current tier ${currentTier} ${CRAFTING_RECIPE_STAGE_NAMES[currentTier - 1] || ""}`.trim();
   const modeText = context.hasWorkshop
     ? `${workshopSource} active at ${context.label}.`
     : support.stationDef
@@ -5821,7 +6943,7 @@ function renderCraftingMenuContent(player, context) {
   const toolText = toolDef ? `${toolDef.name}: ${ownsTool ? "Owned" : "Missing"}` : "No tool required.";
   const stationText = stationDef ? `${stationDef.name}: ${support.stationDef ? "Active" : ownsStation ? "Owned" : "Missing"}` : "No station available.";
   const topActions = activeStationDef
-    ? `<div class="button-row"><button class="focusable" data-modal-action="clear-crafting-station">Pack Up ${escapeHtml(activeStationDef.name)}</button></div>`
+    ? `<div class="button-row"><button class="focusable" data-modal-action="clear-crafting-station" data-nav-scope="${escapeHtml(CRAFTING_BROWSER_NAV.scope)}" data-nav-layer="${CRAFTING_BROWSER_NAV.layers.station}" data-nav-group="crafting-station-action" data-nav-order="0" data-nav-axis="horizontal">Pack Up ${escapeHtml(activeStationDef.name)}</button></div>`
     : "";
   const actionRows = getCraftingActionLibrary(player)
     .map((action) => {
@@ -5842,8 +6964,8 @@ function renderCraftingMenuContent(player, context) {
         </div>
       `;
     }).join("");
-  const recipeRows = skillRecipes.length
-    ? skillRecipes.map((recipe) => {
+  const recipeRows = visibleRecipes.length
+    ? visibleRecipes.map((recipe, index) => {
       const check = evaluateCraftingRecipe(player, recipe, context);
       const costText = recipe.costs
         .map((cost) => {
@@ -5853,6 +6975,15 @@ function renderCraftingMenuContent(player, context) {
         })
         .join(", ");
       const outputText = describeCraftingRecipeOutput(recipe);
+      const categoryLabel = recipe.category === "weapon"
+        ? "Weapon"
+        : recipe.category === "armor"
+          ? "Armor"
+          : recipe.category === "accessory"
+            ? "Accessory"
+            : recipe.category === "consumable"
+              ? "Consumable"
+              : "Craft";
       const methodText = check.hasWorkshop
         ? check.stationDef
           ? `Station: ${check.stationDef.name}`
@@ -5867,15 +6998,16 @@ function renderCraftingMenuContent(player, context) {
             <strong>${escapeHtml(recipe.name)} (Lv ${recipe.minLevel})</strong>
             <p>${escapeHtml(recipe.description)}</p>
             <p>Cost: ${escapeHtml(costText)}</p>
-            <p>${escapeHtml(methodText)} | Output: ${escapeHtml(outputText)} | ${check.ok ? "Ready" : escapeHtml(check.reason)}</p>
+            <p>${escapeHtml(categoryLabel)} | Tier ${recipe.recipeTier || 1} ${escapeHtml(recipe.recipeTierLabel || "")} | ${escapeHtml(methodText)}</p>
+            <p>Output: ${escapeHtml(outputText)} | ${check.ok ? "Ready" : escapeHtml(check.reason)}</p>
           </div>
           <div class="item-actions">
-            <button class="focusable" data-modal-action="craft-recipe" data-recipe-id="${recipe.id}" ${disabled}>Craft</button>
+            <button class="focusable" data-modal-action="craft-recipe" data-recipe-id="${recipe.id}" data-nav-scope="${escapeHtml(CRAFTING_BROWSER_NAV.scope)}" data-nav-layer="${CRAFTING_BROWSER_NAV.layers.recipes}" data-nav-group="crafting-recipes" data-nav-order="${index}" data-nav-axis="vertical" ${disabled}>Craft</button>
           </div>
         </div>
       `;
     }).join("")
-    : "<p>No recipes mapped to this skill yet.</p>";
+    : "<p>No recipes match the current crafting filters.</p>";
   const recyclableBag = player.bag
     .filter((item) => item.kind === "equipment")
     .filter((item) => inferDesynthSkillForItem(item) === activeSkill);
@@ -5884,7 +7016,7 @@ function renderCraftingMenuContent(player, context) {
     .filter((entry) => entry.item && inferDesynthSkillForItem(entry.item) === activeSkill);
   const recycleRows = [...recyclableEquipped.map((entry) => ({ source: "equipped", slot: entry.slot, item: entry.item })), ...recyclableBag.map((item) => ({ source: "bag", slot: "", item }))];
   const recycleMarkup = recycleRows.length
-    ? recycleRows.map((entry) => {
+    ? recycleRows.map((entry, index) => {
       const check = evaluateDesynthAction(player, entry.item, context);
       const preview = getDesynthPreviewText(entry.item);
       const disabled = check.ok ? "" : "disabled";
@@ -5897,8 +7029,8 @@ function renderCraftingMenuContent(player, context) {
           </div>
           <div class="item-actions">
             ${entry.source === "equipped"
-              ? `<button class="focusable" data-modal-action="desynth-equipped-slot" data-slot="${entry.slot}" ${disabled}>Desynth</button>`
-              : `<button class="focusable" data-modal-action="desynth-bag-item" data-item-id="${entry.item.uid}" ${disabled}>Desynth</button>`}
+              ? `<button class="focusable" data-modal-action="desynth-equipped-slot" data-slot="${entry.slot}" data-nav-scope="${escapeHtml(CRAFTING_BROWSER_NAV.scope)}" data-nav-layer="${CRAFTING_BROWSER_NAV.layers.recycle}" data-nav-group="crafting-recycle" data-nav-order="${index}" data-nav-axis="vertical" ${disabled}>Desynth</button>`
+              : `<button class="focusable" data-modal-action="desynth-bag-item" data-item-id="${entry.item.uid}" data-nav-scope="${escapeHtml(CRAFTING_BROWSER_NAV.scope)}" data-nav-layer="${CRAFTING_BROWSER_NAV.layers.recycle}" data-nav-group="crafting-recycle" data-nav-order="${index}" data-nav-axis="vertical" ${disabled}>Desynth</button>`}
           </div>
         </div>
       `;
@@ -5906,11 +7038,28 @@ function renderCraftingMenuContent(player, context) {
     : `<p>No ${escapeHtml(activeSkill)} gear is available to recycle.</p>`;
 
   return `
-    ${renderModalTabStrip(CRAFTING_SKILL_TABS, activeSkill, "switch-crafting-skill", "skill")}
+    ${renderModalTabStrip(CRAFTING_SKILL_TABS, activeSkill, "switch-crafting-skill", "skill", {
+      navScope: CRAFTING_BROWSER_NAV.scope,
+      navLayer: CRAFTING_BROWSER_NAV.layers.skill,
+      navGroup: "crafting-skill-tabs",
+      navAxis: "horizontal",
+    })}
+    ${renderModalTabStrip(CRAFTING_RECIPE_TIER_TABS, activeTierScope, "switch-crafting-tier-scope", "tierScope", {
+      navScope: CRAFTING_BROWSER_NAV.scope,
+      navLayer: CRAFTING_BROWSER_NAV.layers.tier,
+      navGroup: "crafting-tier-tabs",
+      navAxis: "horizontal",
+    })}
+    ${renderModalTabStrip(CRAFTING_RECIPE_FILTER_TABS, activeFilter, "switch-crafting-filter", "category", {
+      navScope: CRAFTING_BROWSER_NAV.scope,
+      navLayer: CRAFTING_BROWSER_NAV.layers.filter,
+      navGroup: "crafting-filter-tabs",
+      navAxis: "horizontal",
+    })}
     <p><strong>${escapeHtml(activeSkill)}</strong> Lv ${skillEntry.level}/${SKILL_CAP_LEVEL} (${skillEntry.level >= SKILL_CAP_LEVEL ? "MAX" : `${skillEntry.xp}/${nextSkillXp} XP`})</p>
-    <p>Recipe range ${escapeHtml(rangeText)} | Recipes ${skillRecipes.length} | ${escapeHtml(toolText)} | ${escapeHtml(stationText)}</p>
+    <p>Recipe range ${escapeHtml(rangeText)} | ${escapeHtml(filterSummary)} | ${escapeHtml(toolText)} | ${escapeHtml(stationText)}</p>
     <p>${escapeHtml(modeText)}</p>
-    <p>Crafting now runs as a step-based synthesis encounter with shared actions unlocked by leveling any crafting class.</p>
+    <p>Crafting now runs as a step-based synthesis encounter with shared actions unlocked by leveling any crafting class. Filter by tier and category to keep the larger recipe list controller-friendly.</p>
     ${topActions}
     <div class="modal-list">${recipeRows}</div>
     <h4>Shared Actions</h4>
@@ -6045,6 +7194,16 @@ function renderModal() {
   const player = state.game.player;
   els.modalClose.textContent = "Close";
   els.modalClose.disabled = false;
+  ["navScope", "navLayer", "navGroup", "navOrder", "navAxis"].forEach((key) => {
+    if (els.modalClose?.dataset) delete els.modalClose.dataset[key];
+  });
+  if (state.modal === "crafting" && !state.craftingRun && els.modalClose?.dataset) {
+    els.modalClose.dataset.navScope = CRAFTING_BROWSER_NAV.scope;
+    els.modalClose.dataset.navLayer = String(CRAFTING_BROWSER_NAV.layers.close);
+    els.modalClose.dataset.navGroup = "crafting-close";
+    els.modalClose.dataset.navOrder = "0";
+    els.modalClose.dataset.navAxis = "horizontal";
+  }
 
   if (state.modal === "character") {
     els.modalTitle.textContent = "Character Menu";
@@ -6315,11 +7474,29 @@ function renderModal() {
     ];
     const utilityRows = [
       {
+        id: "debug-set-player-level",
+        label: "Set Player Level",
+        description: `Enter an exact hero level from 1 to ${MAX_LEVEL}. Current level ${state.game.player.level}.`,
+        disabled: false,
+      },
+      {
+        id: "debug-max-player-level",
+        label: "Max Player Level",
+        description: `Sets the hero to Lv ${MAX_LEVEL} and refreshes pending stat points for build testing.`,
+        disabled: false,
+      },
+      {
         id: "debug-toggle-encounters",
         label: state.options.debugNoEncounters ? "Enable Random Encounters" : "Disable Random Encounters",
         description: state.options.debugNoEncounters
           ? "Turns world encounters back on outside safe zones and active repels."
           : "Globally suppresses random encounters while debug mode stays enabled.",
+        disabled: false,
+      },
+      {
+        id: "debug-set-gathering",
+        label: "Set Gathering Skills",
+        description: `Enter an exact level for Botany, Mining, and Fishing. Current high mark ${getHighestSkillLevelByRole("Gathering")}.`,
         disabled: false,
       },
       {
@@ -6329,9 +7506,21 @@ function renderModal() {
         disabled: false,
       },
       {
+        id: "debug-set-crafting",
+        label: "Set Crafting Skills",
+        description: `Enter an exact level for every crafting class. Current high mark ${getHighestSkillLevelByRole("Crafting")}.`,
+        disabled: false,
+      },
+      {
         id: "debug-max-crafting",
         label: "Max Crafting Skills",
         description: "Sets every crafting class to Lv 100, unlocking shared cross-class actions.",
+        disabled: false,
+      },
+      {
+        id: "debug-unlock-crafting-support",
+        label: "Unlock Crafting Support",
+        description: "Adds every crafting kit and portable station to the bag for field recipe testing.",
         disabled: false,
       },
       {
@@ -6352,7 +7541,7 @@ function renderModal() {
     `;
     els.modalTitle.textContent = "Debug Menu";
     els.modalContent.innerHTML = `
-      <p>Tester tools for crafting and gathering validation. DEBUG_CRAFTING is always a no-encounter zone.</p>
+      <p>Tester tools for player level, crafting, and gathering validation. DEBUG_CRAFTING is always a no-encounter zone.</p>
       <h4>Travel</h4>
       <div class="modal-list">${travelRows.map(renderDebugRow).join("")}</div>
       <h4>Boosts</h4>
@@ -6500,8 +7689,15 @@ function renderModal() {
         if (quest.reward?.consumableId) {
           reward.push(`${quest.reward.consumableQty || 1}x ${CONSUMABLE_DEFS[quest.reward.consumableId]?.name || quest.reward.consumableId}`);
         }
-        const qualityLine = quest.type === "craft_skill" && quest.minQuality ? ` | Quality ${quest.minQuality}+` : "";
-        const focusLine = quest.skill ? ` | ${quest.skill}` : quest.biome ? ` | ${BIOME_DATA[quest.biome]?.label || quest.biome}` : quest.role ? ` | ${quest.role}` : "";
+        if (quest.reward?.skill && quest.reward?.skillXp) reward.push(`${quest.reward.skillXp} ${quest.reward.skill} XP`);
+        const qualityLine = (quest.type === "craft_skill" || quest.type === "craft_masterwork") && quest.minQuality
+          ? ` | Quality ${quest.minQuality}+`
+          : "";
+        const focusParts = [];
+        if (quest.biome) focusParts.push(BIOME_DATA[quest.biome]?.label || quest.biome);
+        if (quest.skill) focusParts.push(quest.skill);
+        if (quest.role) focusParts.push(quest.role);
+        const focusLine = focusParts.length ? ` | ${focusParts.join(" | ")}` : "";
         return `
           <div class="item-row">
             <div>
@@ -6613,6 +7809,21 @@ function renderModal() {
             </div>
           </div>
         `;
+        const finishButton = els.modalContent.querySelector('[data-modal-action="crafting-finish"]');
+        if (finishButton?.dataset) {
+          finishButton.dataset.navScope = CRAFTING_ENCOUNTER_NAV_SCOPE;
+          finishButton.dataset.navLayer = "0";
+          finishButton.dataset.navGroup = "crafting-encounter-finish";
+          finishButton.dataset.navOrder = "0";
+          finishButton.dataset.navAxis = "horizontal";
+        }
+        if (els.modalClose?.dataset) {
+          els.modalClose.dataset.navScope = CRAFTING_ENCOUNTER_NAV_SCOPE;
+          els.modalClose.dataset.navLayer = "1";
+          els.modalClose.dataset.navGroup = "crafting-encounter-close";
+          els.modalClose.dataset.navOrder = "0";
+          els.modalClose.dataset.navAxis = "horizontal";
+        }
       } else {
         const toolLine = craftingRun.hasWorkshop
           ? craftingRun.stationDef
@@ -6694,6 +7905,19 @@ function renderModal() {
             </div>
           </div>
         `;
+        const encounterNav = assignStructuredGridNavigation(els.modalContent.querySelector(".craft-action-grid"), {
+          navScope: CRAFTING_ENCOUNTER_NAV_SCOPE,
+          navLayer: 0,
+          navGroupPrefix: "crafting-encounter-actions",
+          navAxis: "horizontal",
+        });
+        if (els.modalClose?.dataset) {
+          els.modalClose.dataset.navScope = CRAFTING_ENCOUNTER_NAV_SCOPE;
+          els.modalClose.dataset.navLayer = String(Math.max(0, encounterNav.lastLayer + 1));
+          els.modalClose.dataset.navGroup = "crafting-encounter-close";
+          els.modalClose.dataset.navOrder = "0";
+          els.modalClose.dataset.navAxis = "horizontal";
+        }
       }
     } else {
       els.modalTitle.textContent = `${context.label} Crafting`;
@@ -6747,6 +7971,14 @@ function renderModal() {
       state.modal,
       "open-character-section",
       "target",
+      state.modal === "crafting" && !state.craftingRun
+        ? {
+          navScope: CRAFTING_BROWSER_NAV.scope,
+          navLayer: CRAFTING_BROWSER_NAV.layers.character,
+          navGroup: "crafting-character-tabs",
+          navAxis: "horizontal",
+        }
+        : {},
     );
     els.modalContent.innerHTML = `${tabStrip}${els.modalContent.innerHTML}`;
   }
@@ -6765,6 +7997,14 @@ function renderModal() {
     } else {
       focusButtonByDataset("craftAction", "basic_synthesis");
     }
+  } else if (state.modal === "inventory") {
+    focusButtonByDataset("tab", getActiveInventoryTab());
+  } else if (state.modal === "crafting") {
+    focusButtonByDataset("skill", getActiveCraftingSkillTab());
+  } else if (state.modal === "levelup") {
+    if (!focusLevelUpControls()) focusButtonByDataset("target", state.modal);
+  } else if (isCharacterModal(state.modal)) {
+    focusButtonByDataset("target", state.modal);
   }
 }
 
@@ -6779,7 +8019,7 @@ function onModalAction(event) {
     if (!target) return;
     if (target === "levelup") {
       state.modal = "levelup";
-      state.modalData = null;
+      state.modalData = {};
       renderModal();
       return;
     }
@@ -6797,6 +8037,7 @@ function onModalAction(event) {
     const tabId = button.dataset.tab;
     if (!tabId || !setActiveInventoryTab(tabId)) return;
     renderModal();
+    focusButtonByDataset("tab", tabId);
     return;
   }
 
@@ -6804,6 +8045,23 @@ function onModalAction(event) {
     const skillName = button.dataset.skill;
     if (!skillName || !setActiveCraftingSkillTab(skillName)) return;
     renderModal();
+    focusButtonByDataset("skill", skillName);
+    return;
+  }
+
+  if (action === "switch-crafting-tier-scope") {
+    const tierScope = button.dataset.tierScope;
+    if (!tierScope || !setActiveCraftingTierScope(tierScope)) return;
+    renderModal();
+    focusButtonByDataset("tierScope", tierScope);
+    return;
+  }
+
+  if (action === "switch-crafting-filter") {
+    const category = button.dataset.category;
+    if (!category || !setActiveCraftingRecipeFilter(category)) return;
+    renderModal();
+    focusButtonByDataset("category", category);
     return;
   }
 
@@ -6831,8 +8089,13 @@ function onModalAction(event) {
   }
 
   if (action === "crafting-finish") {
+    const finishedFeature = state.modalData?.feature || null;
     stopCraftingRunTimers();
     state.craftingRun = null;
+    if (finishedFeature?.type === "event" && finishedFeature.eventKind === "commission") {
+      closeModal();
+      return;
+    }
     renderModal();
     return;
   }
@@ -6962,14 +8225,47 @@ function onModalAction(event) {
     return;
   }
 
+  if (action === "debug-set-player-level") {
+    const targetLevel = promptForDebugLevel("Set player level", player.level, MAX_LEVEL);
+    if (targetLevel != null) setPlayerLevel(targetLevel);
+    renderModal();
+    return;
+  }
+
+  if (action === "debug-max-player-level") {
+    setPlayerLevel(MAX_LEVEL);
+    renderModal();
+    return;
+  }
+
+  if (action === "debug-set-gathering") {
+    const targetLevel = promptForDebugLevel("Set gathering skill level", getHighestSkillLevelByRole("Gathering"), SKILL_CAP_LEVEL);
+    if (targetLevel != null) setSkillLevelsByRole("Gathering", targetLevel);
+    renderModal();
+    return;
+  }
+
   if (action === "debug-max-gathering") {
     setSkillLevelsByRole("Gathering");
     renderModal();
     return;
   }
 
+  if (action === "debug-set-crafting") {
+    const targetLevel = promptForDebugLevel("Set crafting skill level", getHighestSkillLevelByRole("Crafting"), SKILL_CAP_LEVEL);
+    if (targetLevel != null) setSkillLevelsByRole("Crafting", targetLevel);
+    renderModal();
+    return;
+  }
+
   if (action === "debug-max-crafting") {
     setSkillLevelsByRole("Crafting");
+    renderModal();
+    return;
+  }
+
+  if (action === "debug-unlock-crafting-support") {
+    unlockAllCraftingSupport();
     renderModal();
     return;
   }
@@ -6982,6 +8278,8 @@ function onModalAction(event) {
 
   if (action === "levelup-add-stat") {
     const stat = button.dataset.stat;
+    if (!stat) return;
+    state.modalData = { ...(state.modalData || {}), focusStat: stat };
     allocateStatPoint(stat);
     renderWorld();
     renderModal();
@@ -6989,6 +8287,7 @@ function onModalAction(event) {
   }
 
   if (action === "levelup-auto") {
+    state.modalData = {};
     const info = applyAutoLevelWithReview(player);
     if (!info?.summary) addWorldLog("No stat points available.");
     else addWorldLog(`Auto-level allocated: ${info.summary}. Choose Keep or Switch To Manual if needed.`);
@@ -6998,6 +8297,7 @@ function onModalAction(event) {
   }
 
   if (action === "levelup-keep-auto") {
+    state.modalData = {};
     keepAutoLevelAllocation();
     renderWorld();
     renderModal();
@@ -7005,6 +8305,7 @@ function onModalAction(event) {
   }
 
   if (action === "levelup-revert-auto") {
+    state.modalData = {};
     revertAutoLevelAllocation();
     renderWorld();
     renderModal();
@@ -7181,7 +8482,21 @@ function addStackableLoot(player, kind, definition, quantity) {
 }
 
 function isCraftingWorkshopFeature(feature) {
-  return !!feature && (feature.type === "city" || feature.type === "town" || feature.type === "crafting");
+  return !!feature && (
+    feature.type === "city"
+    || feature.type === "town"
+    || feature.type === "crafting"
+    || (feature.type === "event" && feature.eventKind === "commission" && !feature.resolved)
+  );
+}
+
+function getFeatureCraftingFocus(feature) {
+  if (!feature) return null;
+  if (feature.type === "crafting") return feature.skillFocus || null;
+  if (feature.type === "event" && feature.eventKind === "commission" && !feature.resolved) {
+    return feature.eventSkill || feature.skillFocus || null;
+  }
+  return null;
 }
 
 function getCraftingToolDefForSkill(skillName) {
@@ -7293,9 +8608,9 @@ function getCurrentCraftingContext(feature = null, stationId = null) {
   const activeStationId = stationId && playerHasStation(state.game.player, stationId) ? stationId : null;
   const stationDef = activeStationId ? CRAFTING_STATION_DEFS[activeStationId] || null : null;
   if (isCraftingWorkshopFeature(activeFeature)) {
-    const focusText = activeFeature.type === "crafting" && activeFeature.skillFocus
-      ? ` (${activeFeature.skillFocus})`
-      : "";
+    const focusSkill = getFeatureCraftingFocus(activeFeature);
+    const focusText = focusSkill ? ` (${focusSkill})` : "";
+    const suffix = activeFeature.type === "event" ? " Commission" : " Workshop";
     return {
       feature: activeFeature,
       hasWorkshop: true,
@@ -7303,7 +8618,7 @@ function getCurrentCraftingContext(feature = null, stationId = null) {
       stationId: null,
       biome,
       biomeLabel,
-      label: `${activeFeature.name}${focusText} Workshop`,
+      label: `${activeFeature.name}${focusText}${suffix}`,
     };
   }
   return {
@@ -7686,6 +9001,7 @@ function finalizeGatheringSequence({ canceled = false, closeAfter = false } = {}
     feature.depletedUntil = state.game.stepCount + feature.respawnSteps;
   }
 
+  xpTotal = Math.max(1, Math.round(xpTotal * GATHERING_XP_MULTIPLIER));
   const skillGain = gainSkillXp(player, def.skill, xpTotal, feature.name);
   const resultSummary = summarizeGatheringTiming(gathering.results);
   const earlyStopText = canceled && completedRounds < gathering.totalRounds ? " ended early" : "";
@@ -7696,7 +9012,14 @@ function finalizeGatheringSequence({ canceled = false, closeAfter = false } = {}
   if (feature.charges <= 0) addWorldLog(`${feature.name} is depleted for ${feature.respawnSteps} steps.`);
   logSkillXpProgress(player, def.skill, skillGain);
   if (totalGathered > 0) {
-    updateQuestProgress("gatherMaterial", { skill: def.skill, resourceKind: feature.resourceKind, amount: totalGathered, materials: { ...totals }, featureId: feature.id });
+    updateQuestProgress("gatherMaterial", {
+      skill: def.skill,
+      resourceKind: feature.resourceKind,
+      biome: getResourceNodeBiome(feature),
+      amount: totalGathered,
+      materials: { ...totals },
+      featureId: feature.id,
+    });
   }
   maybeTriggerDynamicWorldEvent(feature);
   renderWorld();
@@ -7812,6 +9135,149 @@ function consumeMaterialFromBag(player, materialId, quantity) {
     if (item.quantity <= 0) player.bag.splice(i, 1);
   }
   return remaining <= 0;
+}
+
+function getCraftingRecipeById(recipeId) {
+  if (!recipeId) return null;
+  return CRAFTING_RECIPES.find((entry) => entry.id === recipeId) || null;
+}
+
+function pickPreferredCraftingEventSkill(player, skillNames, rng) {
+  const ranked = (skillNames || [])
+    .filter((skillName) => SKILL_DEFS[skillName]?.role === "Crafting")
+    .map((skillName) => ({ skillName, level: getPlayerSkillEntry(player, skillName)?.level || 1 }))
+    .sort((a, b) => a.level - b.level || a.skillName.localeCompare(b.skillName));
+  if (!ranked.length) return "Smithing";
+  const choicePool = ranked.slice(0, Math.min(2, ranked.length)).map((entry) => entry.skillName);
+  return rng.pick(choicePool);
+}
+
+function getCraftingEventOutput(skillName, skillLevel, rng) {
+  if (skillName === "Clothier") {
+    return {
+      kind: "material",
+      id: skillLevel >= 45 && rng.next() < 0.35 ? "herb_bundle" : "fiber_bundle",
+      quantity: 3 + Math.floor(skillLevel / 35),
+    };
+  }
+  if (skillName === "Smithing") {
+    return {
+      kind: "material",
+      id: skillLevel >= 48 && rng.next() < 0.4 ? "silver_ore" : "iron_ore",
+      quantity: 3 + Math.floor(skillLevel / 40),
+    };
+  }
+  if (skillName === "Woodworking") {
+    return {
+      kind: "material",
+      id: skillLevel >= 42 && rng.next() < 0.3 ? "fiber_bundle" : "hardwood_log",
+      quantity: 3 + Math.floor(skillLevel / 40),
+    };
+  }
+  if (skillName === "Cooking") {
+    return {
+      kind: "consumable",
+      id: skillLevel >= 70 ? "anglers_stew" : skillLevel >= 35 ? "hearty_stew" : "trail_skewers",
+      quantity: 1 + (skillLevel >= 75 ? 1 : 0),
+    };
+  }
+  if (skillName === "Leatherworking") {
+    return {
+      kind: "material",
+      id: skillLevel >= 46 && rng.next() < 0.28 ? "beast_fang" : "beast_hide",
+      quantity: 3 + Math.floor(skillLevel / 40),
+    };
+  }
+  if (skillName === "Alchemy") {
+    return {
+      kind: "consumable",
+      id: skillLevel >= 72 ? "precision_elixir" : skillLevel >= 38 ? "focus_tonic" : "minor_potion",
+      quantity: 1 + (skillLevel >= 80 ? 1 : 0),
+    };
+  }
+  if (skillName === "Jewelcrafting") {
+    return {
+      kind: "material",
+      id: skillLevel >= 52 && rng.next() < 0.45 ? "gem_shard" : "silver_ore",
+      quantity: 2 + Math.floor(skillLevel / 45),
+    };
+  }
+  return { kind: "material", id: "iron_scrap", quantity: 2 + Math.floor(skillLevel / 45) };
+}
+
+function buildCraftingEventRecipe(feature, skillName, player, rng) {
+  if (!feature || !skillName || !player) return null;
+  const skillLevel = getPlayerSkillEntry(player, skillName)?.level || 1;
+  const biome = state.game?.world?.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+  const output = getCraftingEventOutput(skillName, skillLevel, rng);
+  const bonusMaterialId = rollMaterialIdForLevel(clamp(player.level + 5, 1, MAX_LEVEL), rng, {
+    biome,
+    highQuality: true,
+  });
+  const bonusQuantity = rng.int(1, skillLevel >= 60 ? 3 : 2);
+  return {
+    id: `event_recipe_${feature.id}_${toId(skillName)}`,
+    skill: skillName,
+    minLevel: Math.max(1, skillLevel - 4),
+    recipeTier: clamp(1 + Math.floor((skillLevel - 1) / 10), 1, 10),
+    recipeTierLabel: "Commission",
+    category: output.kind === "consumable" ? "consumable" : "material",
+    name: `${feature.name} ${skillName} Commission`,
+    description: `A rush ${skillName.toLowerCase()} contract issued from ${feature.name}.`,
+    costs: [],
+    output,
+    xp: Math.max(42, Math.round(30 + skillLevel * 1.12)),
+    bonusSkillXp: Math.max(20, 18 + Math.floor(skillLevel * 0.34)),
+    bonusRewards: MATERIAL_DEFS[bonusMaterialId]
+      ? [{ kind: "material", id: bonusMaterialId, quantity: bonusQuantity }]
+      : [],
+    isEventRecipe: true,
+    eventFeatureId: feature.id,
+  };
+}
+
+function startCraftingRecipeRun(recipe, options = {}) {
+  if (!state.game || !recipe) return false;
+  const feature = options.feature || state.modalData?.feature || null;
+  const stationId = options.stationId ?? state.modalData?.stationId ?? null;
+  const context = options.context || getCurrentCraftingContext(feature, stationId);
+  const check = evaluateCraftingRecipe(state.game.player, recipe, context);
+  if (!check.ok) {
+    addWorldLog(check.reason);
+    renderWorldLog();
+    return false;
+  }
+  stopCraftingRunTimers();
+  state.focusIndex = 0;
+  state.modal = "crafting";
+  state.modalData = { feature: context.feature || feature || null, stationId: stationId || null };
+  state.craftingRun = createCraftingRun(recipe, check, context);
+  pushCraftingHistory(state.craftingRun, `${recipe.name} started at ${context.label}.`);
+  if (state.craftingRun.siteBonus?.text) {
+    pushCraftingHistory(state.craftingRun, state.craftingRun.siteBonus.text);
+  }
+  hideWorldInteractPopup();
+  els.modalBackdrop.classList.remove("hidden");
+  els.modalBackdrop.setAttribute("aria-hidden", "false");
+  renderModal();
+  return true;
+}
+
+function startCraftingEventChallenge(feature) {
+  if (!state.game || !feature || feature.type !== "event" || feature.resolved) return false;
+  const biome = state.game.world.tiles?.[feature.y]?.[feature.x]?.biome || "plains";
+  const skillName = pickPreferredCraftingEventSkill(
+    state.game.player,
+    getCraftingSkillsForBiomeEncounter(biome),
+    state.game.runtimeRng,
+  );
+  feature.eventSkill = skillName;
+  feature.skillFocus = skillName;
+  setActiveCraftingSkillTab(skillName);
+  const recipe = buildCraftingEventRecipe(feature, skillName, state.game.player, state.game.runtimeRng);
+  if (!recipe) return false;
+  addWorldLog(`${feature.name}: ${skillName} commission posted. Complete the synthesis for a large profession payout.`);
+  return startCraftingRecipeRun(recipe, { feature });
 }
 
 function evaluateCraftingRecipe(player, recipe, context = getCurrentCraftingContext()) {
@@ -8036,10 +9502,32 @@ function pushCraftingHistory(run, line) {
 
 function getCraftingSiteBonus(context, skillName) {
   const feature = context?.feature;
-  if (!feature || feature.type !== "crafting") {
+  if (!feature || !isCraftingWorkshopFeature(feature)) {
     return { craftsmanship: 0, control: 0, cp: 0, durability: 0, text: "" };
   }
-  if (feature.skillFocus === skillName) {
+  const focusSkill = getFeatureCraftingFocus(feature);
+  if (feature.type === "event" && feature.eventKind === "commission") {
+    if (focusSkill === skillName) {
+      return {
+        craftsmanship: 16,
+        control: 16,
+        cp: 22,
+        durability: 12,
+        text: `${feature.name} is issuing a ${skillName} commission, sharply boosting synthesis output.`,
+      };
+    }
+    return {
+      craftsmanship: 8,
+      control: 8,
+      cp: 12,
+      durability: 6,
+      text: `${feature.name} still provides improvised artisan support for off-discipline work.`,
+    };
+  }
+  if (feature.type !== "crafting") {
+    return { craftsmanship: 0, control: 0, cp: 0, durability: 0, text: "" };
+  }
+  if (focusSkill === skillName) {
     return {
       craftsmanship: 12,
       control: 12,
@@ -8244,7 +9732,7 @@ function finishCraftingRunSuccess() {
   if (!state.craftingRun || state.craftingRun.completed) return;
   const qualityRatio = getCraftingQualityRatio(state.craftingRun);
   const result = getCraftingQualityResult(qualityRatio);
-  const summary = craftRecipeById(state.craftingRun.recipeId, {
+  const summary = craftRecipe(state.craftingRun.recipe, {
     qualityKey: result.key,
     context: state.craftingRun.context,
   });
@@ -8277,7 +9765,7 @@ function finishCraftingRunSuccess() {
 function finishCraftingRunFailure(reason = "Durability failed before the craft was complete.") {
   if (!state.game || !state.craftingRun || state.craftingRun.completed) return;
   const run = state.craftingRun;
-  const failXp = Math.max(2, Math.round((run.recipe?.xp || 12) * 0.28));
+  const failXp = Math.max(2, Math.round((run.recipe?.xp || 12) * CRAFTING_FAILURE_XP_MULTIPLIER));
   const skillGain = gainSkillXp(state.game.player, run.skillName, failXp, `${run.recipe.name} practice`);
   state.game.stepCount += 1;
   addWorldLog(`${run.recipe.name} failed. ${reason} No materials were committed.`);
@@ -8369,22 +9857,12 @@ function useCraftingAction(actionId) {
 
 function beginCraftingRecipe(recipeId) {
   if (!state.game || !recipeId) return;
-  const recipe = CRAFTING_RECIPES.find((entry) => entry.id === recipeId);
+  const recipe = getCraftingRecipeById(recipeId);
   if (!recipe) return;
-  const context = getCurrentCraftingContext(state.modalData?.feature || null, state.modalData?.stationId || null);
-  const check = evaluateCraftingRecipe(state.game.player, recipe, context);
-  if (!check.ok) {
-    addWorldLog(check.reason);
-    renderWorldLog();
-    return;
-  }
-  stopCraftingRunTimers();
-  state.craftingRun = createCraftingRun(recipe, check, context);
-  pushCraftingHistory(state.craftingRun, `${recipe.name} started at ${context.label}.`);
-  if (state.craftingRun.siteBonus?.text) {
-    pushCraftingHistory(state.craftingRun, state.craftingRun.siteBonus.text);
-  }
-  renderModal();
+  startCraftingRecipeRun(recipe, {
+    feature: state.modalData?.feature || null,
+    stationId: state.modalData?.stationId || null,
+  });
 }
 
 function inferDesynthSkillForItem(item) {
@@ -8515,7 +9993,12 @@ function desynthBagItem(uid) {
   const drops = buildDesynthDrops(item, check.skillLevel, state.game.runtimeRng, check.skillName);
   drops.forEach((drop) => addStackableLoot(player, "material", MATERIAL_DEFS[drop.id], drop.quantity));
   const rewardText = drops.map((drop) => `${drop.quantity}x ${MATERIAL_DEFS[drop.id].name}`).join(", ");
-  const xpAmount = Math.max(6, check.skillLevel >= 100 ? 0 : Math.round((item.levelReq || 1) * 0.4 + (item.tier || 1) * 5));
+  const xpAmount = Math.max(
+    6,
+    check.skillLevel >= 100
+      ? 0
+      : Math.round(((item.levelReq || 1) * 0.4 + (item.tier || 1) * 5) * CRAFTING_SALVAGE_XP_MULTIPLIER),
+  );
   const skillGain = gainSkillXp(player, check.skillName, xpAmount, `${item.name} salvage`);
   state.game.stepCount += 1;
   addWorldLog(`Desynthesized ${item.name} into ${rewardText || "salvage scraps"}.`);
@@ -8542,7 +10025,12 @@ function desynthEquippedItem(slot) {
   const drops = buildDesynthDrops(item, check.skillLevel, state.game.runtimeRng, check.skillName);
   drops.forEach((drop) => addStackableLoot(player, "material", MATERIAL_DEFS[drop.id], drop.quantity));
   const rewardText = drops.map((drop) => `${drop.quantity}x ${MATERIAL_DEFS[drop.id].name}`).join(", ");
-  const xpAmount = Math.max(6, check.skillLevel >= 100 ? 0 : Math.round((item.levelReq || 1) * 0.4 + (item.tier || 1) * 5));
+  const xpAmount = Math.max(
+    6,
+    check.skillLevel >= 100
+      ? 0
+      : Math.round(((item.levelReq || 1) * 0.4 + (item.tier || 1) * 5) * CRAFTING_SALVAGE_XP_MULTIPLIER),
+  );
   const skillGain = gainSkillXp(player, check.skillName, xpAmount, `${item.name} salvage`);
   state.game.stepCount += 1;
   addWorldLog(`Desynthesized equipped ${item.name} into ${rewardText || "salvage scraps"}.`);
@@ -8556,11 +10044,9 @@ function resolveCraftingTimingInput() {
   useCraftingAction("basic_synthesis");
 }
 
-function craftRecipeById(recipeId, options = {}) {
-  if (!state.game || !recipeId) return null;
+function craftRecipe(recipe, options = {}) {
+  if (!state.game || !recipe) return null;
   const player = state.game.player;
-  const recipe = CRAFTING_RECIPES.find((entry) => entry.id === recipeId);
-  if (!recipe) return null;
   const context = options.context || getCurrentCraftingContext(state.modalData?.feature || null, state.modalData?.stationId || null);
   const quality = CRAFTING_QUALITY_TIERS[options.qualityKey] || CRAFTING_QUALITY_TIERS.good;
   const check = evaluateCraftingRecipe(player, recipe, context);
@@ -8605,7 +10091,23 @@ function craftRecipeById(recipeId, options = {}) {
     addStackableLoot(player, "material", MATERIAL_DEFS[output.id], outputQuantity);
   }
 
-  const recipeXp = Math.max(1, Math.round((recipe.xp || 12) * quality.xpScale));
+  const bonusRewardParts = [];
+  (recipe.bonusRewards || []).forEach((reward) => {
+    if (reward?.kind === "material" && MATERIAL_DEFS[reward.id]) {
+      const quantity = Math.max(1, Math.floor(reward.quantity || 1));
+      addStackableLoot(player, "material", MATERIAL_DEFS[reward.id], quantity);
+      bonusRewardParts.push(`${quantity}x ${MATERIAL_DEFS[reward.id].name}`);
+    } else if (reward?.kind === "consumable" && CONSUMABLE_DEFS[reward.id]) {
+      const quantity = Math.max(1, Math.floor(reward.quantity || 1));
+      addConsumableToBag(player, reward.id, quantity);
+      bonusRewardParts.push(`${quantity}x ${CONSUMABLE_DEFS[reward.id].name}`);
+    }
+  });
+
+  const recipeXp = Math.max(
+    1,
+    Math.round((recipe.xp || 12) * quality.xpScale * CRAFTING_XP_MULTIPLIER) + Math.max(0, Math.floor(recipe.bonusSkillXp || 0)),
+  );
   const skillGain = gainSkillXp(player, recipe.skill, recipeXp, recipe.name);
   state.game.stepCount += 1;
   const methodText = check.hasWorkshop
@@ -8614,6 +10116,16 @@ function craftRecipeById(recipeId, options = {}) {
       : `at ${context.label}`
     : `with ${check.toolDef?.name || context.label}`;
   addWorldLog(`Crafted ${craftedName} [${quality.name}] using ${recipe.name} ${methodText}.`);
+  if (bonusRewardParts.length) {
+    addWorldLog(`${recipe.name} bonus haul: ${bonusRewardParts.join(", ")}.`);
+  }
+  if (recipe.isEventRecipe && recipe.eventFeatureId) {
+    const eventFeature = getFeatureById(state.game.world, recipe.eventFeatureId);
+    if (eventFeature?.type === "event") {
+      eventFeature.resolved = true;
+      addWorldLog(`${eventFeature.name}: commission complete.`);
+    }
+  }
   logSkillXpProgress(player, recipe.skill, skillGain);
   updateQuestProgress("craftItem", {
     skill: recipe.skill,
@@ -8636,6 +10148,13 @@ function craftRecipeById(recipeId, options = {}) {
     methodText,
     recipeXp,
   };
+}
+
+function craftRecipeById(recipeId, options = {}) {
+  if (!state.game || !recipeId) return null;
+  const recipe = getCraftingRecipeById(recipeId);
+  if (!recipe) return null;
+  return craftRecipe(recipe, options);
 }
 
 function recalculatePlayerStats(player, keepHealthRatio = false) {
@@ -9329,6 +10848,103 @@ function getResourceNodeStatus(feature, stepCount = state.game?.stepCount || 0) 
   };
 }
 
+function isHarshBiome(biome) {
+  return !!BIOME_DATA[biome]?.avoidSettlements;
+}
+
+function createBiomeAnchor(rng, biome, index = 0) {
+  let x = rng.int(0, MAP_WIDTH - 1);
+  let y = rng.int(0, MAP_HEIGHT - 1);
+  if (biome === "coast") {
+    const side = rng.pick(["top", "bottom", "left", "right"]);
+    if (side === "top") {
+      x = rng.int(0, MAP_WIDTH - 1);
+      y = rng.int(0, 6);
+    } else if (side === "bottom") {
+      x = rng.int(0, MAP_WIDTH - 1);
+      y = rng.int(MAP_HEIGHT - 7, MAP_HEIGHT - 1);
+    } else if (side === "left") {
+      x = rng.int(0, 6);
+      y = rng.int(0, MAP_HEIGHT - 1);
+    } else {
+      x = rng.int(MAP_WIDTH - 7, MAP_WIDTH - 1);
+      y = rng.int(0, MAP_HEIGHT - 1);
+    }
+  }
+  return {
+    id: `${biome}_${index}`,
+    biome,
+    x,
+    y,
+    strength: 0.84 + rng.next() * 0.42,
+    chaos: 0.9 + rng.next() * 1.35,
+  };
+}
+
+function generateBiomeTiles(seedText, rng) {
+  const anchors = [];
+  BIOME_REGION_WEIGHTS.forEach((entry) => {
+    for (let i = 0; i < (entry.minAnchors || 0); i += 1) {
+      anchors.push(createBiomeAnchor(rng, entry.biome, i));
+    }
+  });
+  const extraAnchorCount = rng.int(10, 15);
+  for (let i = 0; i < extraAnchorCount; i += 1) {
+    anchors.push(createBiomeAnchor(rng, weightedPick(BIOME_REGION_WEIGHTS, rng, "biome"), `extra_${i}`));
+  }
+
+  const seedHash = hashString(`${seedText}|macro-biomes`);
+  const tiles = [];
+  for (let y = 0; y < MAP_HEIGHT; y += 1) {
+    const row = [];
+    for (let x = 0; x < MAP_WIDTH; x += 1) {
+      let bestBiome = "plains";
+      let bestScore = Infinity;
+      anchors.forEach((anchor, index) => {
+        const dx = x - anchor.x;
+        const dy = y - anchor.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) / anchor.strength;
+        const edgeDistance = Math.min(x, y, MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
+        const coastBias = anchor.biome === "coast" ? edgeDistance * 0.16 : 0;
+        const ridgeBias = anchor.biome === "highlands" ? Math.abs(Math.sin((x + index * 3 + seedHash * 0.00011) * 0.17)) * 1.2 : 0;
+        const badlandsBias = anchor.biome === "badlands" ? Math.abs(Math.cos((y + index * 5 + seedHash * 0.00009) * 0.15)) * 0.7 : 0;
+        const noise = (Math.sin(
+          (x + 1) * (anchor.x + 3) * 0.021
+          + (y + 1) * (anchor.y + 5) * 0.017
+          + seedHash * 0.00017
+          + index * 1.37
+        ) + 1) * 0.5;
+        const score = dist + noise * anchor.chaos + coastBias + ridgeBias + badlandsBias;
+        if (score < bestScore) {
+          bestScore = score;
+          bestBiome = anchor.biome;
+        }
+      });
+      row.push({ biome: bestBiome });
+    }
+    tiles.push(row);
+  }
+  smoothBiomes(tiles);
+  smoothBiomes(tiles);
+  return tiles;
+}
+
+function paintBiomeBlob(tiles, centerX, centerY, biome, radius, rng, options = {}) {
+  if (!tiles || !BIOME_DATA[biome]) return;
+  const preserveRoads = !!options.preserveRoads;
+  for (let y = centerY - radius; y <= centerY + radius; y += 1) {
+    for (let x = centerX - radius; x <= centerX + radius; x += 1) {
+      if (!tiles[y]?.[x]) continue;
+      if (preserveRoads && tiles[y][x].biome === "road") continue;
+      const dx = x - centerX;
+      const dy = y - centerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const limit = radius + ((rng.next() - 0.5) * 1.2);
+      if (distance <= limit) tiles[y][x].biome = biome;
+    }
+  }
+}
+
 function findPlacementForBiomes(rng, occupied, tiles, biomes, minDistance = 2) {
   const biomeSet = new Set(biomes || []);
   for (let attempts = 0; attempts < 1200; attempts += 1) {
@@ -9350,45 +10966,111 @@ function findPlacementForBiomes(rng, occupied, tiles, biomes, minDistance = 2) {
   return findPlacementSpot(rng, occupied, tiles, true);
 }
 
+function findNearbyPlacementForBiomes(rng, occupied, tiles, centerX, centerY, radius = 3, biomes = []) {
+  const biomeSet = new Set(biomes || []);
+  for (let attempts = 0; attempts < 80; attempts += 1) {
+    const x = clamp(centerX + rng.int(-radius, radius), 1, MAP_WIDTH - 2);
+    const y = clamp(centerY + rng.int(-radius, radius), 1, MAP_HEIGHT - 2);
+    if (biomeSet.size > 0 && !biomeSet.has(tiles[y][x].biome)) continue;
+    const key = featureKey(x, y);
+    if (occupied.has(key)) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+function buildResourceNodeFeature(id, kind, spot, biome, rng, name, extra = {}) {
+  const def = getResourceNodeDef(kind);
+  const charges = rng.int(def.minCharges || 1, def.maxCharges || 1);
+  const node = {
+    id,
+    type: "resource",
+    resourceKind: kind,
+    name: name || def.label,
+    skill: def.skill,
+    x: spot.x,
+    y: spot.y,
+    maxCharges: charges,
+    charges,
+    respawnSteps: def.respawnSteps || 18,
+    depletedUntil: 0,
+    requiredLevel: rollResourceRequiredLevel(kind, biome, rng),
+    ...extra,
+  };
+  if (isFishingResourceKind(kind)) {
+    node.fishingState = {
+      minigameId: def.minigameId || "fishing_basic_v1",
+      minigameReady: true,
+      useMinigame: false,
+    };
+  }
+  return node;
+}
+
 function addResourceNodesToWorld(rng, tiles, features, occupied) {
-  const plans = [
-    { kind: "tree", count: rng.int(28, 40), minDistance: 2 },
-    { kind: "herb", count: rng.int(22, 34), minDistance: 2 },
-    { kind: "hide", count: rng.int(20, 30), minDistance: 2 },
-    { kind: "ore", count: rng.int(20, 30), minDistance: 2 },
-    { kind: "crystal", count: rng.int(14, 22), minDistance: 2 },
-    { kind: "fishing", count: rng.int(18, 28), minDistance: 2 },
-    { kind: "tidepool", count: rng.int(12, 18), minDistance: 2 },
-  ];
-  plans.forEach((plan) => {
-    const def = getResourceNodeDef(plan.kind);
-    for (let i = 0; i < plan.count; i += 1) {
-      const spot = findPlacementForBiomes(rng, occupied, tiles, def.placementBiomes || [], plan.minDistance || 2);
-      const charges = rng.int(def.minCharges || 1, def.maxCharges || 1);
-      const biome = tiles?.[spot.y]?.[spot.x]?.biome || "plains";
-      const node = {
-        id: `resource_${plan.kind}_${i}`,
-        type: "resource",
-        resourceKind: plan.kind,
-        name: `${def.label} ${i + 1}`,
-        skill: def.skill,
+  let resourceIndex = 0;
+  RESOURCE_CLUSTER_DEFS.forEach((clusterDef) => {
+    const clusterCount = rng.int(clusterDef.countRange[0], clusterDef.countRange[1]);
+    for (let clusterIndex = 0; clusterIndex < clusterCount; clusterIndex += 1) {
+      const clusterName = rng.pick(RESOURCE_CLUSTER_NAME_POOLS[clusterDef.id] || [clusterDef.id]);
+      const center = findPlacementForBiomes(rng, occupied, tiles, clusterDef.biomes || [], 4);
+      clusterDef.nodes.forEach((nodePlan) => {
+        if (nodePlan.chance && rng.next() > nodePlan.chance) return;
+        const def = getResourceNodeDef(nodePlan.kind);
+        const count = rng.int(nodePlan.countRange[0], nodePlan.countRange[1]);
+        for (let localIndex = 0; localIndex < count; localIndex += 1) {
+          const centerKey = featureKey(center.x, center.y);
+          const spot = localIndex === 0
+            && !occupied.has(centerKey)
+            && (!def.placementBiomes?.length || def.placementBiomes.includes(tiles[center.y][center.x].biome))
+            ? center
+            : findNearbyPlacementForBiomes(rng, occupied, tiles, center.x, center.y, clusterDef.radius || 3, def.placementBiomes || []);
+          if (!spot) continue;
+          const biome = tiles?.[spot.y]?.[spot.x]?.biome || "plains";
+          const suffix = count > 1 ? ` ${localIndex + 1}` : "";
+          const node = buildResourceNodeFeature(
+            `resource_${clusterDef.id}_${resourceIndex}`,
+            nodePlan.kind,
+            spot,
+            biome,
+            rng,
+            `${clusterName} ${def.label}${suffix}`,
+            {
+              clusterId: `${clusterDef.id}_${clusterIndex}`,
+              clusterLabel: clusterName,
+            },
+          );
+          features.push(node);
+          occupied.add(featureKey(spot.x, spot.y));
+          resourceIndex += 1;
+        }
+      });
+    }
+  });
+}
+
+function getWorldEventSiteDef(kind) {
+  return WORLD_EVENT_SITE_DEFS[kind] || WORLD_EVENT_SITE_DEFS.caravan;
+}
+
+function addWorldEventSitesToWorld(rng, tiles, features, occupied) {
+  let eventIndex = 0;
+  Object.entries(WORLD_EVENT_SITE_DEFS).forEach(([kind, definition]) => {
+    const count = rng.int(definition.countRange[0], definition.countRange[1]);
+    for (let i = 0; i < count; i += 1) {
+      const spot = findPlacementForBiomes(rng, occupied, tiles, definition.biomes || [], 3);
+      const names = WORLD_EVENT_NAME_POOLS[kind] || [definition.label];
+      features.push({
+        id: `event_${kind}_${eventIndex}`,
+        type: "event",
+        eventKind: kind,
+        name: `${rng.pick(names)} ${i + 1}`,
         x: spot.x,
         y: spot.y,
-        maxCharges: charges,
-        charges,
-        respawnSteps: def.respawnSteps || 18,
-        depletedUntil: 0,
-        requiredLevel: rollResourceRequiredLevel(plan.kind, biome, rng),
-      };
-      if (isFishingResourceKind(plan.kind)) {
-        node.fishingState = {
-          minigameId: def.minigameId || "fishing_basic_v1",
-          minigameReady: true,
-          useMinigame: false,
-        };
-      }
-      features.push(node);
+        resolved: false,
+      });
       occupied.add(featureKey(spot.x, spot.y));
+      eventIndex += 1;
     }
   });
 }
@@ -9398,7 +11080,7 @@ function addCraftingSitesToWorld(rng, tiles, features, occupied) {
   const siteCount = rng.int(10, 16);
   for (let i = 0; i < siteCount; i += 1) {
     const skillFocus = rng.pick(craftingSkills);
-    const biomes = CRAFTING_SITE_BIOMES[skillFocus] || ["road", "plains", "forest", "swamp", "badlands"];
+    const biomes = CRAFTING_SITE_BIOMES[skillFocus] || ["road", "plains", "forest", "swamp", "badlands", "highlands", "coast", "ruins"];
     const spot = findPlacementForBiomes(rng, occupied, tiles, biomes, 3);
     const pool = CRAFTING_SITE_NAMES[skillFocus] || [`${skillFocus} Camp`];
     features.push({
@@ -9415,22 +11097,7 @@ function addCraftingSitesToWorld(rng, tiles, features, occupied) {
 
 function generateWorld(seedText) {
   const rng = createRng(hashString(seedText));
-  const tiles = [];
-  for (let y = 0; y < MAP_HEIGHT; y += 1) {
-    const row = [];
-    for (let x = 0; x < MAP_WIDTH; x += 1) {
-      const roll = rng.next();
-      let biome = "plains";
-      if (roll < 0.08) biome = "road";
-      else if (roll < 0.46) biome = "plains";
-      else if (roll < 0.72) biome = "forest";
-      else if (roll < 0.89) biome = "swamp";
-      else biome = "badlands";
-      row.push({ biome });
-    }
-    tiles.push(row);
-  }
-  smoothBiomes(tiles);
+  const tiles = generateBiomeTiles(seedText, rng);
 
   const discovered = Array.from({ length: MAP_HEIGHT }, () => Array(MAP_WIDTH).fill(false));
   const features = [];
@@ -9483,9 +11150,21 @@ function generateWorld(seedText) {
     occupied.add(featureKey(spot.x, spot.y));
   }
 
-  const dungeonCount = rng.int(9, 14);
+  const townFeatures = features.filter((feature) => feature.type === "town");
+  townFeatures.forEach((town) => {
+    const nearestCity = majorCities
+      .slice()
+      .sort((a, b) => (Math.abs(a.x - town.x) + Math.abs(a.y - town.y)) - (Math.abs(b.x - town.x) + Math.abs(b.y - town.y)))[0];
+    if (nearestCity && rng.next() < 0.8) {
+      carveRoad(tiles, town.x, town.y, nearestCity.x, nearestCity.y);
+    }
+  });
+
+  const dungeonCount = rng.int(12, 18);
   for (let i = 0; i < dungeonCount; i += 1) {
     const spot = findPlacementSpot(rng, occupied, tiles, true);
+    const dungeonBiome = tiles?.[spot.y]?.[spot.x]?.biome || "ruins";
+    const dungeonRng = createRng(hashString(`${seedText}|dungeon|${i}|${spot.x}|${spot.y}|${dungeonBiome}`));
     const dungeonName = `${rng.pick(DUNGEON_NAMES)} ${i + 1}`;
     features.push({
       id: `dungeon_${i}`,
@@ -9495,12 +11174,14 @@ function generateWorld(seedText) {
       y: spot.y,
       bossName: rng.pick(BOSS_TITLES),
       bossDefeated: false,
+      staticEncounters: buildDungeonStaticEncounterPlan(`dungeon_${i}`, dungeonBiome, dungeonRng),
+      delvesCleared: 0,
     });
     occupied.add(featureKey(spot.x, spot.y));
   }
 
   const settlementFeatures = features.filter((feature) => feature.type === "city" || feature.type === "town");
-  const npcCount = rng.int(14, 24);
+  const npcCount = rng.int(24, 34);
   for (let i = 0; i < npcCount; i += 1) {
     const role = rng.pick(NPC_ROLES);
     const attachToSettlement = rng.next() < 0.65 && settlementFeatures.length > 0;
@@ -9571,9 +11252,23 @@ function generateWorld(seedText) {
     });
   }
 
+  dungeonFeatures.forEach((feature) => {
+    if (rng.next() < 0.82) {
+      paintBiomeBlob(tiles, feature.x, feature.y, "ruins", rng.int(2, 4), rng, { preserveRoads: true });
+    }
+  });
+  features
+    .filter((feature) => feature.type === "transition")
+    .forEach((feature) => {
+      if (rng.next() < 0.45) {
+        paintBiomeBlob(tiles, feature.x, feature.y, "ruins", rng.int(2, 3), rng, { preserveRoads: true });
+      }
+    });
+
   addDebugCraftingAreaToWorld(tiles, features, occupied, debugArea);
   addResourceNodesToWorld(rng, tiles, features, occupied);
   addCraftingSitesToWorld(rng, tiles, features, occupied);
+  addWorldEventSitesToWorld(rng, tiles, features, occupied);
 
   features.forEach((feature) => {
     if ((feature.type === "city" || feature.type === "town") && feature.hasShop) {
@@ -9600,7 +11295,7 @@ function findNearbyPlacement(rng, occupied, tiles, centerX, centerY, radius = 5,
     const y = clamp(centerY + rng.int(-radius, radius), 2, MAP_HEIGHT - 3);
     const key = featureKey(x, y);
     if (occupied.has(key)) continue;
-    if (!allowHarsh && tiles[y][x].biome === "swamp") continue;
+    if (!allowHarsh && isHarshBiome(tiles[y][x].biome)) continue;
     return { x, y };
   }
   return findPlacementSpot(rng, occupied, tiles, allowHarsh);
@@ -9624,7 +11319,7 @@ function generateShopStock(rng, tier, cityShop = false) {
   const materialEntries = cityShop ? 6 : 4;
   for (let i = 0; i < materialEntries; i += 1) {
     const itemId = rollMaterialIdForLevel(targetLevel, rng, {
-      biome: cityShop ? "road" : rng.pick(["plains", "forest", "swamp", "badlands"]),
+      biome: cityShop ? "road" : rng.pick(["plains", "forest", "swamp", "badlands", "highlands", "coast", "ruins"]),
       highQuality: cityShop,
     });
     const quantity = cityShop ? rng.int(4, 8) : rng.int(3, 6);
@@ -9705,11 +11400,12 @@ function requestMainMenuReturn() {
 }
 
 function smoothBiomes(tiles) {
+  const biomeKeys = Object.keys(BIOME_DATA);
   for (let pass = 0; pass < 2; pass += 1) {
     const next = tiles.map((row) => row.map((cell) => ({ ...cell })));
     for (let y = 1; y < MAP_HEIGHT - 1; y += 1) {
       for (let x = 1; x < MAP_WIDTH - 1; x += 1) {
-        const counts = { road: 0, plains: 0, forest: 0, swamp: 0, badlands: 0 };
+        const counts = Object.fromEntries(biomeKeys.map((biome) => [biome, 0]));
         for (let oy = -1; oy <= 1; oy += 1) {
           for (let ox = -1; ox <= 1; ox += 1) {
             counts[tiles[y + oy][x + ox].biome] += 1;
@@ -9717,7 +11413,7 @@ function smoothBiomes(tiles) {
         }
         let dominant = tiles[y][x].biome;
         let highest = -1;
-        Object.keys(counts).forEach((biome) => {
+        biomeKeys.forEach((biome) => {
           if (counts[biome] > highest) {
             dominant = biome;
             highest = counts[biome];
@@ -9740,7 +11436,7 @@ function findPlacementSpot(rng, occupied, tiles, allowHarsh = false) {
     const y = rng.int(2, MAP_HEIGHT - 3);
     const key = featureKey(x, y);
     if (occupied.has(key)) continue;
-    if (!allowHarsh && tiles[y][x].biome === "swamp") continue;
+    if (!allowHarsh && isHarshBiome(tiles[y][x].biome)) continue;
     let tooClose = false;
     for (const existing of occupied) {
       const [ex, ey] = existing.split(",").map(Number);
@@ -9795,9 +11491,11 @@ function getFeatureAt(world, x, y) {
 }
 
 function addWorldLog(message) {
-  if (!state.game) return;
-  state.game.worldLog.push(message);
+  if (!state.game || message == null) return;
+  const line = String(message);
+  state.game.worldLog.push(line);
   if (state.game.worldLog.length > WORLD_LOG_LIMIT) state.game.worldLog = state.game.worldLog.slice(-WORLD_LOG_LIMIT);
+  queueWorldLogPopup(line);
   renderWorldLog();
 }
 
@@ -9806,6 +11504,7 @@ function openShopAtFeature(feature) {
     addWorldLog("No shop at this location.");
     return;
   }
+  state.focusIndex = 0;
   state.modal = "shop";
   state.modalData = { feature };
   els.modalBackdrop.classList.remove("hidden");
@@ -9817,8 +11516,9 @@ function openCraftingMenu(feature = null, options = {}) {
   if (!state.game) return;
   const { stationId = null, skillName = null } = options || {};
   const activeFeature = feature || getFeatureAt(state.game.world, state.game.player.position.x, state.game.player.position.y);
-  const preferredSkill = skillName || (activeFeature?.type === "crafting" ? activeFeature.skillFocus : null);
+  const preferredSkill = skillName || getFeatureCraftingFocus(activeFeature);
   if (preferredSkill) setActiveCraftingSkillTab(preferredSkill);
+  state.focusIndex = 0;
   state.modal = "crafting";
   state.modalData = { feature: activeFeature, stationId };
   state.craftingRun = null;
@@ -10082,12 +11782,19 @@ function buildQuestReward(rng, snapshot, recommendedLevel, options = {}) {
   const xpCeil = xpFloor + 55 + progress.stage * 20 + (options.xpRangeBonus || 0);
   const consumableId = options.consumableId || rollConsumableDrop(rng, recommendedLevel + (options.isBoss ? 8 : 2), !!options.isBoss);
   const consumableQty = options.consumableQty || clamp(1 + Math.floor(progress.stage / 3) + (options.isBoss ? 1 : 0), 1, 3);
-  return {
+  const reward = {
     gold: rng.int(goldFloor, goldCeil),
     xp: rng.int(xpFloor, xpCeil),
     consumableId,
     consumableQty,
   };
+  if (options.skill) {
+    const skillXpFloor = options.skillXp || (28 + progress.stage * 12 + (options.skillXpBonus || 0));
+    const skillXpCeil = options.skillXpMax || (skillXpFloor + 20 + progress.stage * 8 + (options.skillXpRangeBonus || 0));
+    reward.skill = options.skill;
+    reward.skillXp = rng.int(skillXpFloor, Math.max(skillXpFloor, skillXpCeil));
+  }
+  return reward;
 }
 
 function getQuestSignature(quest) {
@@ -10245,7 +11952,12 @@ function createGatherQuest(rng, snapshot, existingQuests) {
   if (!copy) return null;
   const target = clamp(7 + progress.stage * 2 + rng.int(0, 4), 7, 28);
   const recommendedLevel = clamp(Math.max(progress.playerLevel, 2 + progress.stage * 7), 1, MAX_LEVEL);
-  const reward = buildQuestReward(rng, snapshot, recommendedLevel, { goldBonus: 18, xpBonus: 20 });
+  const reward = buildQuestReward(rng, snapshot, recommendedLevel, {
+    goldBonus: 18,
+    xpBonus: 20,
+    skill,
+    skillXpBonus: 18,
+  });
   return buildQuestBase(
     "quest_gather",
     "gather_skill",
@@ -10266,12 +11978,73 @@ function createCraftQuest(rng, snapshot, existingQuests) {
   const target = clamp(2 + Math.floor(progress.stage / 2) + rng.int(0, 1), 2, 7);
   const minQuality = progress.stage >= 6 ? "great" : "good";
   const recommendedLevel = clamp(Math.max(progress.playerLevel, 3 + progress.stage * 8), 1, MAX_LEVEL);
-  const reward = buildQuestReward(rng, snapshot, recommendedLevel, { goldBonus: 22, xpBonus: 24, consumableId: "precision_elixir", consumableQty: progress.stage >= 5 ? 2 : 1 });
+  const reward = buildQuestReward(rng, snapshot, recommendedLevel, {
+    goldBonus: 22,
+    xpBonus: 24,
+    consumableId: "precision_elixir",
+    consumableQty: progress.stage >= 5 ? 2 : 1,
+    skill,
+    skillXpBonus: 24,
+  });
   return buildQuestBase(
     "quest_craft",
     "craft_skill",
     `${progress.rankLabel} ${rng.pick(CRAFTING_SKILL_QUEST_COPY[skill] || [skill])}`,
     `Craft ${target} item${target === 1 ? "" : "s"} using ${skill}${minQuality === "great" ? " at Great quality or better" : ""}.`,
+    target,
+    reward,
+    { skill, minQuality, recommendedLevel, rank: progress.rankLabel, boardStage: progress.stage },
+  );
+}
+
+function createGatherBiomeQuest(world, rng, snapshot, existingQuests) {
+  const progress = getQuestProgressionState(snapshot);
+  const usedBiomes = new Set(existingQuests.filter((quest) => quest.type === "gather_biome").map((quest) => quest.biome));
+  const biomeChoices = Object.keys(BIOME_DATA).filter((biome) => biome !== "road" && !usedBiomes.has(biome));
+  const biome = rng.pick(biomeChoices.length ? biomeChoices : Object.keys(BIOME_DATA).filter((entry) => entry !== "road"));
+  const label = BIOME_DATA[biome]?.label || biome;
+  const target = clamp(8 + progress.stage * 2 + rng.int(0, 4), 8, 30);
+  const skill = getGatheringSkillForBiomeEncounter(biome);
+  const recommendedLevel = clamp(Math.max(progress.playerLevel, 3 + progress.stage * 7), 1, MAX_LEVEL);
+  const reward = buildQuestReward(rng, snapshot, recommendedLevel, {
+    goldBonus: 22,
+    xpBonus: 24,
+    skill,
+    skillXpBonus: 24,
+  });
+  return buildQuestBase(
+    "quest_gather_biome",
+    "gather_biome",
+    `${progress.rankLabel} ${label} Harvest`,
+    `Gather ${target} total materials in the ${label} and keep the local supply crews stocked.`,
+    target,
+    reward,
+    { biome, skill, recommendedLevel, rank: progress.rankLabel, boardStage: progress.stage },
+  );
+}
+
+function createCraftMasterworkQuest(rng, snapshot, existingQuests) {
+  const progress = getQuestProgressionState(snapshot);
+  const skills = Object.keys(CRAFTING_SKILL_QUEST_COPY);
+  const used = new Set(existingQuests.filter((quest) => quest.type === "craft_masterwork").map((quest) => quest.skill));
+  const choices = skills.filter((skill) => !used.has(skill));
+  const skill = rng.pick(choices.length ? choices : skills);
+  const minQuality = progress.stage >= 6 ? "perfect" : "great";
+  const target = clamp(1 + Math.floor(progress.stage / 3) + rng.int(0, 1), 1, 4);
+  const recommendedLevel = clamp(Math.max(progress.playerLevel, 6 + progress.stage * 8), 1, MAX_LEVEL);
+  const reward = buildQuestReward(rng, snapshot, recommendedLevel, {
+    goldBonus: 28,
+    xpBonus: 32,
+    consumableId: minQuality === "perfect" ? "precision_elixir" : "focus_tonic",
+    consumableQty: progress.stage >= 5 ? 2 : 1,
+    skill,
+    skillXpBonus: 30,
+  });
+  return buildQuestBase(
+    "quest_masterwork",
+    "craft_masterwork",
+    `${progress.rankLabel} Masterwork ${skill}`,
+    `Deliver ${target} ${skill} craft${target === 1 ? "" : "s"} at ${minQuality[0].toUpperCase()}${minQuality.slice(1)} quality or better.`,
     target,
     reward,
     { skill, minQuality, recommendedLevel, rank: progress.rankLabel, boardStage: progress.stage },
@@ -10286,7 +12059,9 @@ function createQuestFromArchetype(type, world, rng, snapshot, existingQuests) {
   if (type === "visit_feature") return createVisitQuest(world, rng, snapshot, existingQuests);
   if (type === "use_transition") return createTransitionQuest(world, rng, snapshot);
   if (type === "gather_skill") return createGatherQuest(rng, snapshot, existingQuests);
+  if (type === "gather_biome") return createGatherBiomeQuest(world, rng, snapshot, existingQuests);
   if (type === "craft_skill") return createCraftQuest(rng, snapshot, existingQuests);
+  if (type === "craft_masterwork") return createCraftMasterworkQuest(rng, snapshot, existingQuests);
   return null;
 }
 
@@ -10298,8 +12073,10 @@ function generateQuestOffer(world, rng, snapshot, existingQuests = []) {
     { key: "open_chests", weight: 1.8 },
     { key: "visit_feature", weight: 1.7 },
     { key: "use_transition", weight: 1.2 + progress.stage * 0.08 },
-    { key: "gather_skill", weight: 1.3 + progress.stage * 0.18 },
-    { key: "craft_skill", weight: 1.1 + progress.stage * 0.2 },
+    { key: "gather_skill", weight: 1.7 + progress.stage * 0.2 },
+    { key: "gather_biome", weight: 1.45 + progress.stage * 0.18 },
+    { key: "craft_skill", weight: 1.5 + progress.stage * 0.24 },
+    { key: "craft_masterwork", weight: 1.1 + progress.stage * 0.16 },
     { key: "clear_dungeon", weight: 1.6 + progress.stage * 0.12 },
   ];
   const signatures = new Set(existingQuests.map(getQuestSignature));
@@ -10381,7 +12158,14 @@ function updateQuestProgress(eventType, payload = {}) {
     if (quest.type === "gather_skill" && eventType === "gatherMaterial") {
       if (!quest.skill || payload.skill === quest.skill) delta = Math.max(1, payload.amount || 1);
     }
+    if (quest.type === "gather_biome" && eventType === "gatherMaterial" && payload.biome === quest.biome) {
+      delta = Math.max(1, payload.amount || 1);
+    }
     if (quest.type === "craft_skill" && eventType === "craftItem") {
+      const qualityOk = !quest.minQuality || (QUEST_QUALITY_ORDER[payload.qualityKey] || 0) >= (QUEST_QUALITY_ORDER[quest.minQuality] || 0);
+      if ((!quest.skill || payload.skill === quest.skill) && qualityOk) delta = Math.max(1, payload.amount || 1);
+    }
+    if (quest.type === "craft_masterwork" && eventType === "craftItem") {
       const qualityOk = !quest.minQuality || (QUEST_QUALITY_ORDER[payload.qualityKey] || 0) >= (QUEST_QUALITY_ORDER[quest.minQuality] || 0);
       if ((!quest.skill || payload.skill === quest.skill) && qualityOk) delta = Math.max(1, payload.amount || 1);
     }
@@ -10420,6 +12204,11 @@ function claimQuestReward(questId) {
     addConsumableToBag(state.game.player, quest.reward.consumableId, quest.reward.consumableQty || 1);
     rewardParts.push(`${quest.reward.consumableQty || 1}x ${CONSUMABLE_DEFS[quest.reward.consumableId]?.name || quest.reward.consumableId}`);
   }
+  if (quest.reward?.skill && quest.reward?.skillXp) {
+    const skillGain = gainSkillXp(state.game.player, quest.reward.skill, quest.reward.skillXp, quest.title);
+    rewardParts.push(`${quest.reward.skillXp} ${quest.reward.skill} XP`);
+    logSkillXpProgress(state.game.player, quest.reward.skill, skillGain);
+  }
   state.game.meta.questsCompleted += 1;
   addWorldLog(`Quest reward claimed: ${quest.title} (${rewardParts.join(", ")}).`);
   playSfx("quest");
@@ -10439,7 +12228,9 @@ function getQuestRumor() {
   if (quest.type === "visit_feature") return `Someone still needs eyes on ${quest.title.replace(/^(Check In With|Report To|Survey|Reinforce|Secure)\s+/, "")}.`;
   if (quest.type === "use_transition") return "The waygates are unstable, which means cartographers are paying extra.";
   if (quest.type === "gather_skill") return `${quest.skill} crews are short on field supplies again.`;
+  if (quest.type === "gather_biome") return `${BIOME_DATA[quest.biome]?.label || quest.biome} supply camps need more gathered stock right now.`;
   if (quest.type === "craft_skill") return `${quest.skill} orders keep piling up on the board.`;
+  if (quest.type === "craft_masterwork") return `${quest.skill} guilds are paying extra for ${quest.minQuality || "high"} quality work.`;
   return "The quest board keeps filling faster than anyone expected.";
 }
 
@@ -10585,7 +12376,11 @@ function talkToNpc() {
 function markBossDefeated(featureId) {
   if (!state.game || !featureId) return;
   const feature = state.game.world.features.find((entry) => entry.id === featureId);
-  if (feature) feature.bossDefeated = true;
+  if (feature) {
+    ensureDungeonFeatureState(feature);
+    feature.bossDefeated = true;
+  }
+  return feature || null;
 }
 
 function getEnemyScaleFromPlayer(level) {
@@ -10621,28 +12416,31 @@ function generateEnemy(biome, playerLevel, rng, options = {}) {
   const lowLevelHpScale = clamp(0.82 + level * 0.035, 0.82, 1);
   const lowLevelStatScale = clamp(0.74 + level * 0.05, 0.74, 1);
   const bossMult = options.boss ? difficulty.bossBoost : 1;
+  const eliteHpMult = options.elite ? 1.22 : 1;
+  const eliteStatMult = options.elite ? 1.14 : 1;
   const hpScale = template.hpScale || 1;
   const offenseScale = template.offenseScale || 1;
   const defenseScale = template.defenseScale || 1;
   const stats = createZeroStats();
-  stats.Health = Math.max(5, Math.floor(healthBase * difficulty.enemyHp * bossMult * hpScale * playerScale.hp * lowLevelHpScale));
-  stats.MeleeAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
-  stats.MeleeDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
-  stats.RangedAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
-  stats.RangedDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
-  stats.MagicAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * offenseScale * playerScale.offense * lowLevelStatScale));
-  stats.MagicDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * defenseScale * playerScale.defense * lowLevelStatScale));
-  stats.CriticalChance = Math.floor((template.crit + Math.floor(level / 12)) * (options.boss ? 1.15 : 1));
+  stats.Health = Math.max(5, Math.floor(healthBase * difficulty.enemyHp * bossMult * eliteHpMult * hpScale * playerScale.hp * lowLevelHpScale));
+  stats.MeleeAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * eliteStatMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.MeleeDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * eliteStatMult * defenseScale * playerScale.defense * lowLevelStatScale));
+  stats.RangedAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * eliteStatMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.RangedDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * eliteStatMult * defenseScale * playerScale.defense * lowLevelStatScale));
+  stats.MagicAttack = Math.max(1, Math.floor(attackBase * difficulty.enemyAttack * bossMult * eliteStatMult * offenseScale * playerScale.offense * lowLevelStatScale));
+  stats.MagicDefense = Math.max(0, Math.floor(defenseBase * difficulty.enemyDefense * bossMult * eliteStatMult * defenseScale * playerScale.defense * lowLevelStatScale));
+  stats.CriticalChance = Math.floor((template.crit + Math.floor(level / 12) + (options.elite ? 3 : 0)) * (options.boss ? 1.15 : 1));
   stats.Luck = 4 + Math.floor(level / 10);
   const specialistBonus = Math.max(1, Math.floor(level * 0.26));
   if (template.attackType === "Melee") stats.MeleeAttack += specialistBonus;
   if (template.attackType === "Ranged") stats.RangedAttack += specialistBonus;
   if (template.attackType === "Magic") stats.MagicAttack += specialistBonus;
   const defaultKind = defaultDamageKindForAttackType(template.attackType);
+  const eliteName = options.elite && !options.name ? `${options.eliteTitle || "Champion"} ${template.name}` : null;
   return {
     speciesId: template.id || toId(template.name),
     speciesName: template.name,
-    name: options.name || template.name,
+    name: options.name || eliteName || template.name,
     level,
     attackType: template.attackType,
     damageDie: template.damageDie,
@@ -10650,7 +12448,16 @@ function generateEnemy(biome, playerLevel, rng, options = {}) {
     weaknesses: [...(template.weaknesses || [])],
     resistances: [...(template.resistances || [])],
     isBoss: !!options.boss,
+    isElite: !!options.elite,
     featureId: options.featureId || null,
+    staticEncounterId: options.staticEncounterId || null,
+    bonusMaterials: Array.isArray(options.bonusMaterials)
+      ? options.bonusMaterials
+        .filter((drop) => drop?.id && MATERIAL_DEFS[drop.id])
+        .map((drop) => ({ id: drop.id, quantity: Math.max(1, Math.floor(drop.quantity || 1)) }))
+      : [],
+    isDungeonEncounter: !!options.isDungeonEncounter,
+    dungeonDelve: !!options.dungeonDelve,
     stats,
     currentHealth: stats.Health,
   };
@@ -10876,6 +12683,7 @@ function hydrateGame(saved) {
     if (feature.type === "dungeon") {
       feature.bossName = feature.bossName || BOSS_TITLES[index % BOSS_TITLES.length];
       feature.bossDefeated = !!feature.bossDefeated;
+      ensureDungeonFeatureState(feature, world.tiles?.[feature.y]?.[feature.x]?.biome || "ruins");
     } else if (feature.type === "chest") {
       feature.opened = !!feature.opened;
     } else if (feature.type === "npc") {
@@ -10898,6 +12706,10 @@ function hydrateGame(saved) {
       feature.lastRestockStep = Number.isFinite(feature.lastRestockStep) ? feature.lastRestockStep : 0;
     } else if (feature.type === "crafting") {
       feature.skillFocus = SKILL_DEFS[feature.skillFocus]?.role === "Crafting" ? feature.skillFocus : "Smithing";
+    } else if (feature.type === "event") {
+      feature.eventKind = WORLD_EVENT_SITE_DEFS[feature.eventKind] ? feature.eventKind : "caravan";
+      feature.resolved = !!feature.resolved;
+      feature.eventSkill = SKILL_DEFS[feature.eventSkill]?.role === "Crafting" ? feature.eventSkill : null;
     } else if (feature.type === "resource") {
       normalizeResourceNode(feature);
       ensureResourceNodeRequiredLevel(
@@ -11061,7 +12873,7 @@ function focusButtonByDataset(key, value) {
 function updateFocusables() {
   if (state.modal) {
     state.focusables = [
-      ...els.modalContent.querySelectorAll("button.focusable:not([disabled]):not(.hidden)"),
+      ...els.modalContent.querySelectorAll(".focusable:not([disabled]):not(.hidden)"),
       els.modalClose,
     ];
   } else {
@@ -11071,7 +12883,7 @@ function updateFocusables() {
       return;
     }
     const activeScreen = els.screens[state.screen];
-    state.focusables = [...activeScreen.querySelectorAll("button.focusable:not([disabled]):not(.hidden)")];
+    state.focusables = [...activeScreen.querySelectorAll(".focusable:not([disabled]):not(.hidden)")];
   }
   if (state.focusables.length === 0) {
     clearFocusStyles();
@@ -11082,24 +12894,271 @@ function updateFocusables() {
 }
 
 function clearFocusStyles() {
-  document.querySelectorAll("button.focusable.focused").forEach((button) => button.classList.remove("focused"));
+  document.querySelectorAll(".focusable.focused").forEach((element) => element.classList.remove("focused"));
 }
 
 function applyFocusStyles() {
   clearFocusStyles();
-  const button = state.focusables[state.focusIndex];
-  if (!button) return;
-  button.classList.add("focused");
-  button.scrollIntoView({ block: "nearest" });
+  const element = state.focusables[state.focusIndex];
+  if (!element) return;
+  element.classList.add("focused");
+  element.scrollIntoView({ block: "nearest" });
 }
 
-function moveFocus(delta) {
+function getFocusableCenter(element) {
+  const rect = element?.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
+}
+
+function getFocusableOrder(element, fallback = 0) {
+  const raw = Number(element?.dataset?.navOrder);
+  return Number.isFinite(raw) ? raw : fallback;
+}
+
+function assignStructuredGridNavigation(container, options = {}) {
+  const navScope = options.navScope || "";
+  if (!container || !navScope) return { rowCount: 0, itemCount: 0, lastLayer: -1 };
+  const navAxis = options.navAxis || "horizontal";
+  const baseLayer = Number.isFinite(options.navLayer) ? options.navLayer : 0;
+  const navGroupPrefix = options.navGroupPrefix || "grid-row";
+  const selector = options.selector || ".focusable:not([disabled]):not(.hidden)";
+  const rowTolerance = Number.isFinite(options.rowTolerance) ? options.rowTolerance : 12;
+  const elements = [...container.querySelectorAll(selector)]
+    .filter((element) => !element.disabled && !element.classList.contains("hidden"));
+  if (!elements.length) return { rowCount: 0, itemCount: 0, lastLayer: baseLayer - 1 };
+
+  const rows = [];
+  elements.forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    const tolerance = Math.max(rowTolerance, Math.round(rect.height * 0.35));
+    const existingRow = rows.find((entry) => Math.abs(entry.top - rect.top) <= tolerance);
+    if (existingRow) {
+      existingRow.top = Math.min(existingRow.top, rect.top);
+      existingRow.elements.push({ element, rect });
+    } else {
+      rows.push({ top: rect.top, elements: [{ element, rect }] });
+    }
+  });
+
+  rows.sort((a, b) => a.top - b.top);
+  rows.forEach((row, rowIndex) => {
+    row.elements
+      .sort((a, b) => a.rect.left - b.rect.left || a.rect.top - b.rect.top)
+      .forEach((entry, orderIndex) => {
+        entry.element.dataset.navScope = navScope;
+        entry.element.dataset.navLayer = String(baseLayer + rowIndex);
+        entry.element.dataset.navGroup = `${navGroupPrefix}-${rowIndex}`;
+        entry.element.dataset.navOrder = String(orderIndex);
+        entry.element.dataset.navAxis = navAxis;
+      });
+  });
+
+  return {
+    rowCount: rows.length,
+    itemCount: elements.length,
+    lastLayer: baseLayer + rows.length - 1,
+  };
+}
+
+function getClosestFocusableByAxis(currentElement, candidateElements, axis = "x") {
+  const currentCenter = getFocusableCenter(currentElement);
+  if (!currentCenter) return null;
+  const secondaryAxis = axis === "x" ? "y" : "x";
+  const candidates = (candidateElements || [])
+    .map((element, index) => ({
+      element,
+      index,
+      center: getFocusableCenter(element),
+      order: getFocusableOrder(element, index),
+      selected: !!element?.classList?.contains?.("selected"),
+    }))
+    .filter((entry) => entry.center)
+    .sort((a, b) => {
+      if (a.selected !== b.selected) return a.selected ? -1 : 1;
+      const primary = Math.abs(a.center[axis] - currentCenter[axis]) - Math.abs(b.center[axis] - currentCenter[axis]);
+      if (primary !== 0) return primary;
+      const secondary = Math.abs(a.center[secondaryAxis] - currentCenter[secondaryAxis]) - Math.abs(b.center[secondaryAxis] - currentCenter[secondaryAxis]);
+      if (secondary !== 0) return secondary;
+      return a.order - b.order;
+    });
+  return candidates[0]?.element || null;
+}
+
+function getDirectionalFocusableFromCandidates(currentElement, direction, candidateElements) {
+  const currentCenter = getFocusableCenter(currentElement);
+  if (!currentCenter) return null;
+  const axis = direction === "left" || direction === "right" ? "x" : "y";
+  const invert = direction === "left" || direction === "up";
+  const candidates = (candidateElements || [])
+    .map((element) => ({ element, center: getFocusableCenter(element) }))
+    .filter((entry) => entry.center && entry.element !== currentElement)
+    .map((entry) => {
+      const primaryDelta = entry.center[axis] - currentCenter[axis];
+      const primaryDistance = invert ? -primaryDelta : primaryDelta;
+      if (primaryDistance <= 4) return null;
+      const secondaryAxis = axis === "x" ? "y" : "x";
+      const secondaryDistance = Math.abs(entry.center[secondaryAxis] - currentCenter[secondaryAxis]);
+      const score = primaryDistance * 32 + secondaryDistance * 2;
+      return { ...entry, score, secondaryDistance };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.score - b.score || a.secondaryDistance - b.secondaryDistance);
+  return candidates[0]?.element || null;
+}
+
+function getStructuredFocusResult(direction) {
+  const currentElement = state.focusables[state.focusIndex];
+  const navScope = currentElement?.dataset?.navScope;
+  const navGroup = currentElement?.dataset?.navGroup;
+  const navAxis = currentElement?.dataset?.navAxis || "horizontal";
+  const navLayer = Number(currentElement?.dataset?.navLayer);
+  if (!navScope || !navGroup || !Number.isFinite(navLayer)) return { handled: false, index: -1 };
+
+  const scopedElements = state.focusables.filter((element) => element?.dataset?.navScope === navScope);
+  if (!scopedElements.length) return { handled: false, index: -1 };
+
+  const sameGroupElements = scopedElements
+    .filter((element) => element?.dataset?.navGroup === navGroup)
+    .sort((a, b) => getFocusableOrder(a) - getFocusableOrder(b));
+  const currentGroupIndex = sameGroupElements.indexOf(currentElement);
+  const isHorizontalDirection = direction === "left" || direction === "right";
+  const followsPrimaryAxis = (navAxis === "horizontal" && isHorizontalDirection) || (navAxis === "vertical" && !isHorizontalDirection);
+
+  if (followsPrimaryAxis && currentGroupIndex >= 0) {
+    const delta = direction === "left" || direction === "up" ? -1 : 1;
+    const nextElement = sameGroupElements[currentGroupIndex + delta] || null;
+    if (nextElement) {
+      return { handled: true, index: state.focusables.indexOf(nextElement) };
+    }
+  }
+
+  const layerValues = [...new Set(scopedElements
+    .map((element) => Number(element?.dataset?.navLayer))
+    .filter((value) => Number.isFinite(value)))]
+    .sort((a, b) => a - b);
+  const candidateLayers = direction === "up"
+    ? layerValues.filter((value) => value < navLayer).sort((a, b) => b - a)
+    : direction === "down"
+      ? layerValues.filter((value) => value > navLayer)
+      : [];
+
+  for (const layerValue of candidateLayers) {
+    const layerElements = scopedElements.filter((element) => Number(element?.dataset?.navLayer) === layerValue);
+    if (!layerElements.length) continue;
+    const selectedTarget = layerElements.find((element) => element?.classList?.contains?.("selected")) || null;
+    if (selectedTarget) {
+      return { handled: true, index: state.focusables.indexOf(selectedTarget) };
+    }
+    const directionalTarget = getDirectionalFocusableFromCandidates(currentElement, direction, layerElements);
+    if (directionalTarget) {
+      return { handled: true, index: state.focusables.indexOf(directionalTarget) };
+    }
+    const fallbackTarget = getClosestFocusableByAxis(currentElement, layerElements, "x");
+    if (fallbackTarget) {
+      return { handled: true, index: state.focusables.indexOf(fallbackTarget) };
+    }
+  }
+
+  return { handled: true, index: state.focusIndex };
+}
+
+function getCreateScreenGroupContainer(group) {
+  if (group === "style") return els.styleButtons;
+  if (group === "weapon") return els.weaponButtons;
+  if (group === "city") return els.cityButtons;
+  if (group === "difficulty") return els.difficultyButtons;
+  if (group === "seed") return els.seedRandom?.parentElement || els.seedRandom;
+  if (group === "actions") return els.createStart?.parentElement || els.createStart;
+  return null;
+}
+
+function getCreateScreenFocusIndex(direction) {
+  const currentElement = state.focusables[state.focusIndex];
+  const currentGroup = currentElement?.dataset?.createGroup;
+  if (state.screen !== "create" || state.modal || !currentGroup) return -1;
+
+  const currentGroupElements = state.focusables.filter((element) => element?.dataset?.createGroup === currentGroup);
+  const intraGroupTarget = getDirectionalFocusableFromCandidates(currentElement, direction, currentGroupElements);
+  if (intraGroupTarget) return state.focusables.indexOf(intraGroupTarget);
+
+  const currentContainer = getCreateScreenGroupContainer(currentGroup) || currentElement;
+  const currentCenter = getFocusableCenter(currentContainer);
+  if (!currentCenter) return -1;
+
+  const axis = direction === "left" || direction === "right" ? "x" : "y";
+  const invert = direction === "left" || direction === "up";
+  const groupEntries = CREATE_SCREEN_NAV_GROUPS
+    .map((group) => {
+      const elements = state.focusables.filter((element) => element?.dataset?.createGroup === group);
+      const container = getCreateScreenGroupContainer(group) || elements[0];
+      const center = getFocusableCenter(container);
+      return { group, elements, center };
+    })
+    .filter((entry) => entry.group !== currentGroup && entry.elements.length > 0 && entry.center)
+    .map((entry) => {
+      const primaryDelta = entry.center[axis] - currentCenter[axis];
+      const primaryDistance = invert ? -primaryDelta : primaryDelta;
+      if (primaryDistance <= 4) return null;
+      const secondaryAxis = axis === "x" ? "y" : "x";
+      const secondaryDistance = Math.abs(entry.center[secondaryAxis] - currentCenter[secondaryAxis]);
+      const score = primaryDistance * 32 + secondaryDistance * 2;
+      return { ...entry, score, secondaryDistance };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.score - b.score || a.secondaryDistance - b.secondaryDistance);
+
+  for (const entry of groupEntries) {
+    const target = getDirectionalFocusableFromCandidates(currentElement, direction, entry.elements)
+      || entry.elements
+        .map((element) => ({ element, center: getFocusableCenter(element) }))
+        .filter((candidate) => candidate.center)
+        .sort((a, b) => {
+          const ax = Math.abs(a.center.x - currentCenter.x) - Math.abs(b.center.x - currentCenter.x);
+          if (ax !== 0) return ax;
+          return Math.abs(a.center.y - currentCenter.y) - Math.abs(b.center.y - currentCenter.y);
+        })[0]?.element
+      || null;
+    if (target) return state.focusables.indexOf(target);
+  }
+
+  return -1;
+}
+
+function getDirectionalFocusIndex(direction) {
+  const structuredFocus = getStructuredFocusResult(direction);
+  if (structuredFocus.handled) return structuredFocus.index;
+  const createIndex = getCreateScreenFocusIndex(direction);
+  if (createIndex >= 0) return createIndex;
+  const current = state.focusables[state.focusIndex];
+  const target = getDirectionalFocusableFromCandidates(current, direction, state.focusables);
+  return target ? state.focusables.indexOf(target) : -1;
+}
+
+function moveFocus(directionOrDelta) {
   if (state.focusables.length === 0) return;
-  state.focusIndex = (state.focusIndex + delta + state.focusables.length) % state.focusables.length;
+  if (typeof directionOrDelta === "number") {
+    state.focusIndex = (state.focusIndex + directionOrDelta + state.focusables.length) % state.focusables.length;
+    applyFocusStyles();
+    return;
+  }
+  const direction = directionOrDelta;
+  const nextIndex = getDirectionalFocusIndex(direction);
+  if (nextIndex >= 0) {
+    state.focusIndex = nextIndex;
+  } else {
+    const delta = direction === "up" || direction === "left" ? -1 : 1;
+    state.focusIndex = (state.focusIndex + delta + state.focusables.length) % state.focusables.length;
+  }
   applyFocusStyles();
 }
 
 function activateFocused() {
+  if (activateFocusedOptionEntry()) return;
   const target = state.focusables[state.focusIndex];
   if (target) target.click();
 }
@@ -11147,16 +13206,16 @@ function pollGamepad(now) {
       return;
     }
     if (edge(12) || (axisY < -0.55 && now >= state.gamepad.axisYReadyAt)) {
-      moveFocus(-1);
+      moveFocus("up");
       state.gamepad.axisYReadyAt = now + 180;
     } else if (edge(13) || (axisY > 0.55 && now >= state.gamepad.axisYReadyAt)) {
-      moveFocus(1);
+      moveFocus("down");
       state.gamepad.axisYReadyAt = now + 180;
     } else if (edge(14) || (axisX < -0.55 && now >= state.gamepad.axisXReadyAt)) {
-      moveFocus(-1);
+      if (!adjustFocusedOptionValue(-1)) moveFocus("left");
       state.gamepad.axisXReadyAt = now + 180;
     } else if (edge(15) || (axisX > 0.55 && now >= state.gamepad.axisXReadyAt)) {
-      moveFocus(1);
+      if (!adjustFocusedOptionValue(1)) moveFocus("right");
       state.gamepad.axisXReadyAt = now + 180;
     }
     if (edge(0)) activateFocused();
@@ -11800,6 +13859,7 @@ function normalizeMapViewState(mapState) {
 
 function normalizeOptions(options) {
   const next = { ...(options || {}) };
+  next.worldLogPopups = next.worldLogPopups !== false;
   next.verboseCombatLog = next.verboseCombatLog !== false;
   next.gamepadEnabled = next.gamepadEnabled !== false;
   next.sfxEnabled = next.sfxEnabled !== false;
@@ -11818,6 +13878,7 @@ function normalizeOptions(options) {
 
 function updateOptionsUi() {
   state.options = normalizeOptions(state.options);
+  if (els.optionWorldLogPopups) els.optionWorldLogPopups.checked = !!state.options.worldLogPopups;
   if (els.optionCombatLog) els.optionCombatLog.checked = !!state.options.verboseCombatLog;
   if (els.optionControllerVibe) els.optionControllerVibe.checked = !!state.options.gamepadEnabled;
   if (els.optionSfx) els.optionSfx.checked = !!state.options.sfxEnabled;
@@ -11830,20 +13891,157 @@ function updateOptionsUi() {
   if (els.optionMasterVolumeValue) els.optionMasterVolumeValue.textContent = `${Math.round(state.options.masterVolume * 100)}%`;
   if (els.optionMusicVolumeValue) els.optionMusicVolumeValue.textContent = `${Math.round(state.options.musicVolume * 100)}%`;
   if (els.optionSfxVolumeValue) els.optionSfxVolumeValue.textContent = `${Math.round(state.options.sfxVolume * 100)}%`;
+  document.querySelectorAll(".option-entry[data-option-key]").forEach((entry) => {
+    const optionKey = entry.dataset.optionKey;
+    if (entry.dataset.optionKind === "toggle") {
+      entry.classList.toggle("option-enabled", !!state.options[optionKey]);
+    }
+  });
 }
 
 function applyAudioMixLevels() {
-  if (!state.audio.started || !state.audio.context || !state.audio.master || !state.audio.musicBus || !state.audio.sfxBus) return;
+  const musicTarget = state.options.musicEnabled
+    ? clamp(state.options.masterVolume * state.options.musicVolume * MUSIC_TRACK_BASE_VOLUME, 0, 1)
+    : 0;
+  Object.values(state.audio.musicElements || {}).forEach((audioEl) => {
+    audioEl.volume = musicTarget;
+  });
+  if (!state.audio.started || !state.audio.context || !state.audio.master || !state.audio.sfxBus) return;
   const now = state.audio.context.currentTime;
   const masterTarget = clamp(state.options.masterVolume * 1.35, 0, 1.35);
-  const musicTarget = state.options.musicEnabled ? clamp(0.12 + state.options.musicVolume * 1.15, 0, 1.3) : 0;
   const sfxTarget = state.options.sfxEnabled ? clamp(0.12 + state.options.sfxVolume * 1.15, 0, 1.3) : 0;
   state.audio.master.gain.cancelScheduledValues(now);
   state.audio.master.gain.setTargetAtTime(masterTarget, now, 0.02);
-  state.audio.musicBus.gain.cancelScheduledValues(now);
-  state.audio.musicBus.gain.setTargetAtTime(musicTarget, now, 0.02);
   state.audio.sfxBus.gain.cancelScheduledValues(now);
   state.audio.sfxBus.gain.setTargetAtTime(sfxTarget, now, 0.02);
+}
+
+function getMusicTrackKeyForMode(mode) {
+  return MUSIC_MODE_TRACKS[mode] || MUSIC_MODE_TRACKS.menu;
+}
+
+function getMusicTrackLoopWindow(trackKey, audioEl) {
+  const duration = Number(audioEl?.duration);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    const pending = MUSIC_TRACK_LOOP_TRIMS[trackKey] || MUSIC_TRACK_LOOP_TRIMS.default;
+    return { start: pending.start || 0, end: Number.POSITIVE_INFINITY };
+  }
+  const trims = MUSIC_TRACK_LOOP_TRIMS[trackKey] || MUSIC_TRACK_LOOP_TRIMS.default;
+  const maxStart = Math.max(0, duration - 0.25);
+  const start = clamp(Number(trims.start) || 0, 0, maxStart);
+  const endTrim = clamp(Number(trims.end) || 0, 0, Math.max(0, duration - start - 0.2));
+  const end = Math.max(start + 0.2, duration - endTrim);
+  return { start, end };
+}
+
+function seekMusicTrackToLoopStart(trackKey, audioEl) {
+  if (!audioEl) return;
+  const { start } = getMusicTrackLoopWindow(trackKey, audioEl);
+  try {
+    if (typeof audioEl.fastSeek === "function") audioEl.fastSeek(start);
+    else audioEl.currentTime = start;
+  } catch {
+    try {
+      audioEl.currentTime = start;
+    } catch {}
+  }
+}
+
+function stopMusicLoopMonitor() {
+  if (!state.audio.musicLoopFrameId) return;
+  window.cancelAnimationFrame(state.audio.musicLoopFrameId);
+  state.audio.musicLoopFrameId = null;
+}
+
+function monitorMusicLoop() {
+  state.audio.musicLoopFrameId = null;
+  if (!state.options.musicEnabled) return;
+  const audioEl = state.audio.currentMusicElement;
+  const trackKey = state.audio.currentMusicTrack;
+  if (!audioEl || !trackKey) return;
+  const { start, end } = getMusicTrackLoopWindow(trackKey, audioEl);
+  if (Number.isFinite(end) && audioEl.currentTime >= Math.max(start, end - MUSIC_LOOP_GUARD_SECONDS)) {
+    seekMusicTrackToLoopStart(trackKey, audioEl);
+    const resumePromise = audioEl.play();
+    if (resumePromise?.catch) resumePromise.catch(() => {});
+  }
+  state.audio.musicLoopFrameId = window.requestAnimationFrame(monitorMusicLoop);
+}
+
+function startMusicLoopMonitor() {
+  if (state.audio.musicLoopFrameId) return;
+  state.audio.musicLoopFrameId = window.requestAnimationFrame(monitorMusicLoop);
+}
+
+function handleMusicTrackLoadedMetadata(event) {
+  const audioEl = event.currentTarget;
+  const trackKey = audioEl?.dataset?.trackKey;
+  if (!audioEl || !trackKey) return;
+  if (state.audio.currentMusicElement === audioEl && state.audio.currentMusicTrack === trackKey) {
+    const { start, end } = getMusicTrackLoopWindow(trackKey, audioEl);
+    if (audioEl.currentTime < Math.max(0, start - 0.005) || audioEl.currentTime >= end) {
+      seekMusicTrackToLoopStart(trackKey, audioEl);
+    }
+  }
+}
+
+function handleMusicTrackEnded(event) {
+  const audioEl = event.currentTarget;
+  const trackKey = audioEl?.dataset?.trackKey;
+  if (!audioEl || !trackKey) return;
+  if (state.audio.currentMusicElement !== audioEl || state.audio.currentMusicTrack !== trackKey || !state.options.musicEnabled) return;
+  seekMusicTrackToLoopStart(trackKey, audioEl);
+  const resumePromise = audioEl.play();
+  if (resumePromise?.catch) resumePromise.catch(() => {});
+}
+
+function setMusicTrackCandidate(audioEl, trackKey, candidateIndex = 0) {
+  const candidates = MUSIC_TRACK_CANDIDATES[trackKey] || [];
+  if (!audioEl || candidateIndex >= candidates.length) return false;
+  audioEl.dataset.trackKey = trackKey;
+  audioEl.dataset.candidateIndex = String(candidateIndex);
+  audioEl.loop = false;
+  audioEl.preload = "auto";
+  audioEl.src = candidates[candidateIndex];
+  audioEl.load();
+  return true;
+}
+
+function handleMusicTrackError(event) {
+  const audioEl = event.currentTarget;
+  const trackKey = audioEl?.dataset?.trackKey;
+  if (!audioEl || !trackKey) return;
+  const nextIndex = Math.max(0, Number(audioEl.dataset.candidateIndex || 0) + 1);
+  if (!setMusicTrackCandidate(audioEl, trackKey, nextIndex)) {
+    console.warn(`Music track failed to load for ${trackKey}.`);
+    if (state.audio.currentMusicElement === audioEl) {
+      state.audio.currentMusicElement = null;
+      state.audio.currentMusicTrack = null;
+    }
+    return;
+  }
+  if (state.options.musicEnabled && state.audio.currentMusicElement === audioEl) {
+    applyAudioMixLevels();
+    seekMusicTrackToLoopStart(trackKey, audioEl);
+    startMusicLoopMonitor();
+    const retryPromise = audioEl.play();
+    if (retryPromise?.catch) retryPromise.catch(() => {});
+  }
+}
+
+function getMusicTrackElement(trackKey) {
+  if (!trackKey) return null;
+  if (state.audio.musicElements[trackKey]) return state.audio.musicElements[trackKey];
+  const candidates = MUSIC_TRACK_CANDIDATES[trackKey] || [];
+  if (!candidates.length) return null;
+  const audioEl = new Audio();
+  audioEl.addEventListener("error", handleMusicTrackError);
+  audioEl.addEventListener("loadedmetadata", handleMusicTrackLoadedMetadata);
+  audioEl.addEventListener("ended", handleMusicTrackEnded);
+  setMusicTrackCandidate(audioEl, trackKey, 0);
+  state.audio.musicElements[trackKey] = audioEl;
+  applyAudioMixLevels();
+  return audioEl;
 }
 
 function ensureAudioStarted() {
@@ -11852,27 +14050,29 @@ function ensureAudioStarted() {
       state.audio.context.resume().catch(() => {});
     }
     applyAudioMixLevels();
-    if (state.options.musicEnabled && !state.audio.intervalId) startMusicLoop();
+    if (state.options.musicEnabled) {
+      if (!state.audio.currentMusicElement) startMusicLoop();
+      else {
+        startMusicLoopMonitor();
+        const playPromise = state.audio.currentMusicElement.play();
+        if (playPromise?.catch) playPromise.catch(() => {});
+      }
+    }
     return;
   }
   const AudioCtor = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtor) return;
   const context = new AudioCtor();
   const master = context.createGain();
-  const musicBus = context.createGain();
   const sfxBus = context.createGain();
   master.gain.value = 0.9;
-  musicBus.gain.value = 0.9;
   sfxBus.gain.value = 0.9;
-  musicBus.connect(master);
   sfxBus.connect(master);
   master.connect(context.destination);
   state.audio.context = context;
   state.audio.master = master;
-  state.audio.musicBus = musicBus;
   state.audio.sfxBus = sfxBus;
   state.audio.started = true;
-  state.audio.step = 0;
   state.audio.mode = resolveMusicModeForCurrentContext();
   if (context.state === "suspended") {
     context.resume().catch(() => {});
@@ -12066,100 +14266,45 @@ function playSfx(type) {
 }
 
 function startMusicLoop() {
-  if (!state.audio.started || !state.audio.context || !state.audio.musicBus) return;
-  if (state.audio.intervalId) return;
-  const ctxAudio = state.audio.context;
-  const theme = MUSIC_THEMES[state.audio.mode] || MUSIC_THEMES.world;
-  state.audio.step = 0;
-  state.audio.intervalId = window.setInterval(() => {
-    if (!state.options.musicEnabled || !state.audio.started || !state.audio.context || !state.audio.musicBus) return;
-    const now = ctxAudio.currentTime;
-    const activeTheme = MUSIC_THEMES[state.audio.mode] || MUSIC_THEMES.world;
-    const step = state.audio.step;
-    const bass = activeTheme.bass[step % activeTheme.bass.length];
-    const chord = activeTheme.chords[step % activeTheme.chords.length];
-    const melody = activeTheme.melody[step % activeTheme.melody.length];
-    const counter = activeTheme.counter ? activeTheme.counter[step % activeTheme.counter.length] : null;
-    const percussion = activeTheme.percussionPattern ? activeTheme.percussionPattern[step % activeTheme.percussionPattern.length] : "none";
-    const stepDuration = activeTheme.stepMs / 1000;
-    const bassGain = activeTheme.bassGain || 0.1;
-    const chordGain = activeTheme.chordGain || 0.055;
-    const melodyGain = activeTheme.melodyGain || 0.085;
-    const counterGain = activeTheme.counterGain || 0.04;
-    const percussionGain = activeTheme.percussionGain || 0.03;
-
-    playMusicTone(bass, now, stepDuration * 0.92, bassGain, activeTheme.bassWave);
-    chord.forEach((freq, idx) => {
-      playMusicTone(freq, now + idx * 0.004, stepDuration * 0.86, Math.max(0.018, chordGain - idx * 0.008), activeTheme.chordWave);
-    });
-    if (melody && (state.audio.mode !== "world" || step % 2 === 0)) {
-      playMusicTone(melody, now + 0.03, stepDuration * 0.56, melodyGain, activeTheme.melodyWave);
-    }
-    if (counter && (state.audio.mode !== "world" || step % 2 === 1)) {
-      playMusicTone(counter, now + stepDuration * 0.32, stepDuration * 0.42, counterGain, activeTheme.counterWave || "sine");
-    }
-    if (percussion && percussion !== "none") {
-      playMusicPercussion(percussion, now, stepDuration, percussionGain);
-    }
-    state.audio.step += 1;
-  }, theme.stepMs);
+  if (!state.audio.started || !state.options.musicEnabled) return;
+  const trackKey = getMusicTrackKeyForMode(state.audio.mode);
+  if (!trackKey) return;
+  const audioEl = getMusicTrackElement(trackKey);
+  if (!audioEl) return;
+  if (state.audio.currentMusicTrack === trackKey && state.audio.currentMusicElement) {
+    applyAudioMixLevels();
+    startMusicLoopMonitor();
+    const resumePromise = state.audio.currentMusicElement.play();
+    if (resumePromise?.catch) resumePromise.catch(() => {});
+    return;
+  }
+  stopMusicLoop();
+  Object.values(state.audio.musicElements || {}).forEach((entry) => {
+    if (!entry || entry === audioEl) return;
+    entry.pause();
+    entry.currentTime = 0;
+  });
+  state.audio.currentMusicTrack = trackKey;
+  state.audio.currentMusicElement = audioEl;
+  seekMusicTrackToLoopStart(trackKey, audioEl);
+  applyAudioMixLevels();
+  startMusicLoopMonitor();
+  const playPromise = audioEl.play();
+  if (playPromise?.catch) playPromise.catch(() => {});
 }
 
 function stopMusicLoop() {
   clearVictoryMusicTimer();
-  if (!state.audio.intervalId) return;
-  window.clearInterval(state.audio.intervalId);
-  state.audio.intervalId = null;
-}
-
-function playMusicTone(freq, startAt, duration, gainValue, wave = "sine") {
-  if (!state.audio.context || !state.audio.musicBus || !freq) return;
-  const osc = state.audio.context.createOscillator();
-  const gain = state.audio.context.createGain();
-  osc.type = wave;
-  osc.frequency.setValueAtTime(freq, startAt);
-  gain.gain.setValueAtTime(0.0001, startAt);
-  gain.gain.linearRampToValueAtTime(gainValue, startAt + Math.min(0.04, duration * 0.35));
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-  osc.connect(gain);
-  gain.connect(state.audio.musicBus);
-  osc.start(startAt);
-  osc.stop(startAt + duration + 0.02);
-}
-
-function playMusicPercussion(kind, startAt, stepDuration, baseGain) {
-  if (!state.audio.context || !state.audio.musicBus) return;
-  const ctxAudio = state.audio.context;
-  if (kind === "kick") {
-    playMusicTone(62, startAt, Math.min(0.18, stepDuration * 0.44), baseGain * 1.9, "sine");
-    playMusicTone(44, startAt + 0.01, Math.min(0.16, stepDuration * 0.38), baseGain * 1.2, "triangle");
-    return;
-  }
-  const length = Math.max(1, Math.floor(ctxAudio.sampleRate * Math.min(0.14, stepDuration * 0.36)));
-  const buffer = ctxAudio.createBuffer(1, length, ctxAudio.sampleRate);
-  const channel = buffer.getChannelData(0);
-  for (let i = 0; i < length; i += 1) {
-    channel[i] = Math.random() * 2 - 1;
-  }
-  const source = ctxAudio.createBufferSource();
-  const filter = ctxAudio.createBiquadFilter();
-  const gain = ctxAudio.createGain();
-  source.buffer = buffer;
-  if (kind === "snare") {
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(1800, startAt);
-    gain.gain.setValueAtTime(baseGain * 1.5, startAt);
-  } else {
-    filter.type = "highpass";
-    filter.frequency.setValueAtTime(5000, startAt);
-    gain.gain.setValueAtTime(baseGain * 0.95, startAt);
-  }
-  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + Math.min(0.12, stepDuration * 0.32));
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(state.audio.musicBus);
-  source.start(startAt);
-  source.stop(startAt + Math.min(0.16, stepDuration * 0.38));
+  stopMusicLoopMonitor();
+  Object.values(state.audio.musicElements || {}).forEach((audioEl) => {
+    if (!audioEl) return;
+    audioEl.pause();
+    try {
+      audioEl.currentTime = 0;
+    } catch {}
+  });
+  state.audio.currentMusicTrack = null;
+  state.audio.currentMusicElement = null;
 }
 
 function resolveWorldMusicMode() {
@@ -12170,14 +14315,14 @@ function resolveWorldMusicMode() {
   if (feature?.type === "dungeon") return "worldDungeon";
   if (feature?.type === "city" || feature?.type === "town") return "worldTown";
   if (!tile) return "world";
-  if (tile.biome === "forest") return "worldForest";
-  if (tile.biome === "swamp") return "worldSwamp";
-  if (tile.biome === "badlands") return "worldBadlands";
+  if (tile.biome === "forest" || tile.biome === "highlands") return "worldForest";
+  if (tile.biome === "swamp" || tile.biome === "coast") return "worldSwamp";
+  if (tile.biome === "badlands" || tile.biome === "ruins") return "worldBadlands";
   return "world";
 }
 
 function resolveMusicModeForCurrentContext() {
-  if (state.screen === "combat") return "combat";
+  if (state.screen === "combat") return state.combat?.enemy?.isBoss ? "combatBoss" : "combat";
   if (state.screen === "world") return resolveWorldMusicMode();
   return "menu";
 }
@@ -12186,15 +14331,16 @@ function syncMusicForCurrentContext() {
   if (state.audio.victoryTimeoutId && state.audio.mode === "victory") return;
   const mode = resolveMusicModeForCurrentContext();
   setMusicMode(mode);
-  if (state.options.musicEnabled && state.audio.started && !state.audio.intervalId) startMusicLoop();
+  if (state.options.musicEnabled && state.audio.started && !state.audio.currentMusicElement) startMusicLoop();
 }
 
 function setMusicMode(mode) {
-  const nextMode = MUSIC_THEMES[mode] ? mode : "menu";
-  if (state.audio.mode === nextMode) return;
+  const nextMode = MUSIC_MODE_TRACKS[mode] ? mode : "menu";
+  const nextTrack = getMusicTrackKeyForMode(nextMode);
+  if (state.audio.mode === nextMode && state.audio.currentMusicTrack === nextTrack && state.audio.currentMusicElement) return;
   state.audio.mode = nextMode;
-  state.audio.step = 0;
   if (state.audio.started && state.options.musicEnabled) {
+    if (state.audio.currentMusicTrack === nextTrack && state.audio.currentMusicElement) return;
     stopMusicLoop();
     startMusicLoop();
   }
@@ -12208,7 +14354,9 @@ function triggerVictoryFanfare(isBoss) {
   const duration = isBoss ? 4600 : 3300;
   state.audio.victoryTimeoutId = window.setTimeout(() => {
     state.audio.victoryTimeoutId = null;
-    const nextMode = state.combat && !state.combat.result ? "combat" : resolveWorldMusicMode();
+    const nextMode = state.combat && !state.combat.result
+      ? resolveMusicModeForCurrentContext()
+      : resolveWorldMusicMode();
     setMusicMode(nextMode);
   }, duration);
 }

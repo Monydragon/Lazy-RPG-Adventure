@@ -12,6 +12,9 @@
   --forest: #1f5a3a;
   --swamp: #35646e;
   --badlands: #865f43;
+  --highlands: #60748c;
+  --coast: #3f7b88;
+  --ruins: #6e5968;
 }
 
 * {
@@ -373,7 +376,13 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.map-scene {
+  position: relative;
+  isolation: isolate;
+}
+
 #map-canvas {
+  display: block;
   width: 100%;
   height: min(62vh, 560px);
   max-width: 100%;
@@ -448,6 +457,40 @@ button:disabled {
 .world-interact-popup[data-state="depleted"]::after {
   border-right-color: #7a6b4f;
   border-bottom-color: #7a6b4f;
+}
+
+.world-log-popup {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 6;
+  width: min(360px, calc(100% - 1.5rem));
+  max-width: calc(100% - 1.5rem);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #6ea882;
+  border-radius: 12px;
+  background: rgba(14, 21, 29, 0.97);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.world-log-popup strong,
+.world-log-popup p {
+  display: block;
+}
+
+.world-log-popup strong {
+  color: #a8e0bb;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.world-log-popup p {
+  margin: 0.26rem 0 0;
+  color: #f2f6fd;
+  line-height: 1.35;
 }
 
 #screen-world.hud-stacked .world-layout {
@@ -916,8 +959,39 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.option-entry {
+  border: 1px solid #425367;
+  border-radius: 10px;
+  background: rgba(18, 25, 34, 0.88);
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.6rem;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.option-entry:hover {
+  transform: translateY(-1px);
+  background: #1d2937;
+}
+
+.option-entry.option-enabled {
+  border-color: #7eb56d;
+  background: linear-gradient(180deg, rgba(41, 59, 36, 0.92), rgba(28, 40, 26, 0.92));
+}
+
+.toggle.option-entry {
+  justify-content: space-between;
+  flex-direction: row-reverse;
+}
+
+.option-entry.focused {
+  outline: 2px solid var(--accent);
+  border-color: var(--accent);
+  background: #27384a;
+}
+
 .option-slider {
-  margin-top: 0.75rem;
+  margin-top: 0;
 }
 
 .slider-row {
